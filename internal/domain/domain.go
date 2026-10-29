@@ -4,7 +4,10 @@
 // happens for display and for aligning slots to local wall-clock boundaries.
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Direction is the energy direction of a battery slot.
 type Direction string
@@ -124,24 +127,44 @@ type PlanSummary struct {
 	Currency     string  `json:"currency"`
 }
 
+// PlanCurvePoint is one simulated block of a battery plan.
+type PlanCurvePoint struct {
+	Start       time.Time `json:"start"`
+	End         time.Time `json:"end"`
+	PriceImport float64   `json:"price_import"`
+	PriceExport float64   `json:"price_export"`
+	PVW         float64   `json:"pv_w"`
+	PVPlanW     float64   `json:"pv_plan_w"`
+	LoadW       float64   `json:"load_w"`
+	EVW         float64   `json:"ev_w"`
+	BatteryW    float64   `json:"battery_w"`
+	SOC         float64   `json:"soc"`
+	Cost        float64   `json:"cost"`
+	Missing     bool      `json:"missing"`
+}
+
 // Plan is a complete battery schedule over a horizon.
 type Plan struct {
-	ID           int64       `json:"id"`
-	CreatedAt    time.Time   `json:"created_at"`
-	HorizonStart time.Time   `json:"horizon_start"`
-	HorizonEnd   time.Time   `json:"horizon_end"`
-	Timezone     string      `json:"timezone"`
-	Status       PlanStatus  `json:"status"`
-	Origin       PlanOrigin  `json:"origin"`
-	Revision     int         `json:"revision"`
-	LockedDay    string      `json:"locked_day,omitempty"`
-	Note         string      `json:"note,omitempty"`
-	InputsHash   string      `json:"inputs_hash,omitempty"`
-	Summary      PlanSummary `json:"summary"`
-	Slots        []Slot      `json:"slots"`
-	AppliedAt    *time.Time  `json:"applied_at,omitempty"`
-	AppliedBy    string      `json:"applied_by,omitempty"`
-	ParentPlanID *int64      `json:"parent_plan_id,omitempty"`
+	ID           int64            `json:"id"`
+	CreatedAt    time.Time        `json:"created_at"`
+	HorizonStart time.Time        `json:"horizon_start"`
+	HorizonEnd   time.Time        `json:"horizon_end"`
+	Timezone     string           `json:"timezone"`
+	Status       PlanStatus       `json:"status"`
+	Origin       PlanOrigin       `json:"origin"`
+	Revision     int              `json:"revision"`
+	LockedDay    string           `json:"locked_day,omitempty"`
+	Note         string           `json:"note,omitempty"`
+	InputsHash   string           `json:"inputs_hash,omitempty"`
+	Summary      PlanSummary      `json:"summary"`
+	Slots        []Slot           `json:"slots"`
+	Curve        []PlanCurvePoint `json:"curve,omitempty"`
+	Warnings     []string         `json:"warnings,omitempty"`
+	NoPlanReason string           `json:"no_plan_reason,omitempty"`
+	Inputs       json.RawMessage  `json:"inputs,omitempty"`
+	AppliedAt    *time.Time       `json:"applied_at,omitempty"`
+	AppliedBy    string           `json:"applied_by,omitempty"`
+	ParentPlanID *int64           `json:"parent_plan_id,omitempty"`
 }
 
 // Telemetry is one inverter/meter/battery sample.

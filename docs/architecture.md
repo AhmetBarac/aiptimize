@@ -72,6 +72,19 @@ keys enabled, and a single pooled connection.
 | API | `GET /forecast`, `POST /forecast/refresh`, `GET /solar`, forecast fields in `/status`, SSE `forecast` events |
 | UI | dashboard 24/48-hour PV/load chart and today's solar sparkline; full-page solar production/forecast/load chart; Solar/Load settings |
 
+## Phase 4 — battery planner
+
+| Area | Implementation |
+|---|---|
+| Optimiser | `internal/planner`, pure Go DP over 30-minute blocks and 0.5 % SOC steps, slot-atomic transitions, deterministic tie-breaking |
+| Constraints | 4 slots/day default, 30–240 min slots, half-hour starts, no midnight crossing, reserve SOC, site import limit, efficiency and cycle cost |
+| Inputs | prices, PV at confidence, load, EV hook, fresh SOC, battery limits and plan settings; exact inputs stored with the plan |
+| Policy | no-battery baseline, minimum daily saving, price-gap truncation, stale SOC/price blocking, stale forecast PV = 0 |
+| Persistence | `plans` + `plan_slots`, curve/warnings in migration 0002, inputs hash |
+| Service | startup + 5-minute automatic recompute, `POST /plan/recompute`, keeps the previous plan on failure |
+| API | `GET /plan`, `POST /plan/recompute`, plan summary/slots in `/status`, SSE `plan` event |
+| UI | plan summary, combined price/PV/load/battery/SOC chart, slot table, dry-run label, Plan settings |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -92,10 +105,10 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phases 0–3 actively use `users`, `sessions`, `settings`,
-`events`, `prices` and `telemetry`; forecasts are cached in memory until phase 4
-stores the exact input snapshot with each plan. Timestamps are RFC3339 UTC text;
-local-day keys are `YYYY-MM-DD` in the site timezone.
+by the first migration. Phases 0–4 actively use `users`, `sessions`, `settings`,
+`events`, `prices`, `telemetry`, `plans` and `plan_slots`; forecasts are cached
+in memory and the exact planner inputs are stored with each plan. Timestamps are
+RFC3339 UTC text; local-day keys are `YYYY-MM-DD` in the site timezone.
 
 Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
 expired sessions removed. WAL is checkpointed on graceful shutdown.
@@ -111,11 +124,12 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions after phase 3
+## Deliberate omissions after phase 4
 
-Planning, actuation and EV control are stubs by design. `/status` reports their
-availability as `false`; the UI shows the phase in which each arrives. No code
-path writes to hardware.
+Manual plan editing, draft revisions, locks, apply/reconcile and EV charging are
+phase 5–6 work. `/status` reports `plan_editing`, `actuation` and `ev_charging`
+as `false`; the UI shows the phase in which each arrives. No code path writes to
+hardware.
 
 ## Phase roadmap
 
@@ -124,7 +138,7 @@ path writes to hardware.
 | 1 ✅ | Nord Pool client, cache, 15→30-minute aggregation, `/prices` UI |
 | 2 ✅ | Solplanet client, codec, simulator, 30 s telemetry, energy-flow dashboard |
 | 3 ✅ | Open-Meteo PV model per MPPT, load profile, forecast UI |
-| 4 | Deterministic DP battery planner, plan API and chart |
+| 4 ✅ | Deterministic DP battery planner, plan API and chart |
 | 5 | Schedule writer, reconciler, watchdog, plan drafts/editing/resubmit |
 | 6 | Charger interface, Zaptec cloud adapter, EV plans and controller |
 | 7 | History, PWA, backups, Playwright, security review, v1.0 |

@@ -58,6 +58,8 @@ An `Origin` header, when present, must match the request host.
 | GET | `/api/v1/forecast` | yes | 48-hour PV/load snapshot |
 | POST | `/api/v1/forecast/refresh` | yes | Refresh the forecast from Open-Meteo |
 | GET | `/api/v1/solar` | yes | Today's measured PV, forecast band and load |
+| GET | `/api/v1/plan` | yes | Latest stored battery plan |
+| POST | `/api/v1/plan/recompute` | yes | Recompute the automatic plan (dry run) |
 | POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
@@ -275,6 +277,26 @@ and need no arm gate. The full model is documented in
 The measured value is the 30-minute average of stored `pv_w` samples; it is
 `null` before measurement. The expected band comes from `pv.confidence` and is
 clamped to the inverter AC limit.
+
+### Battery plan
+
+`GET /api/v1/plan` returns the newest plan, or `404 plan_unavailable` before the
+first computation. The plan contains `horizon_start`, `horizon_end`, `timezone`,
+`status`, `origin`, `inputs_hash`, `summary`, `slots`, `curve`, `warnings` and
+`inputs`. Slots carry direction, power, energy, average price and expected
+saving; the curve carries price, PV, load, battery power and SOC for every
+30-minute block.
+
+`POST /api/v1/plan/recompute` recomputes, stores and returns a suggestion. It
+is a dry run and does not require the hardware arm gate. Errors:
+
+- `409 soc_stale` — no SOC or older than 5 minutes; the previous plan is kept.
+- `503 price_stale` — no price blocks for the horizon.
+- `422 plan_infeasible` — no schedule satisfies SOC/slot constraints.
+
+`/status.plan` contains `available`, `id`, horizon, summary, slots, the next
+upcoming slot, warnings and the no-plan reason. The full model is in
+[planning.md](planning.md).
 
 ## Planned endpoints
 

@@ -48,7 +48,10 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   const nav = page.getByRole('navigation', { name: 'Aiptimize' })
   await nav.getByRole('link', { name: 'Plan' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Battery plan' })).toBeVisible()
+  await page.getByRole('button', { name: 'Recompute' }).first().click()
+  await expect(page.locator('.plan-chart canvas')).toBeVisible({ timeout: 20_000 })
   await expectNoHorizontalScroll(page)
+  await page.screenshot({ path: 'e2e/screenshots/plan-mobile.png', fullPage: true })
 
   await nav.getByRole('link', { name: 'Prices' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Prices' })).toBeVisible()
@@ -91,6 +94,11 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Add string' })).toBeVisible()
   await expectNoHorizontalScroll(page)
   await page.screenshot({ path: 'e2e/screenshots/settings-solar.png', fullPage: true })
+
+  const settingsNav = page.getByRole('navigation', { name: 'Settings sections' })
+  await settingsNav.getByRole('link', { name: 'Plan', exact: true }).click()
+  await expect(page.getByLabel('Max slots per day')).toHaveValue('4')
+  await page.screenshot({ path: 'e2e/screenshots/settings-plan.png', fullPage: true })
 
   // Desktop layout uses the sidebar.
   await page.setViewportSize({ width: 1280, height: 800 })

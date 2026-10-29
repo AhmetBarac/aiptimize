@@ -141,11 +141,11 @@ func TestPricePollerRetriesNotPublished(t *testing.T) {
 	}
 }
 
-func TestPricePollerStopsTomorrowAt23(t *testing.T) {
+func TestPricePollerRetriesTomorrowLate(t *testing.T) {
 	clock := time.Date(2026, 10, 29, 23, 30, 0, 0, testLoc)
 	poller, fetcher := newTestPoller(t, &clock)
 	poller.tick(context.Background())
-	if got := fetcher.count("2026-10-30"); got != 0 {
-		t.Fatalf("tomorrow attempts at 23:30 = %d, want 0", got)
+	if got := fetcher.count("2026-10-30"); got != 1 {
+		t.Fatalf("tomorrow attempts at 23:30 = %d, want 1", got)
 	}
 }

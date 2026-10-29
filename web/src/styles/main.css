@@ -581,6 +581,95 @@ a {
   color: var(--aipt-orange);
 }
 
+.badge-charge {
+  background: rgba(50, 215, 75, 0.14);
+  color: var(--aipt-green);
+}
+
+.badge-discharge {
+  background: var(--aipt-orange-soft);
+  color: var(--aipt-orange);
+}
+
+.plan-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.plan-stats .aipt-card {
+  padding: 0.9rem;
+}
+
+.plan-value {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.3rem;
+  font-weight: 620;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-value .unit {
+  font-size: 0.7rem;
+  color: var(--aipt-muted);
+  margin-left: 0.2rem;
+  font-weight: 500;
+}
+
+@media (min-width: 768px) {
+  .plan-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.plan-table {
+  margin-bottom: 0;
+  font-size: 0.82rem;
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--aipt-text);
+  --bs-table-border-color: var(--aipt-border);
+}
+
+.plan-table td:first-child {
+  white-space: nowrap;
+}
+
+.plan-home-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.plan-home-stats .tile-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--aipt-muted);
+  margin-bottom: 0.2rem;
+}
+
+.plan-home-stats strong {
+  font-size: 1.15rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-home-stats .unit {
+  font-size: 0.7rem;
+  color: var(--aipt-muted);
+  margin-left: 0.2rem;
+  font-weight: 500;
+}
+
+.plan-home-stats .plan-next {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 560;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
 .key-value {
   display: flex;
   justify-content: space-between;

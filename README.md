@@ -9,12 +9,11 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 3 (forecast) complete.** Prices, read-only Solplanet telemetry
-> and a 48-hour PV/load forecast are running: 15/30-minute prices, 30 s inverter
-> polling, per-MPPT Open-Meteo forecasting, measured-load blending and a
-> dark-first dashboard with forecast and price charts. Verified against a real
-> ASW08kH-T2 dongle. Battery planning, actuation and EV control follow in
-> phases 4–6. Nothing in this build writes to hardware.
+> **Status: phase 4 (battery planner) complete.** Prices, read-only Solplanet
+> telemetry, a 48-hour PV/load forecast and a deterministic battery schedule
+> suggestion are running. The planner is a dry run: no schedule is written to
+> hardware. Verified against a real ASW08kH-T2 dongle. Manual plan editing,
+> actuation and EV control follow in phases 5–6.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -101,6 +100,9 @@ hardware with deterministic in-process simulators — useful for demos and tests
   derived house load, with sign calibration and a connection test.
 - 48-hour PV forecast per MPPT string from Open-Meteo tilted irradiance and a
   temperature model, with optional measured-PV calibration.
+- Deterministic 30-minute battery planner: price/PV/load inputs, SOC and reserve
+  constraints, slot budget, import limit, savings baseline and a dry-run plan
+  with chart and schedule table.
 - House-load forecast from a configurable profile, blended with 14 days of
   measured load when available.
 - Solar overview card with today's sparkline and a full-page production chart
@@ -122,7 +124,8 @@ internal/auth/       PBKDF2-SHA256, session and CSRF tokens
 internal/prices/     Nord Pool client, aggregation, tariffs, simulator
 internal/inverter/   read-only inverter contract, Solplanet client, codec, simulator
 internal/forecast/   Open-Meteo client, PV model, load profile
-internal/service/    background loops (price, telemetry, forecast)
+internal/planner/    deterministic battery DP optimiser
+internal/service/    background loops (price, telemetry, forecast, planner)
 internal/api/        HTTP API, auth/CSRF middleware, SSE, embedded SPA
 internal/webui/      go:embed of the built Vue app
 internal/domain/     shared value types
@@ -139,6 +142,7 @@ docs/                architecture, prices, telemetry, solplanet, API, safety, de
 - [User interface](docs/ui.md)
 - [Prices](docs/prices.md)
 - [Forecast](docs/forecast.md)
+- [Battery planning](docs/planning.md)
 - [Telemetry](docs/telemetry.md)
 - [Solplanet dongle](docs/solplanet.md)
 - [HTTP API](docs/api.md)

@@ -100,7 +100,10 @@ serial and sign calibration, then use **Test connection**. Telemetry starts on
 the next poll (at most one interval, 30 s by default). Under **Settings →
 Solar**, add the MPPT strings (name, kWp, tilt, compass azimuth) and save; the
 forecast refreshes within the configured interval. **Settings → Load** sets the
-daily house energy and measured-profile blending. Set
+daily house energy and measured-profile blending. **Settings → Plan** sets the
+optimiser horizon, slot budget, setpoints and reserve policy. The planner
+computes a dry-run suggestion automatically 8 s after startup and every 5
+minutes; it never writes to the inverter in phase 4. Set
 `AIPTIMIZE_SIMULATOR=true` to run without a dongle or internet weather.
 
 ## Upgrades

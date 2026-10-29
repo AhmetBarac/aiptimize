@@ -60,6 +60,13 @@ Full-page chart with today's measured production (green area), expected curve
 (blue), plus current output, produced/expected/load kWh and the estimate range.
 A back button returns to the dashboard.
 
+## Battery plan
+
+Summary cards (savings, plan cost, no-battery cost, slots, cycles), one chart
+with import price, PV, house load, battery bars and SOC, shaded slot windows,
+and a schedule table. The screen is explicitly a dry run. The dashboard shows
+savings, plan cost and the next slot, linking to the plan.
+
 ## Prices
 
 Segmented day tabs, a 15-minute bar chart with a "now" marker, min/max/average
@@ -68,8 +75,9 @@ breakdown and attribution.
 
 ## Settings
 
-Segmented section pills (Site, Inverter, Solar, Load, Safety, System) and
+Segmented section pills (Site, Inverter, Solar, Load, Plan, Safety, System) and
 generous forms. Inverter includes a read-only connection test whose result is
 shown as a green summary card. Solar edits 1–3 MPPT strings and forecast
 parameters; Load edits daily energy, measured-profile blending and the 24-hour
-profile.
+profile; Plan edits the slot budget, horizon, saving threshold, setpoints and
+end-SOC policy.

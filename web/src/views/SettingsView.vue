@@ -10,7 +10,7 @@ import PageHead from '../components/PageHead.vue'
 const { t } = useI18n()
 const route = useRoute()
 
-const sections = ['site', 'inverter', 'solar', 'load', 'safety', 'system'] as const
+const sections = ['site', 'inverter', 'solar', 'load', 'plan', 'safety', 'system'] as const
 const section = computed(() => {
   const value = String(route.params.section ?? 'site')
   return (sections as readonly string[]).includes(value) ? value : 'site'
@@ -94,6 +94,18 @@ const loadForm = reactive({
   profile: [] as number[],
 })
 
+const planForm = reactive({
+  maxSlots: 4,
+  maxSlotMin: 240,
+  horizonDays: 2,
+  minDailySaving: 1,
+  preserveSoc: true,
+  endSoc: 50,
+  chargeW: 6000,
+  dischargeW: 3000,
+  allowGrid: true,
+})
+
 onMounted(load)
 
 async function load(): Promise<void> {
@@ -131,6 +143,15 @@ async function load(): Promise<void> {
     loadForm.dailyKwh = doc.load.daily_kwh
     loadForm.useMeasured = doc.load.use_measured_profile
     loadForm.profile = [...doc.load.profile]
+    planForm.maxSlots = doc.plan.max_slots_per_day
+    planForm.maxSlotMin = doc.plan.max_slot_min
+    planForm.horizonDays = doc.plan.horizon_days
+    planForm.minDailySaving = doc.plan.min_daily_saving
+    planForm.preserveSoc = doc.plan.preserve_soc
+    planForm.endSoc = doc.plan.end_soc_target
+    planForm.chargeW = doc.plan.charge_w
+    planForm.dischargeW = doc.plan.discharge_w
+    planForm.allowGrid = doc.plan.allow_discharge_to_grid
     safetyForm.writes = doc.safety.writes_armed_ui
     safetyForm.ev = doc.safety.ev_control_armed_ui
     safetyForm.watchdog = doc.safety.watchdog_clear_after_s
@@ -300,6 +321,31 @@ async function saveLoad(): Promise<void> {
       use_measured_profile: loadForm.useMeasured,
     })
     saved.value = t('settings.loadSaved')
+    await load()
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function savePlan(): Promise<void> {
+  saving.value = true
+  error.value = ''
+  saved.value = ''
+  try {
+    await patchSettings('plan', {
+      max_slots_per_day: Number(planForm.maxSlots),
+      max_slot_min: Number(planForm.maxSlotMin),
+      horizon_days: Number(planForm.horizonDays),
+      min_daily_saving: Number(planForm.minDailySaving),
+      preserve_soc: planForm.preserveSoc,
+      end_soc_target: Number(planForm.endSoc),
+      charge_w: Number(planForm.chargeW),
+      discharge_w: Number(planForm.dischargeW),
+      allow_discharge_to_grid: planForm.allowGrid,
+    })
+    saved.value = t('settings.planSaved')
     await load()
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
@@ -635,6 +681,57 @@ async function saveLoad(): Promise<void> {
         <button class="btn btn-primary mt-4" type="submit" :disabled="saving">
           <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ saving ? t('common.saving') : t('settings.saveLoad') }}
+        </button>
+      </form>
+    </section>
+
+    <section v-else-if="section === 'plan'" class="aipt-card">
+      <h2>{{ t('settings.sections.plan') }}</h2>
+      <p class="text-muted small">{{ t('settings.planIntro') }}</p>
+      <form novalidate @submit.prevent="savePlan">
+        <div class="row g-3">
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-slots">{{ t('settings.maxSlots') }}</label>
+            <input id="plan-slots" v-model.number="planForm.maxSlots" class="form-control" type="number" min="1" max="6" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-min">{{ t('settings.maxSlotMin') }}</label>
+            <input id="plan-min" v-model.number="planForm.maxSlotMin" class="form-control" type="number" min="30" max="240" step="30" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-days">{{ t('settings.horizonDays') }}</label>
+            <input id="plan-days" v-model.number="planForm.horizonDays" class="form-control" type="number" min="1" max="2" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-saving">{{ t('settings.minDailySaving') }}</label>
+            <input id="plan-saving" v-model.number="planForm.minDailySaving" class="form-control" type="number" min="0" step="0.1" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-charge">{{ t('settings.planChargeW') }}</label>
+            <input id="plan-charge" v-model.number="planForm.chargeW" class="form-control" type="number" min="1" step="100" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-discharge">{{ t('settings.planDischargeW') }}</label>
+            <input id="plan-discharge" v-model.number="planForm.dischargeW" class="form-control" type="number" min="1" step="100" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-end">{{ t('settings.endSoc') }}</label>
+            <input id="plan-end" v-model.number="planForm.endSoc" class="form-control" type="number" min="0" max="100" step="1" />
+          </div>
+          <div class="col-12 col-sm-3 d-flex flex-column justify-content-end">
+            <div class="form-check form-switch mb-2">
+              <input id="plan-preserve" v-model="planForm.preserveSoc" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="plan-preserve">{{ t('settings.preserveSoc') }}</label>
+            </div>
+            <div class="form-check form-switch mb-2">
+              <input id="plan-grid" v-model="planForm.allowGrid" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="plan-grid">{{ t('settings.allowGridDischarge') }}</label>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary mt-4" type="submit" :disabled="saving">
+          <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          {{ saving ? t('common.saving') : t('settings.savePlan') }}
         </button>
       </form>
     </section>

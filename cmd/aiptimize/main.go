@@ -153,6 +153,7 @@ func runServe() int {
 		Version:   cfg.Version,
 	})
 	solarSvc := service.NewSolarService(settingsSvc, st, forecastSvc)
+	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
 
 	srv := api.New(api.Deps{
 		Config:    cfg,
@@ -162,6 +163,7 @@ func runServe() int {
 		Telemetry: telemetryPoller,
 		Forecast:  forecastSvc,
 		Solar:     solarSvc,
+		Planner:   plannerSvc,
 		Broker:    broker,
 		Logger:    logger,
 		WebFS:     webui.FS(),
@@ -170,6 +172,7 @@ func runServe() int {
 	go service.NewPricePoller(priceSvc, settingsSvc, logger, broker).Run(ctx)
 	go telemetryPoller.Run(ctx)
 	go forecastSvc.Run(ctx)
+	go plannerSvc.Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

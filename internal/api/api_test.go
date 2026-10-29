@@ -40,6 +40,7 @@ type testAPI struct {
 	telemetry *service.TelemetryPoller
 	inverter  *fakeInverter
 	forecast  *service.ForecastService
+	planner   *service.PlannerService
 }
 
 // apiPVFetcher returns a constant 800 W/m² series for every request.
@@ -143,9 +144,11 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 		NewFetcher: func(settings.Values) (pv.Fetcher, error) { return &apiPVFetcher{}, nil },
 	})
 	solarSvc := service.NewSolarService(svc, st, forecastSvc)
+	plannerSvc := service.NewPlannerService(st, svc, priceSvc, forecastSvc, telemetrySvc, logger, nil)
 	srv := New(Deps{
 		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,
-		Telemetry: telemetrySvc, Forecast: forecastSvc, Solar: solarSvc, Logger: logger, WebFS: web,
+		Telemetry: telemetrySvc, Forecast: forecastSvc, Solar: solarSvc, Planner: plannerSvc,
+		Logger: logger, WebFS: web,
 	})
 	ts := httptest.NewServer(srv.Handler())
 
@@ -158,7 +161,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	return &testAPI{
 		t: t, server: ts, client: client, jar: jar, store: st,
 		settings: svc, prices: priceSvc, fetcher: fetcher,
-		telemetry: telemetrySvc, inverter: fakeInv, forecast: forecastSvc,
+		telemetry: telemetrySvc, inverter: fakeInv, forecast: forecastSvc, planner: plannerSvc,
 	}
 }
 
@@ -269,7 +272,8 @@ func TestPublicEndpoints(t *testing.T) {
 		t.Error("CSRF cookie was not issued")
 	}
 	features := meta["features"].(map[string]any)
-	if features["prices"] != true || features["telemetry"] != true || features["forecast"] != true || features["phase"].(float64) != 3 {
+	if features["prices"] != true || features["telemetry"] != true || features["forecast"] != true ||
+		features["battery_plan"] != true || features["phase"].(float64) != 4 {
 		t.Errorf("features = %v", features)
 	}
 

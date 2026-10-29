@@ -157,6 +157,19 @@ const forecastUpdated = computed(() => {
 })
 const forecastWarnings = computed(() => forecast.value?.warnings ?? [])
 
+function planTime(iso: string | undefined): string {
+  if (!iso) return '—'
+  return new Intl.DateTimeFormat(locale.value, {
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: status.value?.site.timezone ?? 'UTC',
+  }).format(new Date(iso))
+}
+
+const nextSlot = computed(() => status.value?.plan?.next_slot ?? null)
+
 const socStyle = computed<Record<string, string>>(() => ({
   '--soc': String(hasData.value && sample.value ? Math.round(sample.value.soc) : 0),
 }))
@@ -474,6 +487,31 @@ const sources = computed(() => {
       </section>
     </div>
   </div>
+
+  <section v-if="status?.plan?.available" class="aipt-card mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="mb-0">{{ t('plan.title') }}</h2>
+      <router-link to="/plan" class="small">{{ t('plan.open') }} →</router-link>
+    </div>
+    <div class="plan-home-stats">
+      <div>
+        <span class="tile-label">{{ t('plan.savings') }}</span>
+        <strong>{{ money(status?.plan?.summary?.savings ?? 0, 2) }}<span class="unit">{{ currency }}</span></strong>
+      </div>
+      <div>
+        <span class="tile-label">{{ t('plan.cost') }}</span>
+        <strong>{{ money(status?.plan?.summary?.cost ?? 0, 2) }}<span class="unit">{{ currency }}</span></strong>
+      </div>
+      <div>
+        <span class="tile-label">{{ t('plan.nextSlot') }}</span>
+        <strong v-if="nextSlot" class="plan-next">
+          {{ nextSlot.direction === 'charge' ? t('plan.charge') : t('plan.discharge') }}
+          {{ planTime(nextSlot.start) }}
+        </strong>
+        <strong v-else class="plan-next">{{ t('plan.noUpcoming') }}</strong>
+      </div>
+    </div>
+  </section>
 
   <div class="row g-3 mt-1">
     <div class="col-12 col-lg-7">

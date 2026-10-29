@@ -28,6 +28,7 @@ type Deps struct {
 	Telemetry *service.TelemetryPoller
 	Forecast  *service.ForecastService
 	Solar     *service.SolarService
+	Planner   *service.PlannerService
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
@@ -42,6 +43,7 @@ type Server struct {
 	telemetry *service.TelemetryPoller
 	forecast  *service.ForecastService
 	solar     *service.SolarService
+	planner   *service.PlannerService
 	log       *slog.Logger
 	web       fs.FS
 	started   time.Time
@@ -67,6 +69,7 @@ func New(d Deps) *Server {
 		telemetry:    d.Telemetry,
 		forecast:     d.Forecast,
 		solar:        d.Solar,
+		planner:      d.Planner,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
@@ -100,6 +103,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/forecast", s.requireAuth(s.handleForecast))
 	s.mux.HandleFunc("POST /api/v1/forecast/refresh", s.requireAuth(s.handleRefreshForecast))
 	s.mux.HandleFunc("GET /api/v1/solar", s.requireAuth(s.handleSolar))
+	s.mux.HandleFunc("GET /api/v1/plan", s.requireAuth(s.handleGetPlan))
+	s.mux.HandleFunc("POST /api/v1/plan/recompute", s.requireAuth(s.handleRecomputePlan))
 	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
@@ -168,11 +173,11 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        3,
+		"phase":        4,
 		"prices":       true,
 		"telemetry":    true,
 		"forecast":     true,
-		"battery_plan": false,
+		"battery_plan": true,
 		"actuation":    false,
 		"plan_editing": false,
 		"ev_charging":  false,
@@ -247,7 +252,7 @@ func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 		"prices":    s.priceStatus(ctx),
 		"telemetry": s.telemetryStatus(),
 		"forecast":  s.forecastStatus(),
-		"plan":      nil,
+		"plan":      s.planStatus(ctx),
 		"ev":        map[string]any{"available": false},
 		"schedule":  map[string]any{"available": false},
 		"checks":    s.checks(),

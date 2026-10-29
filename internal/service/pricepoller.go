@@ -23,7 +23,6 @@ const (
 	todayRefreshInterval  = 6 * time.Hour
 	providerRetryInterval = 15 * time.Minute
 	tomorrowPublishMinute = 13*60 + 2
-	tomorrowStopHour      = 23
 )
 
 // PricePoller keeps today and tomorrow prices fresh:
@@ -111,9 +110,6 @@ func (p *PricePoller) ensureToday(ctx context.Context, today, now time.Time) {
 
 func (p *PricePoller) ensureTomorrow(ctx context.Context, today, now time.Time) {
 	if now.Hour()*60+now.Minute() < tomorrowPublishMinute {
-		return
-	}
-	if now.Hour() >= tomorrowStopHour {
 		return
 	}
 	tomorrow := today.AddDate(0, 0, 1)

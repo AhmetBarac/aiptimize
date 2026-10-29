@@ -142,6 +142,92 @@ export interface LoadSettings {
   use_measured_profile: boolean
 }
 
+export interface PlanSettings {
+  max_slots_per_day: number
+  max_slot_min: number
+  horizon_days: number
+  min_daily_saving: number
+  preserve_soc: boolean
+  end_soc_target: number
+  soc_step_pct: number
+  charge_w: number
+  discharge_w: number
+  allow_discharge_to_grid: boolean
+}
+
+export interface PlanSummary {
+  cost: number
+  baseline_cost: number
+  savings: number
+  charge_kwh: number
+  discharge_kwh: number
+  cycles: number
+  slot_count: number
+  currency: string
+}
+
+export interface PlanSlot {
+  id?: number
+  day_local: string
+  start: string
+  end: string
+  direction: 'charge' | 'discharge'
+  power_w: number
+  energy_kwh: number
+  avg_import_price: number
+  expected_saving: number
+  reason?: string
+}
+
+export interface PlanCurvePoint {
+  start: string
+  end: string
+  price_import: number
+  price_export: number
+  pv_w: number
+  pv_plan_w: number
+  load_w: number
+  ev_w: number
+  battery_w: number
+  soc: number
+  cost: number
+  missing: boolean
+}
+
+export interface Plan {
+  id: number
+  created_at: string
+  horizon_start: string
+  horizon_end: string
+  timezone: string
+  status: 'suggestion' | 'draft' | 'applied' | 'superseded' | 'expired'
+  origin: 'auto' | 'manual'
+  revision: number
+  locked_day?: string
+  note?: string
+  inputs_hash?: string
+  summary: PlanSummary
+  slots: PlanSlot[]
+  curve: PlanCurvePoint[]
+  warnings: string[]
+  no_plan_reason?: string
+  inputs?: Record<string, unknown>
+}
+
+export interface PlanStatus {
+  available: boolean
+  id?: number
+  created_at?: string
+  horizon_start?: string
+  horizon_end?: string
+  status?: string
+  summary?: PlanSummary
+  slots?: PlanSlot[]
+  next_slot?: PlanSlot | null
+  warnings?: string[]
+  no_plan_reason?: string
+}
+
 export interface Status {
   version: string
   now: string
@@ -156,7 +242,7 @@ export interface Status {
   telemetry: TelemetryStatus
   prices: PriceStatus
   forecast: ForecastStatus
-  plan: unknown
+  plan: PlanStatus
   ev: { available: boolean }
   schedule: { available: boolean }
   checks: Record<string, string>
@@ -292,7 +378,7 @@ export interface SettingsDocument {
   price: PriceSettings
   safety: SafetySettings
   pv: PVSettings
-  plan: Record<string, unknown>
+  plan: PlanSettings
   load: LoadSettings
   ev: Record<string, unknown>
 }
