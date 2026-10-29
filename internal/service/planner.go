@@ -25,6 +25,12 @@ var (
 	ErrPlanUnavailable   = errors.New("planner: no plan yet")
 )
 
+// EVLoadProvider supplies planned EV load and grid-charge windows.
+type EVLoadProvider interface {
+	EVLoadW(start time.Time) float64
+	EVGridWindows(from, to time.Time) []bool
+}
+
 // PlannerService builds and stores the automatic battery suggestion.
 type PlannerService struct {
 	st        *store.Store
@@ -32,10 +38,14 @@ type PlannerService struct {
 	prices    *prices.Service
 	forecast  *ForecastService
 	telemetry *TelemetryPoller
+	ev        EVLoadProvider
 	log       *slog.Logger
 	now       func() time.Time
 	publish   func(string, any)
 }
+
+// SetEVProvider wires the EV planner into the battery planner.
+func (s *PlannerService) SetEVProvider(provider EVLoadProvider) { s.ev = provider }
 
 // NewPlannerService builds the planner.
 func NewPlannerService(st *store.Store, cfg *settings.Service, priceSvc *prices.Service,
@@ -111,6 +121,11 @@ func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []str
 	if len(blocks) < int(horizonEnd.Sub(from)/(30*time.Minute)) {
 		warnings = append(warnings, "The price horizon is shorter than the configured plan horizon.")
 	}
+	if s.ev != nil {
+		for i := range blocks {
+			blocks[i].EVW = s.ev.EVLoadW(blocks[i].Start)
+		}
+	}
 
 	if s.forecast != nil {
 		if snap, ok := s.forecast.Latest(); ok {
@@ -155,6 +170,10 @@ func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []str
 	if maxSlotBlocks > 8 {
 		maxSlotBlocks = 8
 	}
+	var evWindows []bool
+	if s.ev != nil {
+		evWindows = s.ev.EVGridWindows(blocks[0].Start, blocks[len(blocks)-1].End)
+	}
 	return planner.Inputs{
 		Timezone: values.Site.Timezone, HorizonStart: blocks[0].Start, HorizonEnd: blocks[len(blocks)-1].End,
 		Now: now.UTC(), StartSOC: sample.SOC, CapacityKWh: inv.CapacityKWh,
@@ -167,7 +186,7 @@ func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []str
 		PreserveSOC: planCfg.PreserveSOC, EndSOCTarget: planCfg.EndSOCTarget,
 		MinDailySaving: planCfg.MinDailySaving, PVConfidence: values.PV.Confidence,
 		AllowDischargeToGrid: planCfg.AllowDischargeToGrid,
-		Currency:             values.Price.Currency, Blocks: blocks,
+		Currency:             values.Price.Currency, EVWindows: evWindows, Blocks: blocks,
 	}, warnings, nil
 }
 

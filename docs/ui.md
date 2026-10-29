@@ -79,6 +79,13 @@ Segmented day tabs, a 15-minute bar chart with a "now" marker, min/max/average
 cards, per-day cheapest windows, a scrollable 30-minute block table, tariff
 breakdown and attribution.
 
+## Car
+
+Live state, power, current, session energy and mode; Off/Now/Smart selector,
+manual current and pause/resume; a charging-plan card with target, remaining,
+duration, windows, state and warnings; a static plan form; and the Zaptec
+15-minute cadence notice. Controls are disabled when EV control is disarmed.
+
 ## Settings
 
 Segmented section pills (Site, Inverter, Solar, Load, Plan, Safety, System) and
@@ -86,4 +93,5 @@ generous forms. Inverter includes a read-only connection test whose result is
 shown as a green summary card. Solar edits 1–3 MPPT strings and forecast
 parameters; Load edits daily energy, measured-profile blending and the 24-hour
 profile; Plan edits the slot budget, horizon, saving threshold, setpoints and
-end-SOC policy.
+end-SOC policy; EV edits charging limits, modes, smart switches and the grid
+charging acknowledgment.

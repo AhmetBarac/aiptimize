@@ -37,6 +37,7 @@ type Inputs struct {
 	PVConfidence         float64   `json:"pv_confidence"`
 	AllowDischargeToGrid bool      `json:"allow_discharge_to_grid"`
 	Currency             string    `json:"currency"`
+	EVWindows            []bool    `json:"ev_windows,omitempty"`
 	Blocks               []Block   `json:"blocks"`
 }
 
@@ -349,6 +350,9 @@ func (o *optimizer) simulate(i, d, soc int, powerW float64) (float64, int, bool)
 				cur = o.steps - 1
 			}
 		} else if powerW < 0 {
+			if j < len(o.in.EVWindows) && o.in.EVWindows[j] {
+				return 0, soc, false
+			}
 			if !o.in.AllowDischargeToGrid {
 				net := b.LoadW + b.EVW - o.pv[j] + powerW
 				if net < 0 {

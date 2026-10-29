@@ -41,6 +41,7 @@ type testAPI struct {
 	inverter  *fakeInverter
 	forecast  *service.ForecastService
 	planner   *service.PlannerService
+	ev        *service.EVService
 	srv       *Server
 }
 
@@ -159,10 +160,12 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	})
 	solarSvc := service.NewSolarService(svc, st, forecastSvc)
 	plannerSvc := service.NewPlannerService(st, svc, priceSvc, forecastSvc, telemetrySvc, logger, nil)
+	evSvc := service.NewEVService(svc, st, priceSvc, forecastSvc, logger, true, true, time.Now)
+	plannerSvc.SetEVProvider(evSvc)
 	srv := New(Deps{
 		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,
 		Telemetry: telemetrySvc, Forecast: forecastSvc, Solar: solarSvc, Planner: plannerSvc,
-		Logger: logger, WebFS: web,
+		EV: evSvc, Logger: logger, WebFS: web,
 	})
 	ts := httptest.NewServer(srv.Handler())
 
@@ -176,7 +179,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 		t: t, server: ts, client: client, jar: jar, store: st,
 		settings: svc, prices: priceSvc, fetcher: fetcher,
 		telemetry: telemetrySvc, inverter: fakeInv, forecast: forecastSvc, planner: plannerSvc,
-		srv: srv,
+		ev: evSvc, srv: srv,
 	}
 }
 
@@ -289,7 +292,7 @@ func TestPublicEndpoints(t *testing.T) {
 	features := meta["features"].(map[string]any)
 	if features["prices"] != true || features["telemetry"] != true || features["forecast"] != true ||
 		features["battery_plan"] != true || features["actuation"] != true || features["plan_editing"] != true ||
-		features["phase"].(float64) != 5 {
+		features["ev_charging"] != true || features["phase"].(float64) != 6 {
 		t.Errorf("features = %v", features)
 	}
 

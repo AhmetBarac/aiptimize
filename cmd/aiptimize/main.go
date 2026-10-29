@@ -19,6 +19,7 @@ import (
 	"github.com/AhmetBarac/aiptimize/internal/api"
 	"github.com/AhmetBarac/aiptimize/internal/auth"
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/ev"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
 	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
@@ -153,7 +154,21 @@ func runServe() int {
 		Version:   cfg.Version,
 	})
 	solarSvc := service.NewSolarService(settingsSvc, st, forecastSvc)
+	evSvc := service.NewEVService(settingsSvc, st, priceSvc, forecastSvc, logger,
+		cfg.Simulator, cfg.EnableEVControl, time.Now)
+	if !cfg.Simulator && cfg.Zaptec.Username != "" && cfg.Zaptec.ChargerID != "" {
+		charger := ev.NewZaptec(ev.ZaptecConfig{
+			BaseURL: cfg.Zaptec.BaseURL, Username: cfg.Zaptec.Username,
+			Password: cfg.Zaptec.Password, InstallationID: cfg.Zaptec.InstallationID,
+			ChargerID: cfg.Zaptec.ChargerID,
+			UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
+			Now:       time.Now,
+		})
+		evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
+			charger, cfg.EnableEVControl, time.Now)
+	}
 	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
+	plannerSvc.SetEVProvider(evSvc)
 
 	srv := api.New(api.Deps{
 		Config:    cfg,
@@ -164,6 +179,7 @@ func runServe() int {
 		Forecast:  forecastSvc,
 		Solar:     solarSvc,
 		Planner:   plannerSvc,
+		EV:        evSvc,
 		Broker:    broker,
 		Logger:    logger,
 		WebFS:     webui.FS(),
@@ -173,6 +189,7 @@ func runServe() int {
 	go telemetryPoller.Run(ctx)
 	go forecastSvc.Run(ctx)
 	go plannerSvc.Run(ctx)
+	go evSvc.Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

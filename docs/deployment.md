@@ -105,8 +105,12 @@ optimiser horizon, slot budget, setpoints and reserve policy. The planner
 computes a suggestion automatically 8 s after startup and every 5 minutes.
 Drafts can be edited and applied from the Plan screen. Applying requires
 `AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, so leave writes
-disarmed until the HIL checklist is complete. Set
-`AIPTIMIZE_SIMULATOR=true` to run without a dongle or internet weather.
+disarmed until the HIL checklist is complete. EV control is separate:
+`AIPTIMIZE_ENABLE_EV_CONTROL=true` plus the EV arm switch. The simulator is
+used for demos; real Zaptec control additionally needs
+`AIPTIMIZE_ZAPTEC_USERNAME`, `AIPTIMIZE_ZAPTEC_PASSWORD`,
+`AIPTIMIZE_ZAPTEC_INSTALLATION_ID` and `AIPTIMIZE_ZAPTEC_CHARGER_ID`. Set
+`AIPTIMIZE_SIMULATOR=true` to run without a dongle, charger or internet weather.
 
 ## Upgrades
 

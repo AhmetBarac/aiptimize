@@ -29,6 +29,7 @@ type Deps struct {
 	Forecast  *service.ForecastService
 	Solar     *service.SolarService
 	Planner   *service.PlannerService
+	EV        *service.EVService
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
@@ -44,6 +45,7 @@ type Server struct {
 	forecast  *service.ForecastService
 	solar     *service.SolarService
 	planner   *service.PlannerService
+	ev        *service.EVService
 	log       *slog.Logger
 	web       fs.FS
 	started   time.Time
@@ -70,6 +72,7 @@ func New(d Deps) *Server {
 		forecast:     d.Forecast,
 		solar:        d.Solar,
 		planner:      d.Planner,
+		ev:           d.EV,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
@@ -114,6 +117,20 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/schedule", s.requireAuth(s.handleSchedule))
 	s.mux.HandleFunc("POST /api/v1/schedule/clear", s.requireAuth(s.handleScheduleClear))
 	s.mux.HandleFunc("POST /api/v1/schedule/takeover", s.requireAuth(s.handleScheduleTakeover))
+	s.mux.HandleFunc("GET /api/v1/chargers", s.requireAuth(s.handleChargers))
+	s.mux.HandleFunc("GET /api/v1/chargers/{id}", s.requireAuth(s.handleCharger))
+	s.mux.HandleFunc("GET /api/v1/chargers/{id}/status", s.requireAuth(s.handleChargerStatus))
+	s.mux.HandleFunc("PATCH /api/v1/chargers/{id}/config", s.requireAuth(s.handleChargerConfig))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/mode", s.requireAuth(s.handleChargerMode))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/current", s.requireAuth(s.handleChargerCurrent))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/pause", s.requireAuth(s.handleChargerPause))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/resume", s.requireAuth(s.handleChargerResume))
+	s.mux.HandleFunc("GET /api/v1/chargers/{id}/plan", s.requireAuth(s.handleChargerPlan))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/plan/static", s.requireAuth(s.handleStaticPlan))
+	s.mux.HandleFunc("DELETE /api/v1/chargers/{id}/plan/static", s.requireAuth(s.handleDeleteStaticPlan))
+	s.mux.HandleFunc("PUT /api/v1/chargers/{id}/plans/repeating", s.requireAuth(s.handleRepeatingPlans))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/plan/preview", s.requireAuth(s.handlePlanPreview))
+	s.mux.HandleFunc("GET /api/v1/chargers/{id}/session", s.requireAuth(s.handleEVSession))
 	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
@@ -182,14 +199,14 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        5,
+		"phase":        6,
 		"prices":       true,
 		"telemetry":    true,
 		"forecast":     true,
 		"battery_plan": true,
 		"actuation":    true,
 		"plan_editing": true,
-		"ev_charging":  false,
+		"ev_charging":  true,
 		"history":      false,
 	}
 }
@@ -262,7 +279,7 @@ func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 		"telemetry": s.telemetryStatus(),
 		"forecast":  s.forecastStatus(),
 		"plan":      s.planStatus(ctx),
-		"ev":        map[string]any{"available": false},
+		"ev":        s.evStatus(ctx),
 		"schedule":  s.scheduleStatus(ctx),
 		"checks":    s.checks(),
 	}

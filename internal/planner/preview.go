@@ -129,6 +129,10 @@ func Preview(in Inputs, slots []domain.Slot) (Result, Validation, error) {
 				}
 			} else {
 				batteryW = -slot.PowerW
+				if i < len(in.EVWindows) && in.EVWindows[i] {
+					validation.Errors = append(validation.Errors,
+						fmt.Sprintf("%s: discharge overlaps an EV grid-charging window", block.Start.In(loc).Format("15:04")))
+				}
 				if !in.AllowDischargeToGrid {
 					available := block.LoadW + block.EVW - math.Max(0, block.PVW*in.PVConfidence)
 					if slot.PowerW > available {

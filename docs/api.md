@@ -69,6 +69,19 @@ An `Origin` header, when present, must match the request host.
 | GET | `/api/v1/schedule` | yes | Read the inverter schedule and diff |
 | POST | `/api/v1/schedule/clear` | yes | Clear the schedule (armed + confirm) |
 | POST | `/api/v1/schedule/takeover` | yes | Replace a foreign schedule (armed + confirm) |
+| GET | `/api/v1/chargers` | yes | Charger status, capabilities and config |
+| GET | `/api/v1/chargers/{id}` | yes | One charger with status/config |
+| GET | `/api/v1/chargers/{id}/status` | yes | Live charger status |
+| PATCH | `/api/v1/chargers/{id}/config` | yes | EV configuration |
+| POST | `/api/v1/chargers/{id}/mode` | yes | Mode off/now/smart (EV gate) |
+| POST | `/api/v1/chargers/{id}/current` | yes | Set current (EV gate) |
+| POST | `/api/v1/chargers/{id}/pause`, `/resume` | yes | Pause/resume (EV gate) |
+| GET | `/api/v1/chargers/{id}/plan` | yes | Plans, latest preview and session |
+| GET | `/api/v1/chargers/{id}/session` | yes | Latest session |
+| POST | `/api/v1/chargers/{id}/plan/static` | yes | Save a static plan and preview |
+| DELETE | `/api/v1/chargers/{id}/plan/static?id=` | yes | Delete a static plan |
+| PUT | `/api/v1/chargers/{id}/plans/repeating` | yes | Replace repeating plans |
+| POST | `/api/v1/chargers/{id}/plan/preview` | yes | Preview without saving |
 | POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
@@ -340,6 +353,36 @@ automatic suggestion and clears the manual day lock.
 `confirm:true`.
 
 The planned-plan model is in [planning.md](planning.md).
+
+### EV charging
+
+`GET /api/v1/chargers` returns `chargers[]` with `id`, `type`, `capabilities`,
+`status` and `config`. `GET /chargers/{id}/status` returns the live status.
+
+`PATCH /chargers/{id}/config` accepts an EV settings object. `POST /mode`
+accepts `{"mode":"off|now|smart"}`; `/current` accepts `{"amps":10}`;
+`/pause` and `/resume` take `{}`. All four require `ev_control_armed` from the
+environment and UI gate, otherwise `409 ev_control_disarmed`.
+
+`POST /chargers/{id}/plan/static` takes:
+
+```json
+{
+  "target_energy_kwh": 20,
+  "deadline": "2026-10-30T07:00",
+  "precondition_min": 30,
+  "strategy": "cheapest",
+  "active": true
+}
+```
+
+It returns the stored plan and a preview with `remaining_kwh`, `required_min`,
+`windows`, `cost`, state and warnings. `POST /plan/preview` previews without
+saving. `GET /plan` returns plans, the latest preview and session.
+`PUT /plans/repeating` replaces the repeating plan list.
+
+`/status.ev` contains the live charger status and latest EV plan for the
+dashboard. The full model is in [ev.md](ev.md).
 
 ## Planned endpoints
 

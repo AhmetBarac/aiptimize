@@ -278,6 +278,33 @@ func TestNoDischargeToGrid(t *testing.T) {
 	}
 }
 
+func TestNoDischargeDuringEVWindow(t *testing.T) {
+	in := baseInputs()
+	in.StartSOC = 90
+	in.EndSOCTarget = 15
+	in.Blocks[2].ImportPrice = 5
+	in.Blocks[3].ImportPrice = 5
+	in.EVWindows = []bool{false, false, true, true, false, false, false, false}
+	result, err := Optimize(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, point := range result.Curve {
+		if in.EVWindows[indexOfStart(in.Blocks, point.Start)] && point.BatteryW < 0 {
+			t.Errorf("battery discharged during EV grid window: %+v", point)
+		}
+	}
+}
+
+func indexOfStart(blocks []Block, start time.Time) int {
+	for i, block := range blocks {
+		if block.Start.Equal(start) {
+			return i
+		}
+	}
+	return 0
+}
+
 func TestPVCharging(t *testing.T) {
 	in := baseInputs()
 	for i := range in.Blocks {

@@ -21,6 +21,7 @@ services:
       AIPTIMIZE_TZ: ${AIPTIMIZE_TZ:-Europe/Stockholm}
       AIPTIMIZE_SIMULATOR: ${AIPTIMIZE_SIMULATOR:-false}
       AIPTIMIZE_ENABLE_WRITES: ${AIPTIMIZE_ENABLE_WRITES:-false}
+      AIPTIMIZE_ENABLE_EV_CONTROL: ${AIPTIMIZE_ENABLE_EV_CONTROL:-false}
     volumes:
       - aiptimize-data:/data
     stop_grace_period: 30s

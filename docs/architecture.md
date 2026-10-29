@@ -97,6 +97,17 @@ keys enabled, and a single pooled connection.
 | API | plan view, drafts/preview/apply/discard, auto apply, revisions, schedule read/clear/takeover |
 | UI | day tabs, editable slot form, validation, draft/applied/locked/foreign states, resubmit/reset |
 
+## Phase 6 — EV charging
+
+| Area | Implementation |
+|---|---|
+| Adapters | `internal/ev`, simulator and Zaptec Go cloud client (ROPC token, state observations, installation current, pause/resume) |
+| Plans | static/repeating energy plans, cheapest/continuous/preconditioning, PV-only partial plans, target trimming, persisted runs |
+| Controller | 15-second evaluation, off/now/smart modes, plan windows, 15-minute current cadence, target pause |
+| Integration | EV expected load and grid windows feed the battery planner; battery discharge is excluded from EV grid windows |
+| API | chargers/status/config, mode/current/pause/resume, plans, preview, sessions |
+| UI | Car page with status/mode/controls, plan card and static-plan form; EV settings; dashboard EV card |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -117,11 +128,12 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phases 0–5 actively use `users`, `sessions`, `settings`,
-`events`, `prices`, `telemetry`, `plans`, `plan_slots`, `plan_revisions` and
-`schedule_writes`; forecasts are cached in memory and the exact planner inputs
-are stored with each plan. Timestamps are RFC3339 UTC text; local-day keys are
-`YYYY-MM-DD` in the site timezone.
+by the first migration. Phases 0–6 actively use `users`, `sessions`, `settings`,
+`events`, `prices`, `telemetry`, `plans`, `plan_slots`, `plan_revisions`,
+`schedule_writes`, `ev_plans`, `ev_plan_runs`, `ev_sessions` and `ev_commands`;
+forecasts are cached in memory and the exact planner inputs are stored with
+each plan. Timestamps are RFC3339 UTC text; local-day keys are `YYYY-MM-DD` in
+the site timezone.
 
 Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
 expired sessions removed. WAL is checkpointed on graceful shutdown.
@@ -137,12 +149,11 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions after phase 5
+## Deliberate omissions after phase 6
 
-EV charging, history and PWA work are phase 6–7. `/status` reports
-`ev_charging` as `false`; the UI shows the phase in which it arrives. Real
-hardware schedule writes remain HIL-gated and are not exercised by the test
-suite.
+History, PWA installation and long-term audit reporting are phase 7. `/status`
+reports `history` as `false`. Real Zaptec and Solplanet actuation remains
+HIL-gated; the test suite uses the simulator only.
 
 ## Phase roadmap
 
@@ -153,6 +164,7 @@ suite.
 | 3 ✅ | Open-Meteo PV model per MPPT, load profile, forecast UI |
 | 4 ✅ | Deterministic DP battery planner, plan API and chart |
 | 5 ✅ | Plan drafts/validation/revisions, schedule actuation and GUI editor |
+| 6 ✅ | EV adapters, plans/controller, battery/EV coordination and Car UI |
 | 5 | Schedule writer, reconciler, watchdog, plan drafts/editing/resubmit |
 | 6 | Charger interface, Zaptec cloud adapter, EV plans and controller |
 | 7 | History, PWA, backups, Playwright, security review, v1.0 |

@@ -286,6 +286,105 @@ export interface PlanApplyResult {
   message: string
 }
 
+export interface EVWindow {
+  start: string
+  end: string
+  power_w: number
+  energy_kwh: number
+  source: 'grid' | 'pv'
+  cost: number
+}
+
+export interface EVPreview {
+  charger_id: string
+  computed_at: string
+  deadline: string
+  target_kwh: number
+  remaining_kwh: number
+  required_min: number
+  windows: EVWindow[]
+  cost: number
+  state: string
+  warnings?: string[]
+  mode_mismatch?: boolean
+}
+
+export interface EVPlan {
+  id: number
+  charger_id: string
+  kind: 'static' | 'repeating'
+  weekdays?: number[]
+  deadline_local: string
+  target_energy_kwh: number
+  precondition_min: number
+  strategy: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ChargerStatus {
+  id: string
+  type: string
+  online: boolean
+  connected: boolean
+  charging: boolean
+  power_w: number
+  current_a: number
+  phases: number
+  session_kwh: number
+  mode: string
+  paused: boolean
+  updated_at: string
+}
+
+export interface ChargerCapabilities {
+  min_current_a: number
+  max_current_a: number
+  phases: number
+  current_scope: string
+  supports_pause: boolean
+  supports_phases: boolean
+  control_latency: number
+}
+
+export interface EVSettings {
+  enabled: boolean
+  mode: string
+  default_mode: string
+  min_current_a: number
+  max_current_a: number
+  phases: number
+  voltage_v: number
+  priority: number
+  solar_share: number
+  smart_cost_limit_sek_kwh?: number | null
+  smart_feed_in_priority_limit_sek_kwh?: number | null
+  always_charge: string
+  house_battery_floor_soc: number
+  battery_discharge_control: boolean
+  grid_charge_allowed: boolean
+  battery_boost: boolean
+  battery_boost_limit_soc: number
+  plan_defaults: { strategy: string; precondition_min: number }
+}
+
+export interface ChargerPayload {
+  id: string
+  type: string
+  capabilities: ChargerCapabilities
+  status: ChargerStatus
+  config: EVSettings
+  preview?: EVPreview
+}
+
+export interface ChargerPlanPayload {
+  plans: EVPlan[]
+  session?: unknown
+  has_preview: boolean
+  preview?: EVPreview
+}
+
 export interface Status {
   version: string
   now: string
@@ -301,7 +400,7 @@ export interface Status {
   prices: PriceStatus
   forecast: ForecastStatus
   plan: PlanStatus
-  ev: { available: boolean }
+  ev: { available: boolean; id?: string; status?: ChargerStatus; plan?: EVPreview }
   schedule: { available: boolean }
   checks: Record<string, string>
 }
@@ -438,5 +537,5 @@ export interface SettingsDocument {
   pv: PVSettings
   plan: PlanSettings
   load: LoadSettings
-  ev: Record<string, unknown>
+  ev: EVSettings
 }

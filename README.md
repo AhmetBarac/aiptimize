@@ -9,12 +9,11 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 5 (plan editing and actuation) complete.** Prices, read-only
-> Solplanet telemetry, a 48-hour PV/load forecast, a deterministic battery plan,
-> manual plan drafts/validation/revisions and gated schedule resubmission are
-> implemented. Writes are simulator-tested and require both the environment
-> switch and the UI arm gate; real-hardware HIL verification remains outstanding.
-> EV control and history follow in phases 6–7.
+> **Status: phase 6 (EV charging) complete.** Prices, read-only Solplanet
+> telemetry, PV/load forecasting, battery planning/editing/actuation and EV
+> charging plans with a simulator/Zaptec adapter are implemented. Writes and EV
+> control require both the environment switch and the UI arm gate; real-hardware
+> HIL verification remains outstanding. History and PWA follow in phase 7.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -107,6 +106,11 @@ hardware with deterministic in-process simulators — useful for demos and tests
   one-day locks, automatic suggestions, and gated resubmission to the inverter
   with readback and schedule diff.- Seven-day Solplanet schedule codec, simulator writes, foreign-schedule
   detection, clear and takeover paths.
+- EV charging: simulator and Zaptec Go adapters, smart/now/off modes, energy
+  plans with cheapest/continuous windows, preconditioning, PV-only gating and a
+  gated controller with a 15-minute current cadence.
+- EV load and grid windows feed the battery planner so battery discharge does
+  not overlap EV grid charging.
 - House-load forecast from a configurable profile, blended with 14 days of
   measured load when available.
 - Solar overview card with today's sparkline and a full-page production chart
@@ -129,6 +133,7 @@ internal/prices/     Nord Pool client, aggregation, tariffs, simulator
 internal/inverter/   read-only inverter contract, Solplanet client, codec, simulator
 internal/forecast/   Open-Meteo client, PV model, load profile
 internal/planner/    deterministic battery DP optimiser
+internal/ev/         charger adapters, EV planner and Zaptec cloud client
 internal/service/    background loops (price, telemetry, forecast, planner)
 internal/api/        HTTP API, auth/CSRF middleware, SSE, embedded SPA
 internal/webui/      go:embed of the built Vue app
@@ -147,6 +152,7 @@ docs/                architecture, prices, telemetry, solplanet, API, safety, de
 - [Prices](docs/prices.md)
 - [Forecast](docs/forecast.md)
 - [Battery planning](docs/planning.md)
+- [EV charging](docs/ev.md)
 - [Telemetry](docs/telemetry.md)
 - [Solplanet dongle](docs/solplanet.md)
 - [HTTP API](docs/api.md)

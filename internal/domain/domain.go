@@ -277,3 +277,32 @@ type EVPlanPreview struct {
 	Warnings     []string    `json:"warnings,omitempty"`
 	ModeMismatch bool        `json:"mode_mismatch,omitempty"`
 }
+
+// EVPlan is a static or repeating charging plan.
+type EVPlan struct {
+	ID              int64     `json:"id"`
+	ChargerID       string    `json:"charger_id"`
+	Kind            string    `json:"kind"` // static | repeating
+	Weekdays        []int     `json:"weekdays,omitempty"`
+	DeadlineLocal   string    `json:"deadline_local"`
+	TargetKWh       float64   `json:"target_energy_kwh"`
+	PreconditionMin int       `json:"precondition_min"`
+	Strategy        string    `json:"strategy"`
+	Active          bool      `json:"active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// EVSession is one observed charging session.
+type EVSession struct {
+	ID              int64      `json:"id"`
+	ChargerID       string     `json:"charger_id"`
+	StartedAt       time.Time  `json:"started_at"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	EnergyKWh       float64    `json:"energy_kwh"`
+	Cost            float64    `json:"cost"`
+	Mode            string     `json:"mode"`
+	PlanID          *int64     `json:"plan_id,omitempty"`
+	TargetKWh       float64    `json:"target_kwh"`
+	EnergyOffsetKWh float64    `json:"energy_offset_kwh"`
+}

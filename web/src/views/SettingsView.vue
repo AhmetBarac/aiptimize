@@ -10,7 +10,7 @@ import PageHead from '../components/PageHead.vue'
 const { t } = useI18n()
 const route = useRoute()
 
-const sections = ['site', 'inverter', 'solar', 'load', 'plan', 'safety', 'system'] as const
+const sections = ['site', 'inverter', 'solar', 'load', 'plan', 'ev', 'safety', 'system'] as const
 const section = computed(() => {
   const value = String(route.params.section ?? 'site')
   return (sections as readonly string[]).includes(value) ? value : 'site'
@@ -106,6 +106,20 @@ const planForm = reactive({
   allowGrid: true,
 })
 
+const evForm = reactive({
+  mode: 'off',
+  minCurrent: 6,
+  maxCurrent: 16,
+  phases: 3,
+  voltage: 230,
+  solarShare: 1,
+  gridChargeAllowed: false,
+  alwaysCharge: 'off',
+  batteryFloor: 20,
+  smartCostLimit: '' as number | '',
+  feedInLimit: '' as number | '',
+})
+
 onMounted(load)
 
 async function load(): Promise<void> {
@@ -152,6 +166,17 @@ async function load(): Promise<void> {
     planForm.chargeW = doc.plan.charge_w
     planForm.dischargeW = doc.plan.discharge_w
     planForm.allowGrid = doc.plan.allow_discharge_to_grid
+    evForm.mode = doc.ev.mode
+    evForm.minCurrent = doc.ev.min_current_a
+    evForm.maxCurrent = doc.ev.max_current_a
+    evForm.phases = doc.ev.phases
+    evForm.voltage = doc.ev.voltage_v
+    evForm.solarShare = doc.ev.solar_share
+    evForm.gridChargeAllowed = doc.ev.grid_charge_allowed
+    evForm.alwaysCharge = doc.ev.always_charge
+    evForm.batteryFloor = doc.ev.house_battery_floor_soc
+    evForm.smartCostLimit = doc.ev.smart_cost_limit_sek_kwh ?? ''
+    evForm.feedInLimit = doc.ev.smart_feed_in_priority_limit_sek_kwh ?? ''
     safetyForm.writes = doc.safety.writes_armed_ui
     safetyForm.ev = doc.safety.ev_control_armed_ui
     safetyForm.watchdog = doc.safety.watchdog_clear_after_s
@@ -346,6 +371,33 @@ async function savePlan(): Promise<void> {
       allow_discharge_to_grid: planForm.allowGrid,
     })
     saved.value = t('settings.planSaved')
+    await load()
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveEV(): Promise<void> {
+  saving.value = true
+  error.value = ''
+  saved.value = ''
+  try {
+    await patchSettings('ev', {
+      mode: evForm.mode,
+      min_current_a: Number(evForm.minCurrent),
+      max_current_a: Number(evForm.maxCurrent),
+      phases: Number(evForm.phases),
+      voltage_v: Number(evForm.voltage),
+      solar_share: Number(evForm.solarShare),
+      grid_charge_allowed: evForm.gridChargeAllowed,
+      always_charge: evForm.alwaysCharge,
+      house_battery_floor_soc: Number(evForm.batteryFloor),
+      smart_cost_limit_sek_kwh: evForm.smartCostLimit === '' ? null : Number(evForm.smartCostLimit),
+      smart_feed_in_priority_limit_sek_kwh: evForm.feedInLimit === '' ? null : Number(evForm.feedInLimit),
+    })
+    saved.value = t('settings.evSaved')
     await load()
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
@@ -732,6 +784,74 @@ async function savePlan(): Promise<void> {
         <button class="btn btn-primary mt-4" type="submit" :disabled="saving">
           <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ saving ? t('common.saving') : t('settings.savePlan') }}
+        </button>
+      </form>
+    </section>
+
+    <section v-else-if="section === 'ev'" class="aipt-card">
+      <h2>{{ t('settings.sections.ev') }}</h2>
+      <p class="text-muted small">{{ t('settings.evIntro') }}</p>
+      <form novalidate @submit.prevent="saveEV">
+        <div class="row g-3">
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-mode">{{ t('settings.evMode') }}</label>
+            <select id="ev-mode" v-model="evForm.mode" class="form-select">
+              <option value="off">{{ t('car.modes.off') }}</option>
+              <option value="now">{{ t('car.modes.now') }}</option>
+              <option value="smart">{{ t('car.modes.smart') }}</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-min">{{ t('settings.evMinCurrent') }}</label>
+            <input id="ev-min" v-model.number="evForm.minCurrent" class="form-control" type="number" min="6" max="32" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-max">{{ t('settings.evMaxCurrent') }}</label>
+            <input id="ev-max" v-model.number="evForm.maxCurrent" class="form-control" type="number" min="6" max="32" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-phases">{{ t('settings.evPhases') }}</label>
+            <input id="ev-phases" v-model.number="evForm.phases" class="form-control" type="number" min="1" max="3" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-voltage">{{ t('settings.evVoltage') }}</label>
+            <input id="ev-voltage" v-model.number="evForm.voltage" class="form-control" type="number" min="100" max="300" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-solar">{{ t('settings.evSolarShare') }}</label>
+            <input id="ev-solar" v-model.number="evForm.solarShare" class="form-control" type="number" min="0" max="1" step="0.05" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-floor">{{ t('settings.evBatteryFloor') }}</label>
+            <input id="ev-floor" v-model.number="evForm.batteryFloor" class="form-control" type="number" min="0" max="100" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-always">{{ t('settings.evAlwaysCharge') }}</label>
+            <select id="ev-always" v-model="evForm.alwaysCharge" class="form-select">
+              <option value="off">off</option>
+              <option value="on">on</option>
+              <option value="once">once</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-cost">{{ t('settings.evSmartCost') }}</label>
+            <input id="ev-cost" v-model.number="evForm.smartCostLimit" class="form-control" type="number" step="0.01" placeholder="—" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="ev-feed">{{ t('settings.evFeedIn') }}</label>
+            <input id="ev-feed" v-model.number="evForm.feedInLimit" class="form-control" type="number" step="0.01" placeholder="—" />
+          </div>
+          <div class="col-12 col-sm-6 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+              <input id="ev-grid" v-model="evForm.gridChargeAllowed" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="ev-grid">{{ t('settings.evGridAllowed') }}</label>
+            </div>
+          </div>
+        </div>
+        <p class="small text-muted mt-3">{{ t('settings.evGridWarning') }}</p>
+        <button class="btn btn-primary mt-2" type="submit" :disabled="saving">
+          <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          {{ saving ? t('common.saving') : t('settings.saveEV') }}
         </button>
       </form>
     </section>

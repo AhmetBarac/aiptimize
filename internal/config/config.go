@@ -59,6 +59,8 @@ type ZaptecConfig struct {
 	Username       string
 	Password       string
 	InstallationID string
+	ChargerID      string
+	BaseURL        string
 }
 
 // Load reads configuration from the process environment.
@@ -87,6 +89,8 @@ func LoadFromEnv(getenv func(string) string) (*Config, error) {
 			Username:       getenv("AIPTIMIZE_ZAPTEC_USERNAME"),
 			Password:       getenv("AIPTIMIZE_ZAPTEC_PASSWORD"),
 			InstallationID: getenv("AIPTIMIZE_ZAPTEC_INSTALLATION_ID"),
+			ChargerID:      getenv("AIPTIMIZE_ZAPTEC_CHARGER_ID"),
+			BaseURL:        env(getenv, "AIPTIMIZE_ZAPTEC_BASE_URL", "https://api.zaptec.com"),
 		},
 	}
 

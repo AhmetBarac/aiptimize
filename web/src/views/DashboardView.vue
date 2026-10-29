@@ -271,8 +271,10 @@ const tiles = computed(() => [
     label: t('dashboard.car'),
     icon: 'bi-ev-station',
     cls: 'tile-car',
-    value: powerParts(null),
-    hint: t('dashboard.evPhase'),
+    value: powerParts(status.value?.ev?.status?.power_w),
+    hint: status.value?.ev?.available
+      ? `${status.value.ev.status?.mode ?? 'off'} · ${status.value.ev.status?.charging ? t('car.charging') : t('car.connected')}`
+      : t('dashboard.evPhase'),
   },
 ])
 
@@ -309,10 +311,10 @@ const sources = computed(() => {
     <div class="energy-grid">
       <template v-for="tile in tiles" :key="tile.key">
         <component
-          :is="tile.key === 'solar' ? RouterLink : 'div'"
-          :to="tile.key === 'solar' ? '/solar' : undefined"
+          :is="tile.key === 'solar' || (tile.key === 'car' && status?.ev?.available) ? RouterLink : 'div'"
+          :to="tile.key === 'solar' ? '/solar' : tile.key === 'car' ? '/car' : undefined"
           class="energy-tile"
-          :class="[tile.cls, tile.key === 'solar' ? 'energy-tile-link' : '']"
+          :class="[tile.cls, tile.key === 'solar' || (tile.key === 'car' && status?.ev?.available) ? 'energy-tile-link' : '']"
         >
           <span class="tile-label">
             <i class="bi" :class="tile.icon" aria-hidden="true"></i>
@@ -325,6 +327,10 @@ const sources = computed(() => {
           <span v-if="tile.hint && !(tile.key === 'solar' && solar)" class="tile-hint">{{ tile.hint }}</span>
           <span v-if="tile.key === 'solar'" class="solar-link-hint">
             {{ t('solar.details') }}
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          </span>
+          <span v-else-if="tile.key === 'car' && status?.ev?.available" class="solar-link-hint">
+            {{ t('car.planTitle') }}
             <i class="bi bi-chevron-right" aria-hidden="true"></i>
           </span>
         </component>
@@ -509,6 +515,27 @@ const sources = computed(() => {
           {{ planTime(nextSlot.start) }}
         </strong>
         <strong v-else class="plan-next">{{ t('plan.noUpcoming') }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <section v-if="status?.ev?.available" class="aipt-card mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="mb-0">{{ t('car.title') }}</h2>
+      <router-link to="/car" class="small">{{ t('car.planTitle') }} →</router-link>
+    </div>
+    <div class="plan-home-stats">
+      <div>
+        <span class="tile-label">{{ t('car.state') }}</span>
+        <strong class="plan-next">{{ status.ev.status?.charging ? t('car.charging') : status.ev.status?.connected ? t('car.connected') : t('car.unplugged') }}</strong>
+      </div>
+      <div>
+        <span class="tile-label">{{ t('car.session') }}</span>
+        <strong>{{ (status.ev.status?.session_kwh ?? 0).toFixed(1) }}<span class="unit">kWh</span></strong>
+      </div>
+      <div>
+        <span class="tile-label">{{ t('car.planTitle') }}</span>
+        <strong class="plan-next">{{ status.ev.plan?.state ?? t('car.noPlan') }}</strong>
       </div>
     </div>
   </section>
