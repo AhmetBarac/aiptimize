@@ -3,14 +3,14 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
-import type { SettingsDocument } from '../api/types'
+import type { PVStringSettings, SettingsDocument } from '../api/types'
 import { loadSettings, patchSettings, session } from '../session'
 import PageHead from '../components/PageHead.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 
-const sections = ['site', 'inverter', 'safety', 'system'] as const
+const sections = ['site', 'inverter', 'solar', 'load', 'safety', 'system'] as const
 const section = computed(() => {
   const value = String(route.params.section ?? 'site')
   return (sections as readonly string[]).includes(value) ? value : 'site'
@@ -80,6 +80,20 @@ const safetyForm = reactive({
   horizon: 2,
 })
 
+const pvForm = reactive({
+  strings: [] as PVStringSettings[],
+  acLimit: 8000,
+  confidence: 0.7,
+  refresh: 30,
+  calibration: false,
+})
+
+const loadForm = reactive({
+  dailyKwh: 12,
+  useMeasured: false,
+  profile: [] as number[],
+})
+
 onMounted(load)
 
 async function load(): Promise<void> {
@@ -109,6 +123,14 @@ async function load(): Promise<void> {
     inverterForm.signPv = doc.inverter.sign_overrides.pv
     inverterForm.signGrid = doc.inverter.sign_overrides.grid
     inverterForm.signBattery = doc.inverter.sign_overrides.battery
+    pvForm.strings = doc.pv.strings.map((str) => ({ ...str }))
+    pvForm.acLimit = doc.pv.inverter_ac_limit_w
+    pvForm.confidence = doc.pv.confidence
+    pvForm.refresh = doc.pv.refresh_minutes
+    pvForm.calibration = doc.pv.calibration_enabled
+    loadForm.dailyKwh = doc.load.daily_kwh
+    loadForm.useMeasured = doc.load.use_measured_profile
+    loadForm.profile = [...doc.load.profile]
     safetyForm.writes = doc.safety.writes_armed_ui
     safetyForm.ev = doc.safety.ev_control_armed_ui
     safetyForm.watchdog = doc.safety.watchdog_clear_after_s
@@ -217,6 +239,73 @@ async function testInverter(): Promise<void> {
 
 function onOff(value: boolean | undefined): string {
   return value ? t('settings.on') : t('settings.off')
+}
+
+function addString(): void {
+  if (pvForm.strings.length >= 3) return
+  pvForm.strings.push({
+    name: `MPPT ${pvForm.strings.length + 1}`,
+    kwp: 4,
+    tilt: 35,
+    azimuth: 180,
+    performance_ratio: 0.85,
+    temp_coefficient: -0.004,
+    max_w: 0,
+  })
+}
+
+function removeString(index: number): void {
+  pvForm.strings.splice(index, 1)
+}
+
+async function saveSolar(): Promise<void> {
+  saving.value = true
+  error.value = ''
+  saved.value = ''
+  try {
+    await patchSettings('pv', {
+      strings: pvForm.strings.map((str) => ({
+        name: str.name.trim() || 'MPPT',
+        kwp: Number(str.kwp),
+        tilt: Number(str.tilt),
+        azimuth: Number(str.azimuth),
+        performance_ratio: Number(str.performance_ratio),
+        temp_coefficient: Number(str.temp_coefficient),
+        max_w: Number(str.max_w),
+      })),
+      inverter_ac_limit_w: Number(pvForm.acLimit),
+      confidence: Number(pvForm.confidence),
+      refresh_minutes: Number(pvForm.refresh),
+      calibration_enabled: pvForm.calibration,
+    })
+    saved.value = t('settings.solarSaved')
+    await load()
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveLoad(): Promise<void> {
+  saving.value = true
+  error.value = ''
+  saved.value = ''
+  try {
+    const sum = loadForm.profile.reduce((a, b) => a + b, 0)
+    const profile = sum > 0 ? loadForm.profile.map((v) => v / sum) : loadForm.profile
+    await patchSettings('load', {
+      daily_kwh: Number(loadForm.dailyKwh),
+      profile,
+      use_measured_profile: loadForm.useMeasured,
+    })
+    saved.value = t('settings.loadSaved')
+    await load()
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -420,6 +509,134 @@ function onOff(value: boolean | undefined): string {
           </div>
         </dl>
       </div>
+    </section>
+
+    <section v-else-if="section === 'solar'" class="aipt-card">
+      <h2>{{ t('settings.sections.solar') }}</h2>
+      <p class="text-muted small">{{ t('settings.solarIntro') }}</p>
+      <form novalidate @submit.prevent="saveSolar">
+        <div class="row g-3">
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="pv-ac">{{ t('settings.acLimit') }}</label>
+            <input id="pv-ac" v-model.number="pvForm.acLimit" class="form-control" type="number" step="100" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="pv-conf">{{ t('settings.confidence') }}</label>
+            <input id="pv-conf" v-model.number="pvForm.confidence" class="form-control" type="number" step="0.05" min="0" max="1" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="pv-refresh">{{ t('settings.refreshMinutes') }}</label>
+            <input id="pv-refresh" v-model.number="pvForm.refresh" class="form-control" type="number" min="5" step="5" />
+          </div>
+          <div class="col-12 col-sm-3 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+              <input id="pv-cal" v-model="pvForm.calibration" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="pv-cal">{{ t('settings.calibrationEnabled') }}</label>
+            </div>
+          </div>
+        </div>
+
+        <div v-for="(str, index) in pvForm.strings" :key="index" class="string-card">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <input
+              v-model="str.name"
+              class="form-control"
+              type="text"
+              :aria-label="t('settings.stringName')"
+              :placeholder="t('settings.stringName')"
+            />
+            <button class="btn btn-sm btn-outline-secondary" type="button" @click="removeString(index)">
+              <i class="bi bi-trash" aria-hidden="true"></i>
+              <span class="d-none d-sm-inline ms-1">{{ t('settings.removeString') }}</span>
+            </button>
+          </div>
+          <div class="row g-3">
+            <div class="col-6 col-sm-2">
+              <label class="form-label" :for="`kwp-${index}`">{{ t('settings.kwp') }}</label>
+              <input :id="`kwp-${index}`" v-model.number="str.kwp" class="form-control" type="number" step="0.1" min="0" />
+            </div>
+            <div class="col-6 col-sm-2">
+              <label class="form-label" :for="`tilt-${index}`">{{ t('settings.tilt') }}</label>
+              <input :id="`tilt-${index}`" v-model.number="str.tilt" class="form-control" type="number" min="0" max="90" />
+            </div>
+            <div class="col-6 col-sm-2">
+              <label class="form-label" :for="`azimuth-${index}`">{{ t('settings.azimuth') }}</label>
+              <input :id="`azimuth-${index}`" v-model.number="str.azimuth" class="form-control" type="number" min="0" max="359" />
+            </div>
+            <div class="col-6 col-sm-2">
+              <label class="form-label" :for="`pr-${index}`">{{ t('settings.performanceRatio') }}</label>
+              <input :id="`pr-${index}`" v-model.number="str.performance_ratio" class="form-control" type="number" step="0.01" min="0" max="1.5" />
+            </div>
+            <div class="col-6 col-sm-2">
+              <label class="form-label" :for="`temp-${index}`">{{ t('settings.tempCoefficient') }}</label>
+              <input :id="`temp-${index}`" v-model.number="str.temp_coefficient" class="form-control" type="number" step="0.001" />
+            </div>
+            <div class="col-6 col-sm-2">
+              <label class="form-label" :for="`max-${index}`">{{ t('settings.maxW') }}</label>
+              <input :id="`max-${index}`" v-model.number="str.max_w" class="form-control" type="number" step="100" min="0" />
+            </div>
+          </div>
+        </div>
+
+        <button
+          v-if="pvForm.strings.length < 3"
+          class="btn btn-outline-secondary mt-3"
+          type="button"
+          @click="addString"
+        >
+          <i class="bi bi-plus-lg" aria-hidden="true"></i>
+          <span class="ms-1">{{ t('settings.addString') }}</span>
+        </button>
+
+        <div class="mt-4">
+          <button class="btn btn-primary" type="submit" :disabled="saving">
+            <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            {{ saving ? t('common.saving') : t('settings.saveSolar') }}
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section v-else-if="section === 'load'" class="aipt-card">
+      <h2>{{ t('settings.sections.load') }}</h2>
+      <p class="text-muted small">{{ t('settings.loadIntro') }}</p>
+      <form novalidate @submit.prevent="saveLoad">
+        <div class="row g-3">
+          <div class="col-6 col-sm-4">
+            <label class="form-label" for="load-kwh">{{ t('settings.dailyKwh') }}</label>
+            <input id="load-kwh" v-model.number="loadForm.dailyKwh" class="form-control" type="number" min="0" step="0.5" />
+          </div>
+          <div class="col-12 col-sm-8 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+              <input id="load-measured" v-model="loadForm.useMeasured" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="load-measured">{{ t('settings.useMeasured') }}</label>
+            </div>
+          </div>
+        </div>
+
+        <details class="mt-4">
+          <summary class="fw-semibold">{{ t('settings.hourlyProfile') }}</summary>
+          <p class="text-muted small mt-2">{{ t('settings.profileHelp') }}</p>
+          <div class="row g-2">
+            <div v-for="(value, hour) in loadForm.profile" :key="hour" class="col-4 col-sm-2">
+              <label class="form-label" :for="`profile-${hour}`">{{ hour }}:00</label>
+              <input
+                :id="`profile-${hour}`"
+                v-model.number="loadForm.profile[hour]"
+                class="form-control"
+                type="number"
+                step="0.001"
+                min="0"
+              />
+            </div>
+          </div>
+        </details>
+
+        <button class="btn btn-primary mt-4" type="submit" :disabled="saving">
+          <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          {{ saving ? t('common.saving') : t('settings.saveLoad') }}
+        </button>
+      </form>
     </section>
 
     <section v-else-if="section === 'safety'" class="aipt-card">

@@ -20,7 +20,7 @@ const props = defineProps<{
 const el = ref<HTMLDivElement | null>(null)
 let chart: ReturnType<typeof echarts.init> | null = null
 let observer: ResizeObserver | null = null
-let media: MediaQueryList | null = null
+let themeObserver: MutationObserver | null = null
 
 function css(name: string, fallback: string): string {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -128,13 +128,16 @@ onMounted(() => {
   render()
   observer = new ResizeObserver(() => chart?.resize())
   observer.observe(el.value)
-  media = window.matchMedia('(prefers-color-scheme: dark)')
-  media.addEventListener('change', render)
+  themeObserver = new MutationObserver(() => render())
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-bs-theme'],
+  })
 })
 
 onBeforeUnmount(() => {
   observer?.disconnect()
-  media?.removeEventListener('change', render)
+  themeObserver?.disconnect()
   chart?.dispose()
   chart = null
 })

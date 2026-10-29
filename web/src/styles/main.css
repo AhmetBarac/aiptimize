@@ -791,8 +791,8 @@ a {
 
 .settings-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
-  overflow-x: auto;
   padding-bottom: 0.4rem;
   margin-bottom: 1rem;
 }
@@ -829,6 +829,14 @@ a {
 
 .form-check-label {
   font-size: 0.9rem;
+}
+
+.string-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--aipt-border);
+  border-radius: 16px;
+  background: var(--aipt-surface-2);
 }
 
 .alert {
@@ -1083,6 +1091,35 @@ a {
 .price-now span {
   color: var(--aipt-muted);
   font-size: 0.75rem;
+}
+
+.forecast-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.forecast-stats .tile-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--aipt-muted);
+  margin-bottom: 0.15rem;
+}
+
+.forecast-stats strong {
+  font-size: 1.3rem;
+  font-weight: 620;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-stats .unit {
+  font-size: 0.72rem;
+  color: var(--aipt-muted);
+  margin-left: 0.2rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,14 +2,20 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
-import type { Status, TelemetrySample } from '../api/types'
+import type { ForecastSnapshot, Status, TelemetrySample } from '../api/types'
 import { session } from '../session'
+import ForecastChart from '../components/ForecastChart.vue'
 import PageHead from '../components/PageHead.vue'
 
 const { t, locale } = useI18n()
 const status = ref<Status | null>(null)
 const error = ref('')
+const forecast = ref<ForecastSnapshot | null>(null)
+const forecastError = ref('')
+const forecastRefreshing = ref(false)
+const horizonHours = ref<24 | 48>(24)
 let timer: ReturnType<typeof setInterval> | undefined
+let forecastTimer: ReturnType<typeof setInterval> | undefined
 
 async function load(): Promise<void> {
   try {
@@ -20,13 +26,37 @@ async function load(): Promise<void> {
   }
 }
 
+async function loadForecast(): Promise<void> {
+  try {
+    forecast.value = await api.get<ForecastSnapshot>('/forecast')
+    forecastError.value = ''
+  } catch (err) {
+    forecastError.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+async function refreshForecast(): Promise<void> {
+  forecastRefreshing.value = true
+  forecastError.value = ''
+  try {
+    forecast.value = await api.post<ForecastSnapshot>('/forecast/refresh', {})
+  } catch (err) {
+    forecastError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    forecastRefreshing.value = false
+  }
+}
+
 onMounted(() => {
   void load()
+  void loadForecast()
   timer = setInterval(() => void load(), 10_000)
+  forecastTimer = setInterval(() => void loadForecast(), 300_000)
 })
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
+  if (forecastTimer) clearInterval(forecastTimer)
 })
 
 const site = computed<{ name: string; area?: string; timezone?: string; currency?: string } | null>(
@@ -88,6 +118,29 @@ const cheapestLabel = computed(() => {
   if (!cheapestWindow.value) return ''
   return `${shortTime(cheapestWindow.value.start)}–${shortTime(cheapestWindow.value.end)}`
 })
+
+const forecastPoints = computed(() => {
+  const cutoff = Date.now() + horizonHours.value * 3600 * 1000
+  return (forecast.value?.points ?? []).filter((p) => Date.parse(p.start) < cutoff)
+})
+
+const forecastPvKWh = computed(() =>
+  (forecastPoints.value.reduce((sum, p) => sum + p.pv_w * 0.5, 0) / 1000),
+)
+const forecastLoadKWh = computed(() =>
+  (forecastPoints.value.reduce((sum, p) => sum + p.load_w * 0.5, 0) / 1000),
+)
+const forecastUpdated = computed(() => {
+  const at = forecast.value?.generated_at
+  if (!at) return ''
+  return new Intl.DateTimeFormat(locale.value, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: forecast.value?.timezone ?? site.value?.timezone ?? 'UTC',
+  }).format(new Date(at))
+})
+const forecastWarnings = computed(() => forecast.value?.warnings ?? [])
 
 const socStyle = computed<Record<string, string>>(() => ({
   '--soc': String(hasData.value && sample.value ? Math.round(sample.value.soc) : 0),
@@ -239,6 +292,83 @@ const sources = computed(() => {
       </div>
     </div>
     <p v-if="!hasData" class="text-muted small mb-0 mt-3">{{ t('dashboard.waitingTelemetry') }}</p>
+  </section>
+
+  <section class="aipt-card mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h2 class="mb-0">{{ t('forecast.title') }}</h2>
+      <div class="d-flex align-items-center gap-2">
+        <div class="day-tabs">
+          <button
+            class="btn btn-sm"
+            :class="horizonHours === 24 ? 'btn-primary' : 'btn-outline-secondary'"
+            type="button"
+            @click="horizonHours = 24"
+          >
+            {{ t('forecast.h24') }}
+          </button>
+          <button
+            class="btn btn-sm"
+            :class="horizonHours === 48 ? 'btn-primary' : 'btn-outline-secondary'"
+            type="button"
+            @click="horizonHours = 48"
+          >
+            {{ t('forecast.h48') }}
+          </button>
+        </div>
+        <button
+          class="icon-button"
+          type="button"
+          :title="t('forecast.refresh')"
+          :aria-label="t('forecast.refresh')"
+          :disabled="forecastRefreshing"
+          @click="refreshForecast"
+        >
+          <i class="bi bi-arrow-clockwise" :class="{ spin: forecastRefreshing }"></i>
+        </button>
+      </div>
+    </div>
+
+    <template v-if="forecast">
+      <div class="forecast-stats">
+        <div>
+          <span class="tile-label">{{ t('forecast.pvTotal', { hours: horizonHours }) }}</span>
+          <strong>{{ forecastPvKWh.toFixed(1) }}<span class="unit">kWh</span></strong>
+        </div>
+        <div>
+          <span class="tile-label">{{ t('forecast.loadTotal', { hours: horizonHours }) }}</span>
+          <strong>{{ forecastLoadKWh.toFixed(1) }}<span class="unit">kWh</span></strong>
+        </div>
+        <div>
+          <span class="tile-label">{{ t('forecast.confidence') }}</span>
+          <strong>{{ Math.round(forecast.confidence * 100) }}<span class="unit">%</span></strong>
+        </div>
+      </div>
+      <ForecastChart
+        :points="forecastPoints"
+        :timezone="forecast.timezone"
+        :locale="locale"
+        :label-pv="t('forecast.pv')"
+        :label-load="t('forecast.load')"
+      />
+      <div class="d-flex flex-wrap justify-content-between gap-2 small text-muted mt-2">
+        <span>
+          {{ forecast.source }} ·
+          {{ t('forecast.strings', { count: forecast.strings?.length ?? 0 }) }}
+          <span v-if="forecast.calibration_factor !== 1">
+            · {{ forecast.calibration_factor.toFixed(2) }}×
+          </span>
+        </span>
+        <span>{{ t('forecast.updated', { time: forecastUpdated }) }}</span>
+      </div>
+      <div v-if="forecast.stale" class="mt-2">
+        <span class="badge-soft badge-warn">{{ t('forecast.stale') }}</span>
+      </div>
+      <p v-if="forecastWarnings.length" class="small text-muted mt-2 mb-0">
+        {{ forecastWarnings.join(' · ') }}
+      </p>
+    </template>
+    <p v-else class="empty-state mb-0">{{ forecastError || t('forecast.notReady') }}</p>
   </section>
 
   <div class="row g-3">

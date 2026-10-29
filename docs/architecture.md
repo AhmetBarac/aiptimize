@@ -60,6 +60,18 @@ keys enabled, and a single pooled connection.
 | UI | live energy-flow tiles, PV strings, SOC ring, freshness, inverter check; inverter settings and connection test |
 | Safety | GET-only client and a write-rejecting simulator; no arm gate involved |
 
+## Phase 3 — forecast
+
+| Area | Implementation |
+|---|---|
+| PV client | `internal/forecast/pv`, Open-Meteo tilted irradiance per distinct tilt/azimuth, null-safe parsing, typed errors |
+| PV model | Per-string kWp/PR/temperature model, 30-minute interpolation, string max and inverter AC clipping, deterministic simulator |
+| Load | `internal/forecast/load`, configured 24-hour profile with 14-day weekday/hour median blending and EV exclusion |
+| Service | `internal/service/forecast.go`, 30-minute refresh, in-memory 48-hour snapshot, three-hour zero-PV staleness, previous-snapshot fallback |
+| Calibration | Seven-day forecast history vs measured PV, clamped 0.5–1.5, feature flag |
+| API | `GET /forecast`, `POST /forecast/refresh`, forecast fields in `/status`, SSE `forecast` events |
+| UI | dashboard 24/48-hour PV/load chart, totals, confidence, warnings; Solar/Load settings |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -80,9 +92,10 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phases 0–2 actively use `users`, `sessions`, `settings`,
-`events`, `prices` and `telemetry`. Timestamps are RFC3339 UTC text; local-day
-keys are `YYYY-MM-DD` in the site timezone.
+by the first migration. Phases 0–3 actively use `users`, `sessions`, `settings`,
+`events`, `prices` and `telemetry`; forecasts are cached in memory until phase 4
+stores the exact input snapshot with each plan. Timestamps are RFC3339 UTC text;
+local-day keys are `YYYY-MM-DD` in the site timezone.
 
 Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
 expired sessions removed. WAL is checkpointed on graceful shutdown.
@@ -98,11 +111,11 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions after phase 2
+## Deliberate omissions after phase 3
 
-Forecasts, planning, actuation and EV control are stubs by design. `/status`
-reports their availability as `false`; the UI shows the phase in which each
-arrives. No code path writes to hardware.
+Planning, actuation and EV control are stubs by design. `/status` reports their
+availability as `false`; the UI shows the phase in which each arrives. No code
+path writes to hardware.
 
 ## Phase roadmap
 
@@ -110,7 +123,7 @@ arrives. No code path writes to hardware.
 |---|---|
 | 1 ✅ | Nord Pool client, cache, 15→30-minute aggregation, `/prices` UI |
 | 2 ✅ | Solplanet client, codec, simulator, 30 s telemetry, energy-flow dashboard |
-| 3 | Open-Meteo PV model per MPPT, load profile, forecast UI |
+| 3 ✅ | Open-Meteo PV model per MPPT, load profile, forecast UI |
 | 4 | Deterministic DP battery planner, plan API and chart |
 | 5 | Schedule writer, reconciler, watchdog, plan drafts/editing/resubmit |
 | 6 | Charger interface, Zaptec cloud adapter, EV plans and controller |

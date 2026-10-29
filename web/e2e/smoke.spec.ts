@@ -28,6 +28,8 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
   await expect(page.locator('.soc-ring span')).toContainText('%')
   await expect(page.locator('.energy-tile').first()).not.toContainText('—')
+  await expect(page.getByRole('heading', { name: 'Solar & load forecast' })).toBeVisible()
+  await expect(page.locator('.forecast-chart canvas')).toBeVisible()
   await expectNoHorizontalScroll(page)
   await page.screenshot({ path: 'e2e/screenshots/dashboard-mobile.png', fullPage: true })
 
@@ -72,6 +74,12 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await expect(page.getByText(/Connected —/)).toBeVisible()
   await expectNoHorizontalScroll(page)
   await page.screenshot({ path: 'e2e/screenshots/settings-inverter.png', fullPage: true })
+
+  // Solar forecast configuration is reachable from the same section nav.
+  await page.getByRole('link', { name: 'Solar', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Add string' })).toBeVisible()
+  await expectNoHorizontalScroll(page)
+  await page.screenshot({ path: 'e2e/screenshots/settings-solar.png', fullPage: true })
 
   // Desktop layout uses the sidebar.
   await page.setViewportSize({ width: 1280, height: 800 })

@@ -55,6 +55,8 @@ An `Origin` header, when present, must match the request host.
 | GET | `/api/v1/status` | yes | Snapshot used by the dashboard |
 | GET | `/api/v1/prices` | yes | 15-minute points, 30-minute blocks, tariff, summary |
 | POST | `/api/v1/prices/refresh` | yes | Fetch today/tomorrow (or `date`) from the provider |
+| GET | `/api/v1/forecast` | yes | 48-hour PV/load snapshot |
+| POST | `/api/v1/forecast/refresh` | yes | Refresh the forecast from Open-Meteo |
 | POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
@@ -101,8 +103,8 @@ changing anything. The response contains the merged section:
 ### Status
 
 `GET /api/v1/status` returns `version`, `now`, `uptime_s`, `site`, `gates`,
-`telemetry`, `prices`, `plan`, `ev`, `schedule` and `checks`. Later phases fill
-these objects without changing the envelope.
+`telemetry`, `prices`, `forecast`, `plan`, `ev`, `schedule` and `checks`. Later
+phases fill these objects without changing the envelope.
 
 `telemetry`:
 
@@ -228,6 +230,22 @@ data: {"version":"dev", ...}
 A `status` event is sent every 15 seconds, an initial snapshot on connect, and
 `: ping` heartbeats every 20 seconds. The browser reconnects with
 `retry: 5000`.
+
+### Forecast
+
+`GET /api/v1/forecast` returns the latest 48-hour combined snapshot:
+`generated_at`, `horizon_start`, `horizon_end`, `timezone`, `confidence`,
+`calibration_factor`, `calibration_samples`, `stale`, `pv_total_kwh`,
+`load_total_kwh`, `strings`, `warnings`, `source` and `points`. Each point has
+`start`, `end`, `pv_w`, `pv_strings` and `load_w`.
+
+`POST /api/v1/forecast/refresh` refreshes from Open-Meteo and returns the same
+shape. Both require a session; refresh also requires CSRF. They are read-only
+and need no arm gate. The full model is documented in
+[forecast.md](forecast.md).
+
+`forecast` in `/status` contains `available`, `stale`, `generated_at`,
+`pv_total_kwh`, `load_total_kwh` and `source`.
 
 ## Planned endpoints
 

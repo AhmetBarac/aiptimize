@@ -80,6 +80,71 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
+// LoadSample is the minimal row needed for the measured load profile.
+type LoadSample struct {
+	TS    time.Time
+	LoadW float64
+	EVW   float64
+}
+
+// LoadSamplesBetween returns load samples in [from, to).
+func (s *Store) LoadSamplesBetween(ctx context.Context, from, to time.Time) ([]LoadSample, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT ts_utc, load_w, ev_w FROM telemetry WHERE ts_utc >= ? AND ts_utc < ? ORDER BY ts_utc`,
+		formatTime(from), formatTime(to))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LoadSample
+	for rows.Next() {
+		var ts string
+		var sample LoadSample
+		if err := rows.Scan(&ts, &sample.LoadW, &sample.EVW); err != nil {
+			return nil, err
+		}
+		t, err := parseTime(ts)
+		if err != nil {
+			return nil, err
+		}
+		sample.TS = t
+		out = append(out, sample)
+	}
+	return out, rows.Err()
+}
+
+// PVSample is the minimal row needed for PV calibration.
+type PVSample struct {
+	TS  time.Time
+	PVW float64
+}
+
+// PVSamplesBetween returns PV samples in [from, to).
+func (s *Store) PVSamplesBetween(ctx context.Context, from, to time.Time) ([]PVSample, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT ts_utc, pv_w FROM telemetry WHERE ts_utc >= ? AND ts_utc < ? ORDER BY ts_utc`,
+		formatTime(from), formatTime(to))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PVSample
+	for rows.Next() {
+		var ts string
+		var sample PVSample
+		if err := rows.Scan(&ts, &sample.PVW); err != nil {
+			return nil, err
+		}
+		t, err := parseTime(ts)
+		if err != nil {
+			return nil, err
+		}
+		sample.TS = t
+		out = append(out, sample)
+	}
+	return out, rows.Err()
+}
+
 func scanTelemetry(row rowScanner) (domain.Telemetry, error) {
 	var t domain.Telemetry
 	var ts, pvStrings, extra string

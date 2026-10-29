@@ -143,6 +143,11 @@ func runServe() int {
 	priceSvc := prices.New(st, settingsSvc, priceFetcher, logger)
 
 	broker := api.NewBroker()
+	forecastSvc := service.NewForecastService(settingsSvc, st, logger, broker, service.ForecastOptions{
+		Simulator:        cfg.Simulator,
+		Version:          cfg.Version,
+		OpenMeteoBaseURL: cfg.OpenMeteoBaseURL,
+	})
 	telemetryPoller := service.NewTelemetryPoller(settingsSvc, st, logger, broker, service.TelemetryOptions{
 		Simulator: cfg.Simulator,
 		Version:   cfg.Version,
@@ -154,6 +159,7 @@ func runServe() int {
 		Settings:  settingsSvc,
 		Prices:    priceSvc,
 		Telemetry: telemetryPoller,
+		Forecast:  forecastSvc,
 		Broker:    broker,
 		Logger:    logger,
 		WebFS:     webui.FS(),
@@ -161,6 +167,7 @@ func runServe() int {
 	go srv.RunBackground(ctx)
 	go service.NewPricePoller(priceSvc, settingsSvc, logger, broker).Run(ctx)
 	go telemetryPoller.Run(ctx)
+	go forecastSvc.Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

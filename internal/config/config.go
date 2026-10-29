@@ -31,26 +31,27 @@ const (
 
 // Config is the effective process configuration.
 type Config struct {
-	Listen          string
-	DataDir         string
-	DatabasePath    string
-	LogLevel        slog.Level
-	LogFormat       string
-	Timezone        string
-	AdminUsername   string
-	AdminPassword   string
-	SessionSecret   string
-	CookieSecure    CookieSecureMode
-	TrustProxy      bool
-	EnableWrites    bool
-	EnableEVControl bool
-	Simulator       bool
-	NordPoolBaseURL string
-	Zaptec          ZaptecConfig
-	StaticDir       string
-	Version         string
-	Commit          string
-	BuildDate       string
+	Listen           string
+	DataDir          string
+	DatabasePath     string
+	LogLevel         slog.Level
+	LogFormat        string
+	Timezone         string
+	AdminUsername    string
+	AdminPassword    string
+	SessionSecret    string
+	CookieSecure     CookieSecureMode
+	TrustProxy       bool
+	EnableWrites     bool
+	EnableEVControl  bool
+	Simulator        bool
+	NordPoolBaseURL  string
+	OpenMeteoBaseURL string
+	Zaptec           ZaptecConfig
+	StaticDir        string
+	Version          string
+	Commit           string
+	BuildDate        string
 }
 
 // ZaptecConfig holds the Zaptec cloud credentials (environment only).
@@ -68,19 +69,20 @@ func Load() (*Config, error) {
 // LoadFromEnv is the testable implementation of Load.
 func LoadFromEnv(getenv func(string) string) (*Config, error) {
 	cfg := &Config{
-		Listen:          env(getenv, "AIPTIMIZE_LISTEN", "0.0.0.0:8080"),
-		DataDir:         env(getenv, "AIPTIMIZE_DATA_DIR", "/data"),
-		LogFormat:       strings.ToLower(env(getenv, "AIPTIMIZE_LOG_FORMAT", "json")),
-		Timezone:        env(getenv, "AIPTIMIZE_TZ", "Europe/Stockholm"),
-		AdminUsername:   env(getenv, "AIPTIMIZE_ADMIN_USERNAME", "admin"),
-		AdminPassword:   getenv("AIPTIMIZE_ADMIN_PASSWORD"),
-		SessionSecret:   getenv("AIPTIMIZE_SESSION_SECRET"),
-		CookieSecure:    CookieSecureMode(strings.ToLower(env(getenv, "AIPTIMIZE_COOKIE_SECURE", string(CookieSecureAuto)))),
-		StaticDir:       getenv("AIPTIMIZE_STATIC_DIR"),
-		NordPoolBaseURL: env(getenv, "AIPTIMIZE_NORDPOOL_BASE_URL", "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"),
-		Version:         env(getenv, "AIPTIMIZE_VERSION", "dev"),
-		Commit:          getenv("AIPTIMIZE_COMMIT"),
-		BuildDate:       getenv("AIPTIMIZE_BUILD_DATE"),
+		Listen:           env(getenv, "AIPTIMIZE_LISTEN", "0.0.0.0:8080"),
+		DataDir:          env(getenv, "AIPTIMIZE_DATA_DIR", "/data"),
+		LogFormat:        strings.ToLower(env(getenv, "AIPTIMIZE_LOG_FORMAT", "json")),
+		Timezone:         env(getenv, "AIPTIMIZE_TZ", "Europe/Stockholm"),
+		AdminUsername:    env(getenv, "AIPTIMIZE_ADMIN_USERNAME", "admin"),
+		AdminPassword:    getenv("AIPTIMIZE_ADMIN_PASSWORD"),
+		SessionSecret:    getenv("AIPTIMIZE_SESSION_SECRET"),
+		CookieSecure:     CookieSecureMode(strings.ToLower(env(getenv, "AIPTIMIZE_COOKIE_SECURE", string(CookieSecureAuto)))),
+		StaticDir:        getenv("AIPTIMIZE_STATIC_DIR"),
+		NordPoolBaseURL:  env(getenv, "AIPTIMIZE_NORDPOOL_BASE_URL", "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"),
+		OpenMeteoBaseURL: env(getenv, "AIPTIMIZE_OPENMETEO_BASE_URL", "https://api.open-meteo.com/v1/forecast"),
+		Version:          env(getenv, "AIPTIMIZE_VERSION", "dev"),
+		Commit:           getenv("AIPTIMIZE_COMMIT"),
+		BuildDate:        getenv("AIPTIMIZE_BUILD_DATE"),
 		Zaptec: ZaptecConfig{
 			Username:       getenv("AIPTIMIZE_ZAPTEC_USERNAME"),
 			Password:       getenv("AIPTIMIZE_ZAPTEC_PASSWORD"),
@@ -154,6 +156,9 @@ func (c *Config) Validate() error {
 	}
 	if u, err := url.Parse(c.NordPoolBaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return fmt.Errorf("invalid AIPTIMIZE_NORDPOOL_BASE_URL %q", c.NordPoolBaseURL)
+	}
+	if u, err := url.Parse(c.OpenMeteoBaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("invalid AIPTIMIZE_OPENMETEO_BASE_URL %q", c.OpenMeteoBaseURL)
 	}
 	return nil
 }

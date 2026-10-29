@@ -20,6 +20,7 @@ import (
 
 	"github.com/AhmetBarac/aiptimize/internal/config"
 	"github.com/AhmetBarac/aiptimize/internal/domain"
+	"github.com/AhmetBarac/aiptimize/internal/forecast/pv"
 	"github.com/AhmetBarac/aiptimize/internal/inverter"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
 	"github.com/AhmetBarac/aiptimize/internal/service"
@@ -38,6 +39,21 @@ type testAPI struct {
 	fetcher   *fakePriceFetcher
 	telemetry *service.TelemetryPoller
 	inverter  *fakeInverter
+	forecast  *service.ForecastService
+}
+
+// apiPVFetcher returns a constant 800 W/m² series for every request.
+type apiPVFetcher struct{}
+
+func (f *apiPVFetcher) Fetch(context.Context, pv.Request) (pv.Hourly, error) {
+	start := time.Now().UTC().Truncate(time.Hour).Add(-2 * time.Hour)
+	var h pv.Hourly
+	for i := 0; i < 72; i++ {
+		h.Time = append(h.Time, start.Add(time.Duration(i)*time.Hour))
+		h.GTI = append(h.GTI, 800)
+		h.Temp = append(h.Temp, 25)
+	}
+	return h, nil
 }
 
 type fakeInverter struct {
@@ -123,9 +139,12 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	telemetrySvc := service.NewTelemetryPoller(svc, st, logger, nil, service.TelemetryOptions{
 		NewReader: func(settings.Values) (inverter.Reader, error) { return fakeInv, nil },
 	})
+	forecastSvc := service.NewForecastService(svc, st, logger, nil, service.ForecastOptions{
+		NewFetcher: func(settings.Values) (pv.Fetcher, error) { return &apiPVFetcher{}, nil },
+	})
 	srv := New(Deps{
 		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,
-		Telemetry: telemetrySvc, Logger: logger, WebFS: web,
+		Telemetry: telemetrySvc, Forecast: forecastSvc, Logger: logger, WebFS: web,
 	})
 	ts := httptest.NewServer(srv.Handler())
 
@@ -138,7 +157,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	return &testAPI{
 		t: t, server: ts, client: client, jar: jar, store: st,
 		settings: svc, prices: priceSvc, fetcher: fetcher,
-		telemetry: telemetrySvc, inverter: fakeInv,
+		telemetry: telemetrySvc, inverter: fakeInv, forecast: forecastSvc,
 	}
 }
 
@@ -249,7 +268,7 @@ func TestPublicEndpoints(t *testing.T) {
 		t.Error("CSRF cookie was not issued")
 	}
 	features := meta["features"].(map[string]any)
-	if features["prices"] != true || features["telemetry"] != true || features["phase"].(float64) != 2 {
+	if features["prices"] != true || features["telemetry"] != true || features["forecast"] != true || features["phase"].(float64) != 3 {
 		t.Errorf("features = %v", features)
 	}
 

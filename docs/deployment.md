@@ -48,6 +48,7 @@ The binary checkpoints the WAL on graceful shutdown.
 | `AIPTIMIZE_ENABLE_EV_CONTROL` | `false` | Environment EV gate |
 | `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price and inverter simulators instead of the network/hardware |
 | `AIPTIMIZE_NORDPOOL_BASE_URL` | Data Portal endpoint | Override only for a local fixture server |
+| `AIPTIMIZE_OPENMETEO_BASE_URL` | Open-Meteo forecast endpoint | Override only for a local fixture server |
 | `AIPTIMIZE_ZAPTEC_USERNAME` | — | Zaptec cloud service account |
 | `AIPTIMIZE_ZAPTEC_PASSWORD` | — | Zaptec cloud password |
 | `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` | — | Zaptec installation id |
@@ -96,8 +97,11 @@ is created on first start and the setup endpoint returns `409`.
 
 After setup, open **Settings → Inverter** and set the dongle host, optional
 serial and sign calibration, then use **Test connection**. Telemetry starts on
-the next poll (at most one interval, 30 s by default). Set
-`AIPTIMIZE_SIMULATOR=true` to run without a dongle.
+the next poll (at most one interval, 30 s by default). Under **Settings →
+Solar**, add the MPPT strings (name, kWp, tilt, compass azimuth) and save; the
+forecast refreshes within the configured interval. **Settings → Load** sets the
+daily house energy and measured-profile blending. Set
+`AIPTIMIZE_SIMULATOR=true` to run without a dongle or internet weather.
 
 ## Upgrades
 

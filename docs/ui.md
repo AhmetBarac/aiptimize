@@ -43,11 +43,13 @@ and muted. Buttons are pills; the primary action is white with black text.
 
 1. Energy-flow card with five source tiles (solar, grid, battery, house, car);
    each has a coloured icon, a large value, a unit and a state hint.
-2. State-of-charge ring with the battery state and telemetry freshness.
-3. Prices card with current import price, next price and the cheapest 2-hour
+2. Solar & load forecast card: 24/48-hour tabs, PV and load totals, confidence,
+   a green PV area with a house-load line, source, timestamp and warnings.
+3. State-of-charge ring with the battery state and telemetry freshness.
+4. Prices card with current import price, next price and the cheapest 2-hour
    window.
-4. Safety gates and inverter check.
-5. Data-source status and build information.
+5. Safety gates and inverter check.
+6. Data-source status and build information.
 
 ## Prices
 
@@ -57,6 +59,8 @@ breakdown and attribution.
 
 ## Settings
 
-Segmented section pills (Site, Inverter, Safety, System) and generous forms.
-Inverter includes a read-only connection test whose result is shown as a green
-summary card.
+Segmented section pills (Site, Inverter, Solar, Load, Safety, System) and
+generous forms. Inverter includes a read-only connection test whose result is
+shown as a green summary card. Solar edits 1–3 MPPT strings and forecast
+parameters; Load edits daily energy, measured-profile blending and the 24-hour
+profile.

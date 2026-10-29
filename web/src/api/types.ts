@@ -50,6 +50,71 @@ export interface TelemetryStatus {
   sample: TelemetrySample | null
 }
 
+export interface ForecastString {
+  name: string
+  kwp: number
+  tilt: number
+  azimuth: number
+}
+
+export interface ForecastPoint {
+  start: string
+  end: string
+  pv_w: number
+  pv_strings: number[]
+  load_w: number
+}
+
+export interface ForecastSnapshot {
+  generated_at: string
+  horizon_start: string
+  horizon_end: string
+  timezone: string
+  confidence: number
+  calibration_factor: number
+  calibration_samples: number
+  stale: boolean
+  pv_total_kwh: number
+  load_total_kwh: number
+  strings: ForecastString[]
+  points: ForecastPoint[]
+  warnings: string[]
+  source: string
+}
+
+export interface ForecastStatus {
+  available: boolean
+  stale: boolean
+  generated_at?: string
+  pv_total_kwh?: number
+  load_total_kwh?: number
+  source?: string
+}
+
+export interface PVStringSettings {
+  name: string
+  kwp: number
+  tilt: number
+  azimuth: number
+  performance_ratio: number
+  temp_coefficient: number
+  max_w: number
+}
+
+export interface PVSettings {
+  strings: PVStringSettings[]
+  inverter_ac_limit_w: number
+  confidence: number
+  refresh_minutes: number
+  calibration_enabled: boolean
+}
+
+export interface LoadSettings {
+  daily_kwh: number
+  profile: number[]
+  use_measured_profile: boolean
+}
+
 export interface Status {
   version: string
   now: string
@@ -63,6 +128,7 @@ export interface Status {
   gates: Gates
   telemetry: TelemetryStatus
   prices: PriceStatus
+  forecast: ForecastStatus
   plan: unknown
   ev: { available: boolean }
   schedule: { available: boolean }
@@ -198,8 +264,8 @@ export interface SettingsDocument {
   inverter: InverterSettings
   price: PriceSettings
   safety: SafetySettings
-  pv: Record<string, unknown>
+  pv: PVSettings
   plan: Record<string, unknown>
-  load: Record<string, unknown>
+  load: LoadSettings
   ev: Record<string, unknown>
 }

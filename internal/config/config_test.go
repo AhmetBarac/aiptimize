@@ -37,17 +37,21 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.NordPoolBaseURL != "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices" {
 		t.Errorf("NordPoolBaseURL = %q", cfg.NordPoolBaseURL)
 	}
+	if cfg.OpenMeteoBaseURL != "https://api.open-meteo.com/v1/forecast" {
+		t.Errorf("OpenMeteoBaseURL = %q", cfg.OpenMeteoBaseURL)
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
 	cfg, err := LoadFromEnv(testEnv(map[string]string{
-		"AIPTIMIZE_LISTEN":            "127.0.0.1:9000",
-		"AIPTIMIZE_DATA_DIR":          t.TempDir(),
-		"AIPTIMIZE_LOG_LEVEL":         "debug",
-		"AIPTIMIZE_TZ":                "UTC",
-		"AIPTIMIZE_ENABLE_WRITES":     "true",
-		"AIPTIMIZE_SIMULATOR":         "1",
-		"AIPTIMIZE_NORDPOOL_BASE_URL": "http://127.0.0.1:9999/prices",
+		"AIPTIMIZE_LISTEN":             "127.0.0.1:9000",
+		"AIPTIMIZE_DATA_DIR":           t.TempDir(),
+		"AIPTIMIZE_LOG_LEVEL":          "debug",
+		"AIPTIMIZE_TZ":                 "UTC",
+		"AIPTIMIZE_ENABLE_WRITES":      "true",
+		"AIPTIMIZE_SIMULATOR":          "1",
+		"AIPTIMIZE_NORDPOOL_BASE_URL":  "http://127.0.0.1:9999/prices",
+		"AIPTIMIZE_OPENMETEO_BASE_URL": "http://127.0.0.1:9999/weather",
 	}))
 	if err != nil {
 		t.Fatalf("LoadFromEnv: %v", err)
@@ -57,6 +61,9 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if cfg.NordPoolBaseURL != "http://127.0.0.1:9999/prices" {
 		t.Errorf("NordPoolBaseURL = %q", cfg.NordPoolBaseURL)
+	}
+	if cfg.OpenMeteoBaseURL != "http://127.0.0.1:9999/weather" {
+		t.Errorf("OpenMeteoBaseURL = %q", cfg.OpenMeteoBaseURL)
 	}
 	if cfg.LogLevel != slog.LevelDebug {
 		t.Errorf("LogLevel = %v", cfg.LogLevel)
@@ -72,6 +79,7 @@ func TestLoadInvalid(t *testing.T) {
 		"bad level":         {"AIPTIMIZE_LOG_LEVEL": "verbose"},
 		"bad cookie secure": {"AIPTIMIZE_COOKIE_SECURE": "sometimes"},
 		"bad prices url":    {"AIPTIMIZE_NORDPOOL_BASE_URL": "nordpool"},
+		"bad weather url":   {"AIPTIMIZE_OPENMETEO_BASE_URL": "weather"},
 	}
 	for name, env := range cases {
 		t.Run(name, func(t *testing.T) {

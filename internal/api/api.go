@@ -26,6 +26,7 @@ type Deps struct {
 	Settings  *settings.Service
 	Prices    *prices.Service
 	Telemetry *service.TelemetryPoller
+	Forecast  *service.ForecastService
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
@@ -38,6 +39,7 @@ type Server struct {
 	settings  *settings.Service
 	prices    *prices.Service
 	telemetry *service.TelemetryPoller
+	forecast  *service.ForecastService
 	log       *slog.Logger
 	web       fs.FS
 	started   time.Time
@@ -61,6 +63,7 @@ func New(d Deps) *Server {
 		settings:     d.Settings,
 		prices:       d.Prices,
 		telemetry:    d.Telemetry,
+		forecast:     d.Forecast,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
@@ -91,6 +94,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/status", s.requireAuth(s.handleStatus))
 	s.mux.HandleFunc("GET /api/v1/prices", s.requireAuth(s.handlePrices))
 	s.mux.HandleFunc("POST /api/v1/prices/refresh", s.requireAuth(s.handleRefreshPrices))
+	s.mux.HandleFunc("GET /api/v1/forecast", s.requireAuth(s.handleForecast))
+	s.mux.HandleFunc("POST /api/v1/forecast/refresh", s.requireAuth(s.handleRefreshForecast))
 	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
@@ -159,10 +164,10 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        2,
+		"phase":        3,
 		"prices":       true,
 		"telemetry":    true,
-		"forecast":     false,
+		"forecast":     true,
 		"battery_plan": false,
 		"actuation":    false,
 		"plan_editing": false,
@@ -237,6 +242,7 @@ func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 		"gates":     s.gates(),
 		"prices":    s.priceStatus(ctx),
 		"telemetry": s.telemetryStatus(),
+		"forecast":  s.forecastStatus(),
 		"plan":      nil,
 		"ev":        map[string]any{"available": false},
 		"schedule":  map[string]any{"available": false},
@@ -298,6 +304,24 @@ func (s *Server) handlePatchSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.broker.Publish("settings", map[string]any{"section": req.Section, "values": raw})
+	if s.forecast != nil && (req.Section == settings.SectionPV || req.Section == settings.SectionLoad) {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			if _, err := s.forecast.Refresh(ctx); err != nil {
+				s.log.Warn("forecast refresh after settings change failed", "err", err)
+			}
+		}()
+	}
+	if s.telemetry != nil && req.Section == settings.SectionInverter {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+			defer cancel()
+			if _, err := s.telemetry.PollOnce(ctx); err != nil {
+				s.log.Debug("telemetry poll after settings change failed", "err", err)
+			}
+		}()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"section": req.Section, "values": raw})
 }
 

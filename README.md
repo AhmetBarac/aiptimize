@@ -9,12 +9,12 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 2 (telemetry) complete.** Prices and read-only Solplanet
-> telemetry are running: 15/30-minute prices, 30 s inverter polling, SOC/PV/grid/
-> battery/house on the dashboard, sign calibration and a read-only connection
-> test. Verified against a real ASW08kH-T2 dongle. Forecasting, planning,
-> actuation and EV control follow in phases 3–6. Nothing in this build writes to
-> hardware.
+> **Status: phase 3 (forecast) complete.** Prices, read-only Solplanet telemetry
+> and a 48-hour PV/load forecast are running: 15/30-minute prices, 30 s inverter
+> polling, per-MPPT Open-Meteo forecasting, measured-load blending and a
+> dark-first dashboard with forecast and price charts. Verified against a real
+> ASW08kH-T2 dongle. Battery planning, actuation and EV control follow in
+> phases 4–6. Nothing in this build writes to hardware.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -99,9 +99,13 @@ hardware with deterministic in-process simulators — useful for demos and tests
   refresh) plus a manual refresh.
 - Read-only Solplanet telemetry every 30 s: SOC, PV per MPPT, grid, battery and
   derived house load, with sign calibration and a connection test.
+- 48-hour PV forecast per MPPT string from Open-Meteo tilted irradiance and a
+  temperature model, with optional measured-PV calibration.
+- House-load forecast from a configurable profile, blended with 14 days of
+  measured load when available.
 - Mobile-first, dark-first GUI inspired by the EcoFlow app family: card-based
-  energy flow, large tabular values, light/dark theme, English and Swedish, SSE
-  updates and a live energy-flow dashboard.
+  energy flow, forecast and price charts, large tabular values, light/dark
+  theme, English and Swedish, SSE updates.
 - Single admin account, sessions, CSRF protection, login rate limiting.
 - Docker image with non-root user, healthcheck and a persistent `/data` volume.
 
@@ -115,7 +119,8 @@ internal/settings/   typed, validated settings sections
 internal/auth/       PBKDF2-SHA256, session and CSRF tokens
 internal/prices/     Nord Pool client, aggregation, tariffs, simulator
 internal/inverter/   read-only inverter contract, Solplanet client, codec, simulator
-internal/service/    background loops (price poller, telemetry poller)
+internal/forecast/   Open-Meteo client, PV model, load profile
+internal/service/    background loops (price, telemetry, forecast)
 internal/api/        HTTP API, auth/CSRF middleware, SSE, embedded SPA
 internal/webui/      go:embed of the built Vue app
 internal/domain/     shared value types
@@ -131,6 +136,7 @@ docs/                architecture, prices, telemetry, solplanet, API, safety, de
 - [Architecture](docs/architecture.md)
 - [User interface](docs/ui.md)
 - [Prices](docs/prices.md)
+- [Forecast](docs/forecast.md)
 - [Telemetry](docs/telemetry.md)
 - [Solplanet dongle](docs/solplanet.md)
 - [HTTP API](docs/api.md)
