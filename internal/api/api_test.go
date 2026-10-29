@@ -13,11 +13,13 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/prices"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
 )
@@ -29,6 +31,31 @@ type testAPI struct {
 	jar      http.CookieJar
 	store    *store.Store
 	settings *settings.Service
+	prices   *prices.Service
+	fetcher  *fakePriceFetcher
+}
+
+type fakePriceFetcher struct {
+	mu    sync.Mutex
+	fn    func(ctx context.Context, req prices.Request) (prices.Day, error)
+	calls int
+}
+
+func (f *fakePriceFetcher) FetchDay(ctx context.Context, req prices.Request) (prices.Day, error) {
+	f.mu.Lock()
+	f.calls++
+	fn := f.fn
+	f.mu.Unlock()
+	if fn == nil {
+		return prices.Day{}, prices.ErrNotPublished
+	}
+	return fn(ctx, req)
+}
+
+func (f *fakePriceFetcher) set(fn func(ctx context.Context, req prices.Request) (prices.Day, error)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fn = fn
 }
 
 func newTestAPI(t *testing.T, web fs.FS) *testAPI {
@@ -53,7 +80,9 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 		t.Fatalf("settings: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := New(Deps{Config: cfg, Store: st, Settings: svc, Logger: logger, WebFS: web})
+	fetcher := &fakePriceFetcher{}
+	priceSvc := prices.New(st, svc, fetcher, logger)
+	srv := New(Deps{Config: cfg, Store: st, Settings: svc, Prices: priceSvc, Logger: logger, WebFS: web})
 	ts := httptest.NewServer(srv.Handler())
 
 	jar, _ := cookiejar.New(nil)
@@ -62,7 +91,10 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 		ts.Close()
 		_ = st.Close()
 	})
-	return &testAPI{t: t, server: ts, client: client, jar: jar, store: st, settings: svc}
+	return &testAPI{
+		t: t, server: ts, client: client, jar: jar, store: st,
+		settings: svc, prices: priceSvc, fetcher: fetcher,
+	}
 }
 
 func (a *testAPI) csrf() string {
@@ -170,6 +202,10 @@ func TestPublicEndpoints(t *testing.T) {
 	}
 	if a.csrf() == "" {
 		t.Error("CSRF cookie was not issued")
+	}
+	features := meta["features"].(map[string]any)
+	if features["prices"] != true || features["phase"].(float64) != 1 {
+		t.Errorf("features = %v", features)
 	}
 
 	resp, body = a.get("/api/v1/status")

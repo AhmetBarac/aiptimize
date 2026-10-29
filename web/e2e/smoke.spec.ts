@@ -37,7 +37,14 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
 
   await nav.getByRole('link', { name: 'Prices' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Prices' })).toBeVisible()
+  await expect(page.locator('.price-chart canvas')).toBeVisible()
+  await expect(page.locator('.price-table tbody tr').first()).toBeVisible()
   await expectNoHorizontalScroll(page)
+  await page.screenshot({ path: 'e2e/screenshots/prices-mobile.png', fullPage: true })
+
+  // A manual refresh must report updated days.
+  await page.getByRole('button', { name: 'Refresh' }).click()
+  await expect(page.getByRole('status')).toContainText(/Updated \d+ day\(s\)\./)
 
   await nav.getByRole('link', { name: 'Car' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Car' })).toBeVisible()

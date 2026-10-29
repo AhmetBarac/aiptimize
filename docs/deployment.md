@@ -14,10 +14,13 @@ repository root. The container:
 
 - runs as uid/gid `10001` (non-root);
 - has a read-only root filesystem with a small `/tmp` tmpfs;
-- stores all state in the named volume `aiptimize-data` mounted at `/data`;
+- stores all state in the named volume `aiptimize-v1-data` mounted at `/data`;
 - exposes port `8080`;
 - has a Docker healthcheck running `aiptimize healthcheck`;
 - stops with a 30 s grace period so the WAL can be checkpointed.
+
+The volume name is explicit (`aiptimize-v1-data`) so it cannot collide with a
+leftover volume from another application in the same Docker project.
 
 ### Data
 
@@ -43,7 +46,8 @@ The binary checkpoints the WAL on graceful shutdown.
 | `AIPTIMIZE_TRUST_PROXY` | `false` | Trust `X-Forwarded-Proto`/`Host` |
 | `AIPTIMIZE_ENABLE_WRITES` | `false` | Environment write gate |
 | `AIPTIMIZE_ENABLE_EV_CONTROL` | `false` | Environment EV gate |
-| `AIPTIMIZE_SIMULATOR` | `false` | Use simulator adapters (phases 2+) |
+| `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price generator now, and simulator hardware adapters in phases 2+ |
+| `AIPTIMIZE_NORDPOOL_BASE_URL` | Data Portal endpoint | Override only for a local fixture server |
 | `AIPTIMIZE_ZAPTEC_USERNAME` | — | Zaptec cloud service account |
 | `AIPTIMIZE_ZAPTEC_PASSWORD` | — | Zaptec cloud password |
 | `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` | — | Zaptec installation id |

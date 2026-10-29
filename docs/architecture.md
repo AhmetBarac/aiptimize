@@ -33,6 +33,19 @@ keys enabled, and a single pooled connection.
 | SPA | Vue 3 + TypeScript + Vite, Bootstrap 5, ECharts, vue-router, vue-i18n (en/sv), mobile bottom tabs and desktop sidebar |
 | Ops | Multi-stage Dockerfile, non-root uid 10001, healthcheck, compose with read-only root and `/data` volume |
 
+## Phase 1 — prices
+
+| Area | Implementation |
+|---|---|
+| Client | `internal/prices/client.go`, Nord Pool Data Portal, descriptive user agent, 1 req/s self-limit, typed HTTP errors, `ErrNotPublished` / `ErrNoData` |
+| Poller | `internal/service/pricepoller.go`, today on startup and every 6 h, tomorrow from 13:02 with 15-minute retries until 23:00, preliminary re-publication every 6 h |
+| Storage | `prices` table keyed by area/currency/delivery start, transactional day replacement, `fetched_at` and `state` retained |
+| Aggregation | `internal/prices/aggregate.go`, UTC-instant grouping into 30-minute blocks, missing-block gaps, DST-safe 92/96/100 point days |
+| Tariff | `(spot + grid fee + energy tax + markup) × (1 + VAT)`, export `spot − export fee`, negative prices preserved |
+| API | `GET /prices`, `POST /prices/refresh`, price fields in `/status` and the SSE stream |
+| UI | `/prices`: day tabs, ECharts 15-minute bars with a now marker, min/max/average, cheapest 2-hour windows, block table, tariff breakdown, attribution |
+| Simulator | Deterministic price generator with `AIPTIMIZE_SIMULATOR=true` |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -53,9 +66,9 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phase 0 actively uses `users`, `sessions`, `settings`
-and `events`. Timestamps are RFC3339 UTC text; local-day keys are `YYYY-MM-DD`
-in the site timezone.
+by the first migration. Phases 0–1 actively use `users`, `sessions`, `settings`,
+`events` and `prices`. Timestamps are RFC3339 UTC text; local-day keys are
+`YYYY-MM-DD` in the site timezone.
 
 Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
 expired sessions removed. WAL is checkpointed on graceful shutdown.
@@ -71,17 +84,17 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions in phase 0
+## Deliberate omissions after phase 1
 
-Prices, forecasts, telemetry, planning, actuation and EV control are stubs by
-design. `/status` reports their availability as `false`; the UI shows the phase
-in which each arrives. No code path writes to hardware.
+Forecasts, telemetry, planning, actuation and EV control are stubs by design.
+`/status` reports their availability as `false`; the UI shows the phase in which
+each arrives. No code path writes to hardware.
 
 ## Phase roadmap
 
 | Phase | Adds |
 |---|---|
-| 1 | Nord Pool client, cache, 15→30-minute aggregation, `/prices` UI |
+| 1 ✅ | Nord Pool client, cache, 15→30-minute aggregation, `/prices` UI |
 | 2 | Solplanet client, codec, simulator, 30 s telemetry, energy-flow dashboard |
 | 3 | Open-Meteo PV model per MPPT, load profile, forecast UI |
 | 4 | Deterministic DP battery planner, plan API and chart |

@@ -69,7 +69,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	h.Set("X-Accel-Buffering", "no")
 
 	fmt.Fprint(w, "retry: 5000\n\n")
-	fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(s.statusSnapshot()))
+	fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(s.statusSnapshot(r.Context())))
 	flusher.Flush()
 
 	events, cancel := s.broker.Subscribe()
@@ -93,7 +93,7 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			}
 			flusher.Flush()
 		case <-statusTick.C:
-			fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(s.statusSnapshot()))
+			fmt.Fprintf(w, "event: status\ndata: %s\n\n", mustJSON(s.statusSnapshot(r.Context())))
 			flusher.Flush()
 		case <-heartbeat.C:
 			fmt.Fprint(w, ": ping\n\n")

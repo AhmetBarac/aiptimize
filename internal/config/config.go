@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -44,6 +45,7 @@ type Config struct {
 	EnableWrites    bool
 	EnableEVControl bool
 	Simulator       bool
+	NordPoolBaseURL string
 	Zaptec          ZaptecConfig
 	StaticDir       string
 	Version         string
@@ -66,18 +68,19 @@ func Load() (*Config, error) {
 // LoadFromEnv is the testable implementation of Load.
 func LoadFromEnv(getenv func(string) string) (*Config, error) {
 	cfg := &Config{
-		Listen:        env(getenv, "AIPTIMIZE_LISTEN", "0.0.0.0:8080"),
-		DataDir:       env(getenv, "AIPTIMIZE_DATA_DIR", "/data"),
-		LogFormat:     strings.ToLower(env(getenv, "AIPTIMIZE_LOG_FORMAT", "json")),
-		Timezone:      env(getenv, "AIPTIMIZE_TZ", "Europe/Stockholm"),
-		AdminUsername: env(getenv, "AIPTIMIZE_ADMIN_USERNAME", "admin"),
-		AdminPassword: getenv("AIPTIMIZE_ADMIN_PASSWORD"),
-		SessionSecret: getenv("AIPTIMIZE_SESSION_SECRET"),
-		CookieSecure:  CookieSecureMode(strings.ToLower(env(getenv, "AIPTIMIZE_COOKIE_SECURE", string(CookieSecureAuto)))),
-		StaticDir:     getenv("AIPTIMIZE_STATIC_DIR"),
-		Version:       env(getenv, "AIPTIMIZE_VERSION", "dev"),
-		Commit:        getenv("AIPTIMIZE_COMMIT"),
-		BuildDate:     getenv("AIPTIMIZE_BUILD_DATE"),
+		Listen:          env(getenv, "AIPTIMIZE_LISTEN", "0.0.0.0:8080"),
+		DataDir:         env(getenv, "AIPTIMIZE_DATA_DIR", "/data"),
+		LogFormat:       strings.ToLower(env(getenv, "AIPTIMIZE_LOG_FORMAT", "json")),
+		Timezone:        env(getenv, "AIPTIMIZE_TZ", "Europe/Stockholm"),
+		AdminUsername:   env(getenv, "AIPTIMIZE_ADMIN_USERNAME", "admin"),
+		AdminPassword:   getenv("AIPTIMIZE_ADMIN_PASSWORD"),
+		SessionSecret:   getenv("AIPTIMIZE_SESSION_SECRET"),
+		CookieSecure:    CookieSecureMode(strings.ToLower(env(getenv, "AIPTIMIZE_COOKIE_SECURE", string(CookieSecureAuto)))),
+		StaticDir:       getenv("AIPTIMIZE_STATIC_DIR"),
+		NordPoolBaseURL: env(getenv, "AIPTIMIZE_NORDPOOL_BASE_URL", "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices"),
+		Version:         env(getenv, "AIPTIMIZE_VERSION", "dev"),
+		Commit:          getenv("AIPTIMIZE_COMMIT"),
+		BuildDate:       getenv("AIPTIMIZE_BUILD_DATE"),
 		Zaptec: ZaptecConfig{
 			Username:       getenv("AIPTIMIZE_ZAPTEC_USERNAME"),
 			Password:       getenv("AIPTIMIZE_ZAPTEC_PASSWORD"),
@@ -145,6 +148,12 @@ func (c *Config) Validate() error {
 	}
 	if c.AdminUsername == "" {
 		return errors.New("AIPTIMIZE_ADMIN_USERNAME must not be empty")
+	}
+	if c.NordPoolBaseURL == "" {
+		return errors.New("AIPTIMIZE_NORDPOOL_BASE_URL must not be empty")
+	}
+	if u, err := url.Parse(c.NordPoolBaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("invalid AIPTIMIZE_NORDPOOL_BASE_URL %q", c.NordPoolBaseURL)
 	}
 	return nil
 }

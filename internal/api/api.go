@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/prices"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
 )
@@ -22,6 +23,7 @@ type Deps struct {
 	Config   *config.Config
 	Store    *store.Store
 	Settings *settings.Service
+	Prices   *prices.Service
 	Logger   *slog.Logger
 	WebFS    fs.FS
 }
@@ -31,6 +33,7 @@ type Server struct {
 	cfg      *config.Config
 	st       *store.Store
 	settings *settings.Service
+	prices   *prices.Service
 	log      *slog.Logger
 	web      fs.FS
 	started  time.Time
@@ -48,6 +51,7 @@ func New(d Deps) *Server {
 		cfg:          d.Config,
 		st:           d.Store,
 		settings:     d.Settings,
+		prices:       d.Prices,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
@@ -76,6 +80,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/auth/me", s.handleMe)
 
 	s.mux.HandleFunc("GET /api/v1/status", s.requireAuth(s.handleStatus))
+	s.mux.HandleFunc("GET /api/v1/prices", s.requireAuth(s.handlePrices))
+	s.mux.HandleFunc("POST /api/v1/prices/refresh", s.requireAuth(s.handleRefreshPrices))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
 	s.mux.HandleFunc("GET /api/v1/events", s.requireAuth(s.handleEvents))
@@ -143,8 +149,8 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        0,
-		"prices":       false,
+		"phase":        1,
+		"prices":       true,
 		"telemetry":    false,
 		"forecast":     false,
 		"battery_plan": false,
@@ -203,10 +209,10 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.statusSnapshot())
+	writeJSON(w, http.StatusOK, s.statusSnapshot(r.Context()))
 }
 
-func (s *Server) statusSnapshot() map[string]any {
+func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 	v := s.settings.Get()
 	return map[string]any{
 		"version":  s.cfg.Version,
@@ -224,11 +230,7 @@ func (s *Server) statusSnapshot() map[string]any {
 			"stale":     true,
 			"sample":    nil,
 		},
-		"prices": map[string]any{
-			"available": false,
-			"points":    0,
-			"blocks":    0,
-		},
+		"prices":   s.priceStatus(ctx),
 		"plan":     nil,
 		"ev":       map[string]any{"available": false},
 		"schedule": map[string]any{"available": false},

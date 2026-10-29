@@ -26,6 +26,8 @@ web/playwright-report/
 web/e2e/screenshots/
 .ui-data/
 .smoke-data/
+.e2e-data/
+.price-data/
 
 # Editors / OS
 .DS_Store

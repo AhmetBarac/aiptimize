@@ -19,6 +19,8 @@ import (
 	"github.com/AhmetBarac/aiptimize/internal/api"
 	"github.com/AhmetBarac/aiptimize/internal/auth"
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/prices"
+	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
 	"github.com/AhmetBarac/aiptimize/internal/webui"
@@ -130,14 +132,26 @@ func runServe() int {
 		return 1
 	}
 
+	var priceFetcher prices.Fetcher
+	if cfg.Simulator {
+		logger.Info("using price simulator")
+		priceFetcher = &prices.SimulatorFetcher{}
+	} else {
+		priceFetcher = prices.NewClient(cfg.NordPoolBaseURL,
+			fmt.Sprintf("aiptimize/%s (+https://github.com/AhmetBarac/aiptimize)", cfg.Version))
+	}
+	priceSvc := prices.New(st, settingsSvc, priceFetcher, logger)
+
 	srv := api.New(api.Deps{
 		Config:   cfg,
 		Store:    st,
 		Settings: settingsSvc,
+		Prices:   priceSvc,
 		Logger:   logger,
 		WebFS:    webui.FS(),
 	})
 	go srv.RunBackground(ctx)
+	go service.NewPricePoller(priceSvc, settingsSvc, logger, srv.Broker()).Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

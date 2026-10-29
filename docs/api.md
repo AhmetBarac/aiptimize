@@ -53,6 +53,8 @@ An `Origin` header, when present, must match the request host.
 | POST | `/api/v1/auth/logout` | yes | Revoke the session |
 | GET | `/api/v1/auth/me` | session | Current user or `401` |
 | GET | `/api/v1/status` | yes | Snapshot used by the dashboard |
+| GET | `/api/v1/prices` | yes | 15-minute points, 30-minute blocks, tariff, summary |
+| POST | `/api/v1/prices/refresh` | yes | Fetch today/tomorrow (or `date`) from the provider |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
 | GET | `/api/v1/events` | yes | Audit/warning feed (`?since=RFC3339`) |
@@ -102,6 +104,66 @@ changing anything. The response contains the merged section:
 `schedule` and `checks`. Later phases fill these objects without changing the
 envelope.
 
+`prices` contains `available`, `points`, `blocks`, `state`, `area`, `currency`,
+`stale`, `updated_at`, `now_import`, `now_spot`, `next_import`, `next_start`
+and `cheapest_window` once data has been fetched.
+
+### Prices
+
+`GET /api/v1/prices?date=2026-10-29` or
+`GET /api/v1/prices?from=…&to=…` (RFC3339, max 7 days). The default range is
+today plus tomorrow in the site timezone.
+
+```json
+{
+  "area": "SE4",
+  "currency": "SEK",
+  "timezone": "Europe/Stockholm",
+  "from": "2026-10-28T23:00:00Z",
+  "to": "2026-10-30T23:00:00Z",
+  "points": [
+    { "delivery_start": "2026-10-28T23:00:00Z", "price_mwh": 2682.93, "price_kwh": 2.68293, "state": "Final" }
+  ],
+  "blocks": [
+    { "start": "2026-10-28T23:00:00Z", "end": "2026-10-28T23:30:00Z", "price_mwh": 2659.76,
+      "price_kwh": 2.65976, "import_price": 3.3247, "export_price": 2.65976,
+      "state": "Final", "missing": false, "points": 2 }
+  ],
+  "tariff": { "grid_fee": 0, "energy_tax": 0, "markup": 0, "vat": 25, "export_fee": 0 },
+  "summary": {
+    "min_import": 2.653, "max_import": 7.241, "avg_import": 3.816,
+    "points": 192, "blocks": 96,
+    "cheapest_windows": [
+      { "start": "2026-10-30T00:00:00Z", "end": "2026-10-30T02:00:00Z",
+        "avg_import_price": 2.836, "avg_export_price": 2.269, "blocks": 4 }
+    ]
+  },
+  "state": "Final",
+  "fetched_at": "2026-10-29T21:24:46Z",
+  "source": "Nord Pool Data Portal",
+  "attribution": "Spot prices: Nord Pool Data Portal",
+  "stale": false
+}
+```
+
+`POST /api/v1/prices/refresh` accepts an optional `{"date":"YYYY-MM-DD"}` and
+returns:
+
+```json
+{
+  "results": [
+    { "date": "2026-10-29", "ok": true, "points": 96, "state": "Final" },
+    { "date": "2026-10-30", "ok": true, "points": 96, "state": "Preliminary" }
+  ]
+}
+```
+
+A day that is not published yields `ok:false` with `code:"price_not_published"`
+and HTTP `200`; when every requested day fails with a provider error the
+endpoint returns `503` and `code:"price_refresh_failed"` in each result. Price
+refresh only touches the local cache, so it needs authentication and CSRF but
+not the hardware arm gate.
+
 ### SSE
 
 `GET /api/v1/stream` emits named events with JSON data:
@@ -117,6 +179,6 @@ A `status` event is sent every 15 seconds, an initial snapshot on connect, and
 
 ## Planned endpoints
 
-See §12 of [DEVELOPMENT_PLAN.MD](../DEVELOPMENT_PLAN.MD) for prices, plan
-editing, schedule, charger and history endpoints. They are added in phases 1–7
-and documented here as they land.
+See §12 of [DEVELOPMENT_PLAN.MD](../DEVELOPMENT_PLAN.MD) for schedule, plan
+editing, charger and history endpoints. They are added in phases 2–7 and
+documented here as they land.

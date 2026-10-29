@@ -45,15 +45,89 @@ export interface Status {
     stale: boolean
     sample: unknown
   }
-  prices: {
-    available: boolean
-    points: number
-    blocks: number
-  }
+  prices: PriceStatus
   plan: unknown
   ev: { available: boolean }
   schedule: { available: boolean }
   checks: Record<string, string>
+}
+
+export interface PricePoint {
+  delivery_start: string
+  delivery_end: string
+  price_mwh: number
+  price_kwh: number
+  state: string
+}
+
+export interface PriceBlock {
+  start: string
+  end: string
+  price_mwh: number
+  price_kwh: number
+  import_price: number
+  export_price: number
+  state: string
+  missing: boolean
+  points: number
+}
+
+export interface PriceWindow {
+  start: string
+  end: string
+  avg_import_price: number
+  avg_export_price: number
+  blocks: number
+}
+
+export interface PriceTariff {
+  grid_fee: number
+  energy_tax: number
+  markup: number
+  vat: number
+  export_fee: number
+}
+
+export interface PriceSummary {
+  min_import: number
+  max_import: number
+  avg_import: number
+  points: number
+  blocks: number
+  cheapest_windows: PriceWindow[]
+}
+
+export interface PriceSnapshot {
+  area: string
+  currency: string
+  timezone: string
+  from: string
+  to: string
+  points: PricePoint[]
+  blocks: PriceBlock[]
+  tariff: PriceTariff
+  summary: PriceSummary
+  state: string
+  fetched_at?: string
+  source: string
+  attribution: string
+  stale: boolean
+}
+
+export interface PriceStatus {
+  available: boolean
+  points: number
+  blocks: number
+  state: string
+  area?: string
+  currency?: string
+  stale?: boolean
+  updated_at?: string
+  now_import?: number
+  now_spot?: number
+  next_import?: number
+  next_start?: string
+  cheapest_window?: PriceWindow
 }
 
 export interface SiteSettings {

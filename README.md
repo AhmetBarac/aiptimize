@@ -9,10 +9,11 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 0 (foundation) complete.** The server, database, settings,
-> authentication and the mobile web shell are running and tested. Price
-> ingestion, telemetry, forecasting, planning, actuation and EV control are
-> added in phases 1–6. Nothing in this build writes to hardware.
+> **Status: phase 1 (prices) complete.** The server, database, settings,
+> authentication, mobile web shell and Nord Pool day-ahead prices are running
+> and tested: 15-minute points, 30-minute blocks, tariffs, cheapest windows and
+> a `/prices` screen. Telemetry, forecasting, planning, actuation and EV control
+> follow in phases 2–6. Nothing in this build writes to hardware.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -61,10 +62,11 @@ cd web && npm test && npm run build
 ```
 
 The Playwright mobile smoke test needs a running server with a **fresh** data
-directory, because it creates the administrator account:
+directory, because it creates the administrator account. Run it with the price
+simulator so the run does not depend on Nord Pool availability:
 
 ```sh
-AIPTIMIZE_DATA_DIR=$(mktemp -d) AIPTIMIZE_LISTEN=127.0.0.1:8099 go run ./cmd/aiptimize serve
+AIPTIMIZE_SIMULATOR=true AIPTIMIZE_DATA_DIR=$(mktemp -d) AIPTIMIZE_LISTEN=127.0.0.1:8099 go run ./cmd/aiptimize serve
 # in a second shell
 cd web && AIPTIMIZE_E2E_URL=http://127.0.0.1:8099 npm run test:e2e
 ```
@@ -83,6 +85,21 @@ Both are required. The same pair exists separately for EV control
 (`AIPTIMIZE_ENABLE_EV_CONTROL`). Without both, plans can still be computed and
 previewed but nothing is written.
 
+Set `AIPTIMIZE_SIMULATOR=true` to replace Nord Pool and (in later phases) the
+hardware with deterministic in-process simulators — useful for demos and tests.
+
+## Features
+
+- Nord Pool day-ahead prices: 15-minute points, 30-minute blocks, DST-safe day
+  handling, provisional/final states, negative prices.
+- Configurable import/export tariff shown in the UI and stored with plans later.
+- Cheapest contiguous 2-hour windows.
+- Automatic poll schedule (startup, 13:02 for tomorrow with retries, 6-hour
+  refresh) plus a manual refresh.
+- Mobile-first GUI with English and Swedish, light/dark theme, SSE updates.
+- Single admin account, sessions, CSRF protection, login rate limiting.
+- Docker image with non-root user, healthcheck and a persistent `/data` volume.
+
 ## Repository layout
 
 ```text
@@ -91,17 +108,21 @@ internal/config/     environment loading and validation
 internal/store/      SQLite, embedded migrations, repositories
 internal/settings/   typed, validated settings sections
 internal/auth/       PBKDF2-SHA256, session and CSRF tokens
+internal/prices/     Nord Pool client, aggregation, tariffs, simulator
+internal/service/    background loops (price poller)
 internal/api/        HTTP API, auth/CSRF middleware, SSE, embedded SPA
 internal/webui/      go:embed of the built Vue app
 internal/domain/     shared value types
 web/                 Vue 3 + TypeScript + Vite + Bootstrap + ECharts
+testdata/nordpool/   synthetic provider-schema fixtures (96 and 100 points)
 deploy/              Dockerfile, compose.yaml, .env.example
-docs/                architecture, API, safety, deployment, ADRs
+docs/                architecture, prices, API, safety, deployment, ADRs
 ```
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Prices](docs/prices.md)
 - [HTTP API](docs/api.md)
 - [Safety](docs/safety.md)
 - [Deployment](docs/deployment.md)
