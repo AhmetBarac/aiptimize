@@ -9,11 +9,11 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 6 (EV charging) complete.** Prices, read-only Solplanet
-> telemetry, PV/load forecasting, battery planning/editing/actuation and EV
-> charging plans with a simulator/Zaptec adapter are implemented. Writes and EV
-> control require both the environment switch and the UI arm gate; real-hardware
-> HIL verification remains outstanding. History and PWA follow in phase 7.
+> **Status: phase 7 (release) complete — v1.0.** Prices, telemetry, forecasting,
+> battery planning/editing, gated actuation, EV charging and measured history
+> are implemented. PWA metadata, settings export/import and authenticated
+> metrics are included. Real inverter/Zaptec writes remain HIL-gated; the demo
+> runs on simulators with battery writes disarmed.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -111,6 +111,8 @@ hardware with deterministic in-process simulators — useful for demos and tests
   gated controller with a 15-minute current cadence.
 - EV load and grid windows feed the battery planner so battery discharge does
   not overlap EV grid charging.
+- Daily/weekly history with PV, load, grid, battery, cost, baseline and savings;
+  PWA manifest and icons; authenticated metrics; settings export/import.
 - House-load forecast from a configurable profile, blended with 14 days of
   measured load when available.
 - Solar overview card with today's sparkline and a full-page production chart
@@ -153,6 +155,8 @@ docs/                architecture, prices, telemetry, solplanet, API, safety, de
 - [Forecast](docs/forecast.md)
 - [Battery planning](docs/planning.md)
 - [EV charging](docs/ev.md)
+- [History and release](docs/history.md)
+- [Security review](docs/security.md)
 - [Telemetry](docs/telemetry.md)
 - [Solplanet dongle](docs/solplanet.md)
 - [HTTP API](docs/api.md)

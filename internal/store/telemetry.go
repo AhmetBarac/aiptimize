@@ -53,7 +53,7 @@ func (s *Store) LatestTelemetry(ctx context.Context) (domain.Telemetry, error) {
 
 // TelemetryBetween returns samples in [from, to) ordered oldest first.
 func (s *Store) TelemetryBetween(ctx context.Context, from, to time.Time, limit int) ([]domain.Telemetry, error) {
-	if limit <= 0 || limit > 10000 {
+	if limit <= 0 || limit > 100000 {
 		limit = 1000
 	}
 	rows, err := s.db.QueryContext(ctx, `

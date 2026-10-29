@@ -169,6 +169,7 @@ func runServe() int {
 	}
 	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
 	plannerSvc.SetEVProvider(evSvc)
+	historySvc := service.NewHistoryService(st, settingsSvc, priceSvc, plannerSvc)
 
 	srv := api.New(api.Deps{
 		Config:    cfg,
@@ -180,6 +181,7 @@ func runServe() int {
 		Solar:     solarSvc,
 		Planner:   plannerSvc,
 		EV:        evSvc,
+		History:   historySvc,
 		Broker:    broker,
 		Logger:    logger,
 		WebFS:     webui.FS(),

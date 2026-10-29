@@ -10,6 +10,7 @@ const items = computed(() => [
   { name: 'home', to: '/', icon: 'bi-house-door' },
   { name: 'plan', to: '/plan', icon: 'bi-calendar3-week' },
   { name: 'prices', to: '/prices', icon: 'bi-graph-up' },
+  { name: 'history', to: '/history', icon: 'bi-bar-chart' },
   { name: 'car', to: '/car', icon: 'bi-ev-station' },
   { name: 'settings', to: '/settings', icon: 'bi-gear' },
 ])

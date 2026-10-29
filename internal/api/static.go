@@ -67,7 +67,9 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.Set("Cache-Control", "no-cache")
 	}
-	if ct := mime.TypeByExtension(path.Ext(file)); ct != "" {
+	if path.Ext(file) == ".webmanifest" {
+		h.Set("Content-Type", "application/manifest+json")
+	} else if ct := mime.TypeByExtension(path.Ext(file)); ct != "" {
 		h.Set("Content-Type", ct)
 	} else if file == "index.html" {
 		h.Set("Content-Type", "text/html; charset=utf-8")

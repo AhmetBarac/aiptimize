@@ -24,10 +24,25 @@ leftover volume from another application in the same Docker project.
 
 ### Data
 
-`/data/aiptimize.db` (plus WAL) holds users, sessions, settings and — in later
-phases — prices, plans and telemetry. Back up by stopping the container and
-copying the volume, or by running `sqlite3 /data/aiptimize.db ".backup …"`.
-The binary checkpoints the WAL on graceful shutdown.
+`/data/aiptimize.db` (plus WAL) holds users, sessions, settings, prices,
+telemetry, plans, revisions, schedule writes and EV data. Back up by stopping
+the container and copying the volume, or by running
+`sqlite3 /data/aiptimize.db ".backup /data/backup.db"`. The binary checkpoints
+the WAL on graceful shutdown. Settings can also be exported/imported as JSON
+from Settings → System.
+
+### Backup and restore
+
+```sh
+docker compose stop
+docker run --rm -v aiptimize-v1-data:/data -v "$PWD":/backup alpine \
+  cp /data/aiptimize.db /backup/aiptimize-$(date +%F).db
+docker compose start
+```
+
+Restore by stopping the service, replacing `aiptimize.db` in the volume and
+starting again. Migrations run on startup. Keep the database and the matching
+`.env` together; secrets are not included in settings export.
 
 ### Environment
 

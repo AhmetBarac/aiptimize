@@ -30,6 +30,7 @@ type Deps struct {
 	Solar     *service.SolarService
 	Planner   *service.PlannerService
 	EV        *service.EVService
+	History   *service.HistoryService
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
@@ -46,6 +47,7 @@ type Server struct {
 	solar     *service.SolarService
 	planner   *service.PlannerService
 	ev        *service.EVService
+	history   *service.HistoryService
 	log       *slog.Logger
 	web       fs.FS
 	started   time.Time
@@ -73,6 +75,7 @@ func New(d Deps) *Server {
 		solar:        d.Solar,
 		planner:      d.Planner,
 		ev:           d.EV,
+		history:      d.History,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
@@ -131,6 +134,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/v1/chargers/{id}/plans/repeating", s.requireAuth(s.handleRepeatingPlans))
 	s.mux.HandleFunc("POST /api/v1/chargers/{id}/plan/preview", s.requireAuth(s.handlePlanPreview))
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}/session", s.requireAuth(s.handleEVSession))
+	s.mux.HandleFunc("GET /api/v1/history", s.requireAuth(s.handleHistory))
+	s.mux.HandleFunc("GET /api/v1/metrics", s.requireAuth(s.handleMetrics))
+	s.mux.HandleFunc("GET /api/v1/settings/export", s.requireAuth(s.handleExportSettings))
+	s.mux.HandleFunc("POST /api/v1/settings/import", s.requireAuth(s.handleImportSettings))
 	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
@@ -199,7 +206,7 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        6,
+		"phase":        7,
 		"prices":       true,
 		"telemetry":    true,
 		"forecast":     true,
@@ -207,7 +214,7 @@ func featureSet() map[string]any {
 		"actuation":    true,
 		"plan_editing": true,
 		"ev_charging":  true,
-		"history":      false,
+		"history":      true,
 	}
 }
 

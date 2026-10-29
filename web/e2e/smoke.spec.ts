@@ -70,6 +70,12 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await page.getByRole('button', { name: 'Refresh' }).click()
   await expect(page.getByRole('status')).toContainText(/Updated \d+ day\(s\)\./)
 
+  await nav.getByRole('link', { name: 'History' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+  await expect(page.locator('.history-chart canvas')).toBeVisible()
+  await expectNoHorizontalScroll(page)
+  await page.screenshot({ path: 'e2e/screenshots/history-mobile.png', fullPage: true })
+
   await nav.getByRole('link', { name: 'Car' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Car' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Charging mode' })).toBeVisible()

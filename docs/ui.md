@@ -86,6 +86,17 @@ manual current and pause/resume; a charging-plan card with target, remaining,
 duration, windows, state and warnings; a static plan form; and the Zaptec
 15-minute cadence notice. Controls are disabled when EV control is disarmed.
 
+## History
+
+Daily/weekly totals for PV, load, grid import, cost and savings, an energy/cost
+chart and a breakdown table. Available from the main navigation.
+
+## PWA
+
+The app ships a manifest, 192/512 px icons (including maskable), favicon and
+Apple touch icon for standalone installation. There is deliberately no service
+worker in v1, so control data is never stale.
+
 ## Settings
 
 Segmented section pills (Site, Inverter, Solar, Load, Plan, Safety, System) and

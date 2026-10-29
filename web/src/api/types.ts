@@ -385,6 +385,34 @@ export interface ChargerPlanPayload {
   preview?: EVPreview
 }
 
+export interface HistoryBucket {
+  label: string
+  start: string
+  end: string
+  pv_kwh: number
+  load_kwh: number
+  ev_kwh: number
+  grid_import_kwh: number
+  grid_export_kwh: number
+  battery_charge_kwh: number
+  battery_discharge_kwh: number
+  plan_battery_kwh: number
+  cost: number
+  baseline_cost: number
+  savings: number
+}
+
+export interface HistorySnapshot {
+  from: string
+  to: string
+  resolution: 'day' | 'week'
+  timezone: string
+  currency: string
+  buckets: HistoryBucket[]
+  totals: HistoryBucket
+  warnings: string[]
+}
+
 export interface Status {
   version: string
   now: string

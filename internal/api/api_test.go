@@ -162,10 +162,11 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	plannerSvc := service.NewPlannerService(st, svc, priceSvc, forecastSvc, telemetrySvc, logger, nil)
 	evSvc := service.NewEVService(svc, st, priceSvc, forecastSvc, logger, true, true, time.Now)
 	plannerSvc.SetEVProvider(evSvc)
+	historySvc := service.NewHistoryService(st, svc, priceSvc, plannerSvc)
 	srv := New(Deps{
 		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,
 		Telemetry: telemetrySvc, Forecast: forecastSvc, Solar: solarSvc, Planner: plannerSvc,
-		EV: evSvc, Logger: logger, WebFS: web,
+		EV: evSvc, History: historySvc, Logger: logger, WebFS: web,
 	})
 	ts := httptest.NewServer(srv.Handler())
 
@@ -292,7 +293,7 @@ func TestPublicEndpoints(t *testing.T) {
 	features := meta["features"].(map[string]any)
 	if features["prices"] != true || features["telemetry"] != true || features["forecast"] != true ||
 		features["battery_plan"] != true || features["actuation"] != true || features["plan_editing"] != true ||
-		features["ev_charging"] != true || features["phase"].(float64) != 6 {
+		features["ev_charging"] != true || features["history"] != true || features["phase"].(float64) != 7 {
 		t.Errorf("features = %v", features)
 	}
 

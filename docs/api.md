@@ -82,6 +82,10 @@ An `Origin` header, when present, must match the request host.
 | DELETE | `/api/v1/chargers/{id}/plan/static?id=` | yes | Delete a static plan |
 | PUT | `/api/v1/chargers/{id}/plans/repeating` | yes | Replace repeating plans |
 | POST | `/api/v1/chargers/{id}/plan/preview` | yes | Preview without saving |
+| GET | `/api/v1/history?from=&to=&resolution=` | yes | Daily/weekly energy and cost aggregates |
+| GET | `/api/v1/metrics` | yes | Prometheus text metrics |
+| GET | `/api/v1/settings/export` | yes | Download all settings |
+| POST | `/api/v1/settings/import` | yes | Validate and apply settings sections |
 | POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
@@ -383,6 +387,21 @@ saving. `GET /plan` returns plans, the latest preview and session.
 
 `/status.ev` contains the live charger status and latest EV plan for the
 dashboard. The full model is in [ev.md](ev.md).
+
+### History and release
+
+`GET /api/v1/history?from=2026-10-01&to=2026-10-15&resolution=day` returns
+`buckets[]` with measured PV, load, EV, grid, battery, plan battery energy, cost,
+baseline cost and savings, plus `totals` and `warnings`. Dates accept
+`YYYY-MM-DD` in the site timezone or RFC3339; the range is capped at 92 days.
+
+`GET /api/v1/metrics` returns Prometheus text (`aiptimize_up`,
+`aiptimize_uptime_seconds`, telemetry/price/plan/EV availability, plan
+savings/cost).
+
+`GET /api/v1/settings/export` returns all settings sections.
+`POST /api/v1/settings/import` accepts a section→object map, validates each
+section and returns the applied list. See [history.md](history.md).
 
 ## Planned endpoints
 

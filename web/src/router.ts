@@ -29,6 +29,12 @@ export const router = createRouter({
       meta: { titleKey: 'solar.title' },
     },
     {
+      path: '/history',
+      name: 'history',
+      component: () => import('./views/HistoryView.vue'),
+      meta: { titleKey: 'nav.history' },
+    },
+    {
       path: '/car',
       name: 'car',
       component: () => import('./views/CarView.vue'),

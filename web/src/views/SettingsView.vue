@@ -405,6 +405,42 @@ async function saveEV(): Promise<void> {
     saving.value = false
   }
 }
+
+async function exportSettings(): Promise<void> {
+  error.value = ''
+  try {
+    const data = await api.get<Record<string, unknown>>('/settings/export')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'aiptimize-settings.json'
+    link.click()
+    URL.revokeObjectURL(link.href)
+    saved.value = t('settings.exported')
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : t('settings.exportFailed')
+  }
+}
+
+async function importSettings(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  saving.value = true
+  error.value = ''
+  try {
+    const text = await file.text()
+    const parsed = JSON.parse(text) as Record<string, unknown>
+    await api.post('/settings/import', parsed)
+    saved.value = t('settings.imported')
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : t('settings.importFailed')
+  } finally {
+    saving.value = false
+  }
+}
 </script>
 
 <template>
@@ -934,6 +970,17 @@ async function saveEV(): Promise<void> {
           <dd>{{ settings.price.area }} · {{ settings.price.currency }}</dd>
         </div>
       </dl>
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button class="btn btn-outline-secondary" type="button" @click="exportSettings">
+          <i class="bi bi-download" aria-hidden="true"></i>
+          <span class="ms-1">{{ t('settings.export') }}</span>
+        </button>
+        <label class="btn btn-outline-secondary mb-0">
+          <i class="bi bi-upload" aria-hidden="true"></i>
+          <span class="ms-1">{{ t('settings.import') }}</span>
+          <input class="d-none" type="file" accept="application/json" @change="importSettings" />
+        </label>
+      </div>
     </section>
   </template>
 </template>

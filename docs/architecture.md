@@ -108,6 +108,15 @@ keys enabled, and a single pooled connection.
 | API | chargers/status/config, mode/current/pause/resume, plans, preview, sessions |
 | UI | Car page with status/mode/controls, plan card and static-plan form; EV settings; dashboard EV card |
 
+## Phase 7 — release
+
+| Area | Implementation |
+|---|---|
+| History | telemetry integration, tariff-mapped cost, no-battery baseline, savings and plan-vs-actual by day/week |
+| API | `/history`, authenticated `/metrics`, settings export/import |
+| UI | `/history` chart/table, PWA manifest/icons, settings transfer buttons |
+| Ops | readiness/liveness, backup and restore guidance, release checklist |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -149,11 +158,12 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions after phase 6
+## Release (phase 7)
 
-History, PWA installation and long-term audit reporting are phase 7. `/status`
-reports `history` as `false`. Real Zaptec and Solplanet actuation remains
-HIL-gated; the test suite uses the simulator only.
+History, PWA metadata, settings export/import, metrics and the release checklist
+are documented in [history.md](history.md). Phase 8 items (battery hold/boost,
+vehicle SOC, OCPP, MILP, notifications/MQTT) require separate design and HIL
+approval.
 
 ## Phase roadmap
 
@@ -165,6 +175,7 @@ HIL-gated; the test suite uses the simulator only.
 | 4 ✅ | Deterministic DP battery planner, plan API and chart |
 | 5 ✅ | Plan drafts/validation/revisions, schedule actuation and GUI editor |
 | 6 ✅ | EV adapters, plans/controller, battery/EV coordination and Car UI |
+| 7 ✅ | History, PWA, metrics, settings transfer and release docs |
 | 5 | Schedule writer, reconciler, watchdog, plan drafts/editing/resubmit |
 | 6 | Charger interface, Zaptec cloud adapter, EV plans and controller |
 | 7 | History, PWA, backups, Playwright, security review, v1.0 |

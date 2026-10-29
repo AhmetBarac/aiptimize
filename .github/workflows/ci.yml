@@ -69,3 +69,50 @@ jobs:
             --build-arg COMMIT="${GITHUB_SHA::7}" \
             --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -t aiptimize:ci .
+
+  e2e:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+    needs: [go, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Build server
+        run: go build -trimpath -o bin/aiptimize ./cmd/aiptimize
+      - name: Start simulator
+        run: |
+          mkdir -p "$RUNNER_TEMP/aiptimize-e2e"
+          AIPTIMIZE_DATA_DIR="$RUNNER_TEMP/aiptimize-e2e" \
+          AIPTIMIZE_LISTEN=127.0.0.1:8099 \
+          AIPTIMIZE_SIMULATOR=true \
+          AIPTIMIZE_LOG_LEVEL=warn \
+          ./bin/aiptimize serve > "$RUNNER_TEMP/aiptimize.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/aiptimize.pid"
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8099/healthz >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/aiptimize.log"
+          exit 1
+      - name: Install browser
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright
+        working-directory: web
+        run: npm run test:e2e
+      - name: Stop simulator
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/aiptimize.pid")" || true
