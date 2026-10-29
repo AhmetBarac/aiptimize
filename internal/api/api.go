@@ -14,29 +14,33 @@ import (
 
 	"github.com/AhmetBarac/aiptimize/internal/config"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
+	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
 )
 
 // Deps are the server dependencies.
 type Deps struct {
-	Config   *config.Config
-	Store    *store.Store
-	Settings *settings.Service
-	Prices   *prices.Service
-	Logger   *slog.Logger
-	WebFS    fs.FS
+	Config    *config.Config
+	Store     *store.Store
+	Settings  *settings.Service
+	Prices    *prices.Service
+	Telemetry *service.TelemetryPoller
+	Broker    *Broker
+	Logger    *slog.Logger
+	WebFS     fs.FS
 }
 
 // Server serves the API and the SPA.
 type Server struct {
-	cfg      *config.Config
-	st       *store.Store
-	settings *settings.Service
-	prices   *prices.Service
-	log      *slog.Logger
-	web      fs.FS
-	started  time.Time
+	cfg       *config.Config
+	st        *store.Store
+	settings  *settings.Service
+	prices    *prices.Service
+	telemetry *service.TelemetryPoller
+	log       *slog.Logger
+	web       fs.FS
+	started   time.Time
 
 	mux          *http.ServeMux
 	broker       *Broker
@@ -47,16 +51,21 @@ type Server struct {
 
 // New builds a server and registers all routes.
 func New(d Deps) *Server {
+	broker := d.Broker
+	if broker == nil {
+		broker = NewBroker()
+	}
 	s := &Server{
 		cfg:          d.Config,
 		st:           d.Store,
 		settings:     d.Settings,
 		prices:       d.Prices,
+		telemetry:    d.Telemetry,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
 		mux:          http.NewServeMux(),
-		broker:       NewBroker(),
+		broker:       broker,
 		loginLimiter: newRateLimiter(5, time.Minute),
 		now:          time.Now,
 	}
@@ -82,6 +91,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/status", s.requireAuth(s.handleStatus))
 	s.mux.HandleFunc("GET /api/v1/prices", s.requireAuth(s.handlePrices))
 	s.mux.HandleFunc("POST /api/v1/prices/refresh", s.requireAuth(s.handleRefreshPrices))
+	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
 	s.mux.HandleFunc("GET /api/v1/events", s.requireAuth(s.handleEvents))
@@ -149,9 +159,9 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        1,
+		"phase":        2,
 		"prices":       true,
-		"telemetry":    false,
+		"telemetry":    true,
 		"forecast":     false,
 		"battery_plan": false,
 		"actuation":    false,
@@ -224,18 +234,26 @@ func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 			"currency": v.Price.Currency,
 			"area":     v.Price.Area,
 		},
-		"gates": s.gates(),
-		"telemetry": map[string]any{
-			"available": false,
-			"stale":     true,
-			"sample":    nil,
-		},
-		"prices":   s.priceStatus(ctx),
-		"plan":     nil,
-		"ev":       map[string]any{"available": false},
-		"schedule": map[string]any{"available": false},
-		"checks":   map[string]string{"database": "ok"},
+		"gates":     s.gates(),
+		"prices":    s.priceStatus(ctx),
+		"telemetry": s.telemetryStatus(),
+		"plan":      nil,
+		"ev":        map[string]any{"available": false},
+		"schedule":  map[string]any{"available": false},
+		"checks":    s.checks(),
 	}
+}
+
+func (s *Server) checks() map[string]string {
+	checks := map[string]string{"database": "ok"}
+	if s.telemetry != nil {
+		if _, _, ok := s.telemetry.Latest(); ok {
+			checks["inverter"] = "ok"
+		} else {
+			checks["inverter"] = "unavailable"
+		}
+	}
+	return checks
 }
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {

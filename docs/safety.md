@@ -3,9 +3,20 @@
 Aiptimize controls a home battery and, later, an EV charger. This document
 describes the safety model and what phase 0 actually does.
 
-> **Phase 0 writes nothing.** The Solplanet client, schedule writer and EV
-> controller do not exist yet. The only side effects are local database writes,
-> authentication and settings.
+> **Phase 2 is read-only.** The Solplanet client only issues GET requests for
+> identity, telemetry and the weekly schedule. The schedule writer and EV
+> controller do not exist yet, and the simulator rejects write endpoints with
+> `405`.
+
+## Telemetry safety
+
+- The poller keeps the last valid sample when the dongle is unreachable; it does
+  not create or apply plans from stale data.
+- Stale telemetry is flagged in `/status` and on the dashboard.
+- Sign calibration (`inverter.sign_overrides`) changes interpretation only; it
+  never changes hardware state.
+- The connection test is a read-only diagnostic and is available without the
+  write arm gate.
 
 ## Two independent gates
 

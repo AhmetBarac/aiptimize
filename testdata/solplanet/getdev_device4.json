@@ -1,0 +1,30 @@
+{
+  "isn": "SIM000000000001",
+  "stu_r": 1,
+  "type": 1,
+  "mod_r": 2,
+  "muf": 5,
+  "mod": 9,
+  "num": 6,
+  "discharge_max": 10,
+  "charge_max": 100,
+  "battery": {
+    "bid": 0,
+    "devtype": "9",
+    "manufactoty": "AISWEI",
+    "partno": "SIM-BATTERY",
+    "model1sn": "SIM-MODULE-1",
+    "model2sn": "SIM-MODULE-2",
+    "model3sn": "SIM-MODULE-3",
+    "model4sn": "SIM-MODULE-4",
+    "model5sn": "SIM-MODULE-5",
+    "model6sn": "SIM-MODULE-6",
+    "modeltotal": 6,
+    "monomertotoal": 96,
+    "monomerinmodel": 16,
+    "ratedvoltage": 0,
+    "capacity": 12812,
+    "hardwarever": "V1.0",
+    "softwarever": "V610-90002-12"
+  }
+}

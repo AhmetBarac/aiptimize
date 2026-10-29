@@ -26,6 +26,8 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
 
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+  await expect(page.locator('.soc-ring span')).toContainText('%')
+  await expect(page.locator('.energy-tile').first()).not.toContainText('—')
   await expectNoHorizontalScroll(page)
   await page.screenshot({ path: 'e2e/screenshots/dashboard-mobile.png', fullPage: true })
 
@@ -64,6 +66,13 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await expect(page.getByLabel('Arm inverter writes in the app')).toBeVisible()
   await expect(page.getByLabel('Arm EV control in the app')).toBeVisible()
 
+  // The inverter connectivity test reads the simulator without writing.
+  await page.getByRole('link', { name: 'Inverter', exact: true }).click()
+  await page.getByRole('button', { name: 'Test connection' }).click()
+  await expect(page.getByText(/Connected —/)).toBeVisible()
+  await expectNoHorizontalScroll(page)
+  await page.screenshot({ path: 'e2e/screenshots/settings-inverter.png', fullPage: true })
+
   // Desktop layout uses the sidebar.
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto('/')
@@ -84,9 +93,24 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
 
 test('swedish locale is available', async ({ page }) => {
   await page.goto('/login')
-  const localeSelect = page.locator('select.auth-locale')
+  const localeSelect = page.locator('.auth-locale select')
   await localeSelect.selectOption('sv')
   await expect(page.getByRole('heading', { name: 'Logga in' })).toBeVisible()
   await localeSelect.selectOption('en')
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+})
+
+test('theme toggle switches between dark and light', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByLabel('Username').fill(admin.username)
+  await page.getByLabel('Password', { exact: true }).fill(admin.password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/$/)
+
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark')
+  await page.getByRole('button', { name: 'Switch theme' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light')
+  await page.screenshot({ path: 'e2e/screenshots/dashboard-light.png', fullPage: false })
+  await page.getByRole('button', { name: 'Switch theme' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark')
 })

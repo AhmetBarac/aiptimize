@@ -46,6 +46,20 @@ keys enabled, and a single pooled connection.
 | UI | `/prices`: day tabs, ECharts 15-minute bars with a now marker, min/max/average, cheapest 2-hour windows, block table, tariff breakdown, attribution |
 | Simulator | Deterministic price generator with `AIPTIMIZE_SIMULATOR=true` |
 
+## Phase 2 — telemetry (read-only)
+
+| Area | Implementation |
+|---|---|
+| Contract | `internal/inverter`: `Reader` (identity, read, schedule), normalized sample conventions |
+| Solplanet | `internal/inverter/solplanet`: `getdev.cgi`, `getdevdata.cgi` devices 2/3/4 and `getdefine.cgi`; units per [solplanet.md](solplanet.md) |
+| Codec | Schedule decode with day-key, marker, half-hour and duration validation; golden vectors |
+| Simulator | `internal/inverter/simulator`: deterministic PV/load/battery model plus an HTTP fixture server; writes rejected |
+| Poller | `internal/service/telemetry.go`: immediate poll, configurable 5–3600 s interval, reader rebuild on settings change, last-sample retention |
+| Storage | `telemetry` table, 90-day retention, newest sample also kept in memory |
+| API | telemetry block in `/status`, `POST /settings/test/inverter`, `telemetry` SSE events |
+| UI | live energy-flow tiles, PV strings, SOC ring, freshness, inverter check; inverter settings and connection test |
+| Safety | GET-only client and a write-rejecting simulator; no arm gate involved |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -66,9 +80,9 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phases 0–1 actively use `users`, `sessions`, `settings`,
-`events` and `prices`. Timestamps are RFC3339 UTC text; local-day keys are
-`YYYY-MM-DD` in the site timezone.
+by the first migration. Phases 0–2 actively use `users`, `sessions`, `settings`,
+`events`, `prices` and `telemetry`. Timestamps are RFC3339 UTC text; local-day
+keys are `YYYY-MM-DD` in the site timezone.
 
 Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
 expired sessions removed. WAL is checkpointed on graceful shutdown.
@@ -84,18 +98,18 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions after phase 1
+## Deliberate omissions after phase 2
 
-Forecasts, telemetry, planning, actuation and EV control are stubs by design.
-`/status` reports their availability as `false`; the UI shows the phase in which
-each arrives. No code path writes to hardware.
+Forecasts, planning, actuation and EV control are stubs by design. `/status`
+reports their availability as `false`; the UI shows the phase in which each
+arrives. No code path writes to hardware.
 
 ## Phase roadmap
 
 | Phase | Adds |
 |---|---|
 | 1 ✅ | Nord Pool client, cache, 15→30-minute aggregation, `/prices` UI |
-| 2 | Solplanet client, codec, simulator, 30 s telemetry, energy-flow dashboard |
+| 2 ✅ | Solplanet client, codec, simulator, 30 s telemetry, energy-flow dashboard |
 | 3 | Open-Meteo PV model per MPPT, load profile, forecast UI |
 | 4 | Deterministic DP battery planner, plan API and chart |
 | 5 | Schedule writer, reconciler, watchdog, plan drafts/editing/resubmit |

@@ -46,7 +46,7 @@ The binary checkpoints the WAL on graceful shutdown.
 | `AIPTIMIZE_TRUST_PROXY` | `false` | Trust `X-Forwarded-Proto`/`Host` |
 | `AIPTIMIZE_ENABLE_WRITES` | `false` | Environment write gate |
 | `AIPTIMIZE_ENABLE_EV_CONTROL` | `false` | Environment EV gate |
-| `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price generator now, and simulator hardware adapters in phases 2+ |
+| `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price and inverter simulators instead of the network/hardware |
 | `AIPTIMIZE_NORDPOOL_BASE_URL` | Data Portal endpoint | Override only for a local fixture server |
 | `AIPTIMIZE_ZAPTEC_USERNAME` | — | Zaptec cloud service account |
 | `AIPTIMIZE_ZAPTEC_PASSWORD` | — | Zaptec cloud password |
@@ -93,6 +93,11 @@ then omit `Secure` automatically (`AIPTIMIZE_COOKIE_SECURE=auto`).
 
 Complete setup on a trusted LAN. If `AIPTIMIZE_ADMIN_PASSWORD` is set, the admin
 is created on first start and the setup endpoint returns `409`.
+
+After setup, open **Settings → Inverter** and set the dongle host, optional
+serial and sign calibration, then use **Test connection**. Telemetry starts on
+the next poll (at most one interval, 30 s by default). Set
+`AIPTIMIZE_SIMULATOR=true` to run without a dongle.
 
 ## Upgrades
 

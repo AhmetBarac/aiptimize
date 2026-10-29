@@ -9,11 +9,12 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 1 (prices) complete.** The server, database, settings,
-> authentication, mobile web shell and Nord Pool day-ahead prices are running
-> and tested: 15-minute points, 30-minute blocks, tariffs, cheapest windows and
-> a `/prices` screen. Telemetry, forecasting, planning, actuation and EV control
-> follow in phases 2–6. Nothing in this build writes to hardware.
+> **Status: phase 2 (telemetry) complete.** Prices and read-only Solplanet
+> telemetry are running: 15/30-minute prices, 30 s inverter polling, SOC/PV/grid/
+> battery/house on the dashboard, sign calibration and a read-only connection
+> test. Verified against a real ASW08kH-T2 dongle. Forecasting, planning,
+> actuation and EV control follow in phases 3–6. Nothing in this build writes to
+> hardware.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -96,7 +97,11 @@ hardware with deterministic in-process simulators — useful for demos and tests
 - Cheapest contiguous 2-hour windows.
 - Automatic poll schedule (startup, 13:02 for tomorrow with retries, 6-hour
   refresh) plus a manual refresh.
-- Mobile-first GUI with English and Swedish, light/dark theme, SSE updates.
+- Read-only Solplanet telemetry every 30 s: SOC, PV per MPPT, grid, battery and
+  derived house load, with sign calibration and a connection test.
+- Mobile-first, dark-first GUI inspired by the EcoFlow app family: card-based
+  energy flow, large tabular values, light/dark theme, English and Swedish, SSE
+  updates and a live energy-flow dashboard.
 - Single admin account, sessions, CSRF protection, login rate limiting.
 - Docker image with non-root user, healthcheck and a persistent `/data` volume.
 
@@ -109,20 +114,25 @@ internal/store/      SQLite, embedded migrations, repositories
 internal/settings/   typed, validated settings sections
 internal/auth/       PBKDF2-SHA256, session and CSRF tokens
 internal/prices/     Nord Pool client, aggregation, tariffs, simulator
-internal/service/    background loops (price poller)
+internal/inverter/   read-only inverter contract, Solplanet client, codec, simulator
+internal/service/    background loops (price poller, telemetry poller)
 internal/api/        HTTP API, auth/CSRF middleware, SSE, embedded SPA
 internal/webui/      go:embed of the built Vue app
 internal/domain/     shared value types
 web/                 Vue 3 + TypeScript + Vite + Bootstrap + ECharts
 testdata/nordpool/   synthetic provider-schema fixtures (96 and 100 points)
+testdata/solplanet/  captured dongle payloads (sanitized) and schedule
 deploy/              Dockerfile, compose.yaml, .env.example
-docs/                architecture, prices, API, safety, deployment, ADRs
+docs/                architecture, prices, telemetry, solplanet, API, safety, deployment
 ```
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [User interface](docs/ui.md)
 - [Prices](docs/prices.md)
+- [Telemetry](docs/telemetry.md)
+- [Solplanet dongle](docs/solplanet.md)
 - [HTTP API](docs/api.md)
 - [Safety](docs/safety.md)
 - [Deployment](docs/deployment.md)

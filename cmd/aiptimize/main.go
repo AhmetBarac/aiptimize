@@ -142,16 +142,25 @@ func runServe() int {
 	}
 	priceSvc := prices.New(st, settingsSvc, priceFetcher, logger)
 
+	broker := api.NewBroker()
+	telemetryPoller := service.NewTelemetryPoller(settingsSvc, st, logger, broker, service.TelemetryOptions{
+		Simulator: cfg.Simulator,
+		Version:   cfg.Version,
+	})
+
 	srv := api.New(api.Deps{
-		Config:   cfg,
-		Store:    st,
-		Settings: settingsSvc,
-		Prices:   priceSvc,
-		Logger:   logger,
-		WebFS:    webui.FS(),
+		Config:    cfg,
+		Store:     st,
+		Settings:  settingsSvc,
+		Prices:    priceSvc,
+		Telemetry: telemetryPoller,
+		Broker:    broker,
+		Logger:    logger,
+		WebFS:     webui.FS(),
 	})
 	go srv.RunBackground(ctx)
-	go service.NewPricePoller(priceSvc, settingsSvc, logger, srv.Broker()).Run(ctx)
+	go service.NewPricePoller(priceSvc, settingsSvc, logger, broker).Run(ctx)
+	go telemetryPoller.Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

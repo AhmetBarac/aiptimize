@@ -28,6 +28,11 @@ web/e2e/screenshots/
 .smoke-data/
 .e2e-data/
 .price-data/
+.gui-data/
+.telemetry-data/
+.live-data/
+.demo-data/
+GUI inspiration/
 
 # Editors / OS
 .DS_Store

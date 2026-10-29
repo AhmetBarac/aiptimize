@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { currentLocale, setLocale, SUPPORTED_LOCALES, type Locale } from '../i18n'
 import { session, signOut } from '../session'
+import { theme, toggleTheme } from '../theme'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -34,12 +35,21 @@ async function logout(): Promise<void> {
         </span>
       </router-link>
       <div class="header-actions">
-        <span class="gate-pill" :class="armed ? 'gate-on' : 'gate-off'">
+        <span class="gate-pill header-gate" :class="armed ? 'gate-on' : 'gate-off'">
           <i class="bi" :class="armed ? 'bi-shield-check' : 'bi-shield-lock'"></i>
           <span class="d-none d-sm-inline">
             {{ armed ? t('dashboard.armed') : t('dashboard.disarmed') }}
           </span>
         </span>
+        <button
+          class="icon-button"
+          type="button"
+          :title="t('common.switchTheme')"
+          :aria-label="t('common.switchTheme')"
+          @click="toggleTheme"
+        >
+          <i class="bi" :class="theme === 'dark' ? 'bi-sun' : 'bi-moon-stars'"></i>
+        </button>
         <select
           class="form-select form-select-sm locale-select"
           :value="locale"
@@ -51,14 +61,13 @@ async function logout(): Promise<void> {
           </option>
         </select>
         <button
-          class="btn btn-sm btn-outline-secondary"
+          class="icon-button"
           type="button"
           :title="t('common.logout')"
           :aria-label="t('common.logout')"
           @click="logout"
         >
           <i class="bi bi-box-arrow-right"></i>
-          <span class="d-none d-lg-inline ms-1">{{ t('common.logout') }}</span>
         </button>
       </div>
     </div>

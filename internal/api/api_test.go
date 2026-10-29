@@ -19,21 +19,54 @@ import (
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/domain"
+	"github.com/AhmetBarac/aiptimize/internal/inverter"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
+	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
 )
 
 type testAPI struct {
-	t        *testing.T
-	server   *httptest.Server
-	client   *http.Client
-	jar      http.CookieJar
-	store    *store.Store
-	settings *settings.Service
-	prices   *prices.Service
-	fetcher  *fakePriceFetcher
+	t         *testing.T
+	server    *httptest.Server
+	client    *http.Client
+	jar       http.CookieJar
+	store     *store.Store
+	settings  *settings.Service
+	prices    *prices.Service
+	fetcher   *fakePriceFetcher
+	telemetry *service.TelemetryPoller
+	inverter  *fakeInverter
 }
+
+type fakeInverter struct {
+	mu      sync.Mutex
+	reading inverter.Reading
+	err     error
+}
+
+func (f *fakeInverter) Identity(context.Context) (inverter.Identity, error) {
+	return inverter.Identity{
+		Serial: "SIM000000000001", Model: "ASW08kH-T2", Firmware: "SIM-1.0",
+		RatedPowerW: 8000, Phases: 3, CapacityKWh: 12.812, WorkMode: 2,
+	}, nil
+}
+
+func (f *fakeInverter) Read(context.Context) (inverter.Reading, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return inverter.Reading{}, f.err
+	}
+	return f.reading, nil
+}
+
+func (f *fakeInverter) Schedule(context.Context) (domain.Schedule, error) {
+	return domain.Schedule{Days: map[string][]domain.ScheduleSlot{}}, nil
+}
+
+func (f *fakeInverter) Close() error { return nil }
 
 type fakePriceFetcher struct {
 	mu    sync.Mutex
@@ -82,7 +115,18 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	fetcher := &fakePriceFetcher{}
 	priceSvc := prices.New(st, svc, fetcher, logger)
-	srv := New(Deps{Config: cfg, Store: st, Settings: svc, Prices: priceSvc, Logger: logger, WebFS: web})
+	fakeInv := &fakeInverter{reading: inverter.Reading{
+		At: time.Now().UTC(), SOC: 94, PVW: 132, PVStrings: []float64{65.7, 46.5},
+		GridW: 39, BatteryW: -2187, LoadW: 2358, SOH: 98, Mode: 2,
+		Extra: map[string]any{"bst": 3},
+	}}
+	telemetrySvc := service.NewTelemetryPoller(svc, st, logger, nil, service.TelemetryOptions{
+		NewReader: func(settings.Values) (inverter.Reader, error) { return fakeInv, nil },
+	})
+	srv := New(Deps{
+		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,
+		Telemetry: telemetrySvc, Logger: logger, WebFS: web,
+	})
 	ts := httptest.NewServer(srv.Handler())
 
 	jar, _ := cookiejar.New(nil)
@@ -94,6 +138,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	return &testAPI{
 		t: t, server: ts, client: client, jar: jar, store: st,
 		settings: svc, prices: priceSvc, fetcher: fetcher,
+		telemetry: telemetrySvc, inverter: fakeInv,
 	}
 }
 
@@ -204,7 +249,7 @@ func TestPublicEndpoints(t *testing.T) {
 		t.Error("CSRF cookie was not issued")
 	}
 	features := meta["features"].(map[string]any)
-	if features["prices"] != true || features["phase"].(float64) != 1 {
+	if features["prices"] != true || features["telemetry"] != true || features["phase"].(float64) != 2 {
 		t.Errorf("features = %v", features)
 	}
 

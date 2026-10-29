@@ -29,6 +29,27 @@ export interface User {
   username: string
 }
 
+export interface TelemetrySample {
+  ts: string
+  soc: number
+  pv_w: number
+  pv_strings: number[]
+  grid_w: number
+  battery_w: number
+  load_w: number
+  ev_w: number
+  inverter_mode: number
+  extra?: Record<string, unknown>
+}
+
+export interface TelemetryStatus {
+  available: boolean
+  stale: boolean
+  age_s?: number
+  updated_at?: string
+  sample: TelemetrySample | null
+}
+
 export interface Status {
   version: string
   now: string
@@ -40,11 +61,7 @@ export interface Status {
     area: string
   }
   gates: Gates
-  telemetry: {
-    available: boolean
-    stale: boolean
-    sample: unknown
-  }
+  telemetry: TelemetryStatus
   prices: PriceStatus
   plan: unknown
   ev: { available: boolean }

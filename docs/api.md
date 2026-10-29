@@ -55,6 +55,7 @@ An `Origin` header, when present, must match the request host.
 | GET | `/api/v1/status` | yes | Snapshot used by the dashboard |
 | GET | `/api/v1/prices` | yes | 15-minute points, 30-minute blocks, tariff, summary |
 | POST | `/api/v1/prices/refresh` | yes | Fetch today/tomorrow (or `date`) from the provider |
+| POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
 | GET | `/api/v1/events` | yes | Audit/warning feed (`?since=RFC3339`) |
@@ -100,9 +101,60 @@ changing anything. The response contains the merged section:
 ### Status
 
 `GET /api/v1/status` returns `version`, `now`, `uptime_s`, `site`, `gates`,
-`telemetry` (starts `{available:false, stale:true}`), `prices`, `plan`, `ev`,
-`schedule` and `checks`. Later phases fill these objects without changing the
-envelope.
+`telemetry`, `prices`, `plan`, `ev`, `schedule` and `checks`. Later phases fill
+these objects without changing the envelope.
+
+`telemetry`:
+
+```json
+{
+  "available": true,
+  "stale": false,
+  "age_s": 3,
+  "updated_at": "2026-10-29T21:40:36Z",
+  "sample": {
+    "ts": "2026-10-29T21:40:33Z",
+    "soc": 10,
+    "pv_w": 1,
+    "pv_strings": [0.4, 0.8],
+    "grid_w": 2456,
+    "battery_w": 0,
+    "load_w": 2457,
+    "ev_w": 0,
+    "inverter_mode": 4,
+    "extra": { "soh": 98, "bst": 1 }
+  }
+}
+```
+
+A sample is stale after `max(90 s, 3 × telemetry interval)`. `checks.inverter`
+reports `ok` or `unavailable`.
+
+### Inverter connectivity test
+
+```json
+POST /api/v1/settings/test/inverter
+{}
+```
+
+```json
+{
+  "ok": true,
+  "identity": {
+    "serial": "SIM000000000001",
+    "model": "ASW08kH-T2",
+    "firmware": "V610-05001-07.000",
+    "rated_power_w": 8000,
+    "capacity_kwh": 12.812,
+    "work_mode": 4
+  },
+  "telemetry": { "soc": 10, "pv_w": 1, "grid_w": 2456, "battery_w": 0, "load_w": 2457 }
+}
+```
+
+The test only issues GET requests and does not require the hardware arm gate.
+It returns `502 inverter_unreachable` when the dongle cannot be read. The serial
+in this example comes from the live HIL check; redact it in public reports.
 
 `prices` contains `available`, `points`, `blocks`, `state`, `area`, `currency`,
 `stale`, `updated_at`, `now_import`, `now_spot`, `next_import`, `next_start`
