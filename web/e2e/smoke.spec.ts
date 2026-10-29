@@ -33,6 +33,17 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await expectNoHorizontalScroll(page)
   await page.screenshot({ path: 'e2e/screenshots/dashboard-mobile.png', fullPage: true })
 
+  // The Solar tile opens the full production/forecast page.
+  await page.locator('.energy-tile-link').click()
+  await expect(page).toHaveURL(/\/solar$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Solar production' })).toBeVisible()
+  await expect(page.locator('.solar-chart canvas')).toBeVisible()
+  await expectNoHorizontalScroll(page)
+  await page.screenshot({ path: 'e2e/screenshots/solar-mobile.png', fullPage: true })
+  await page.getByRole('link', { name: 'Dashboard' }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible()
+
   // Bottom navigation at 390 px.
   const nav = page.getByRole('navigation', { name: 'Aiptimize' })
   await nav.getByRole('link', { name: 'Plan' }).click()

@@ -17,6 +17,8 @@ type Point struct {
 	Start     time.Time `json:"start"`
 	End       time.Time `json:"end"`
 	PVW       float64   `json:"pv_w"`
+	PVMinW    float64   `json:"pv_min_w"`
+	PVMaxW    float64   `json:"pv_max_w"`
 	PVStrings []float64 `json:"pv_strings"`
 	LoadW     float64   `json:"load_w"`
 }

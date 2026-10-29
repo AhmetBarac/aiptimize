@@ -42,7 +42,9 @@ and muted. Buttons are pills; the primary action is white with black text.
 ## Dashboard
 
 1. Energy-flow card with five source tiles (solar, grid, battery, house, car);
-   each has a coloured icon, a large value, a unit and a state hint.
+   each has a coloured icon, a large value, a unit and a state hint. The solar
+   tile is a button with a small today sparkline (measured over expected) and
+   opens **Solar production**.
 2. Solar & load forecast card: 24/48-hour tabs, PV and load totals, confidence,
    a green PV area with a house-load line, source, timestamp and warnings.
 3. State-of-charge ring with the battery state and telemetry freshness.
@@ -50,6 +52,13 @@ and muted. Buttons are pills; the primary action is white with black text.
    window.
 5. Safety gates and inverter check.
 6. Data-source status and build information.
+
+## Solar production
+
+Full-page chart with today's measured production (green area), expected curve
+(yellow), minimum and maximum estimates (dashed) and the house-load forecast
+(blue), plus current output, produced/expected/load kWh and the estimate range.
+A back button returns to the dashboard.
 
 ## Prices
 

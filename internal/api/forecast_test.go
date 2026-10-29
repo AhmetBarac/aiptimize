@@ -84,6 +84,61 @@ func TestForecastAPIWithoutStrings(t *testing.T) {
 	}
 }
 
+func TestSolarAPI(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	body := `{"strings":[
+		{"name":"East","kwp":4.2,"tilt":35,"azimuth":120,"performance_ratio":0.85,"temp_coefficient":-0.004}
+	],"inverter_ac_limit_w":8000}`
+	if _, err := a.settings.Patch(context.Background(), settings.SectionPV, []byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.forecast.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	resp, responseBody := a.get("/api/v1/solar")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("solar = %d %s", resp.StatusCode, responseBody)
+	}
+	snap := decodeMap(t, responseBody)
+	points := snap["points"].([]any)
+	if len(points) == 0 {
+		t.Fatal("no solar points")
+	}
+	first := points[0].(map[string]any)
+	if _, ok := first["expected_w"]; !ok {
+		t.Fatalf("expected_w missing: %v", first)
+	}
+	if _, ok := first["min_w"]; !ok {
+		t.Fatalf("min_w missing: %v", first)
+	}
+	if _, ok := first["load_w"]; !ok {
+		t.Fatalf("load_w missing: %v", first)
+	}
+	if snap["has_forecast"] != true {
+		t.Errorf("has_forecast = %v", snap["has_forecast"])
+	}
+	if snap["expected_kwh"].(float64) <= 0 {
+		t.Errorf("expected kWh = %v", snap["expected_kwh"])
+	}
+	if snap["load_kwh"].(float64) <= 0 {
+		t.Errorf("load kWh = %v", snap["load_kwh"])
+	}
+
+	resp, responseBody = a.get("/api/v1/solar")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("solar second read = %d %s", resp.StatusCode, responseBody)
+	}
+}
+
+func TestSolarAPIRequiresAuth(t *testing.T) {
+	a := newTestAPI(t, nil)
+	resp, body := a.get("/api/v1/solar")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("solar without auth = %d %s", resp.StatusCode, body)
+	}
+}
+
 func TestForecastAPIRequiresAuth(t *testing.T) {
 	a := newTestAPI(t, nil)
 	resp, body := a.get("/api/v1/forecast")

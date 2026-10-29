@@ -69,8 +69,8 @@ keys enabled, and a single pooled connection.
 | Load | `internal/forecast/load`, configured 24-hour profile with 14-day weekday/hour median blending and EV exclusion |
 | Service | `internal/service/forecast.go`, 30-minute refresh, in-memory 48-hour snapshot, three-hour zero-PV staleness, previous-snapshot fallback |
 | Calibration | Seven-day forecast history vs measured PV, clamped 0.5–1.5, feature flag |
-| API | `GET /forecast`, `POST /forecast/refresh`, forecast fields in `/status`, SSE `forecast` events |
-| UI | dashboard 24/48-hour PV/load chart, totals, confidence, warnings; Solar/Load settings |
+| API | `GET /forecast`, `POST /forecast/refresh`, `GET /solar`, forecast fields in `/status`, SSE `forecast` events |
+| UI | dashboard 24/48-hour PV/load chart and today's solar sparkline; full-page solar production/forecast/load chart; Solar/Load settings |
 
 ## Request lifecycle
 

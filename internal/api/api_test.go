@@ -142,9 +142,10 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	forecastSvc := service.NewForecastService(svc, st, logger, nil, service.ForecastOptions{
 		NewFetcher: func(settings.Values) (pv.Fetcher, error) { return &apiPVFetcher{}, nil },
 	})
+	solarSvc := service.NewSolarService(svc, st, forecastSvc)
 	srv := New(Deps{
 		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,
-		Telemetry: telemetrySvc, Forecast: forecastSvc, Logger: logger, WebFS: web,
+		Telemetry: telemetrySvc, Forecast: forecastSvc, Solar: solarSvc, Logger: logger, WebFS: web,
 	})
 	ts := httptest.NewServer(srv.Handler())
 

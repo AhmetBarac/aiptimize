@@ -23,6 +23,12 @@ export const router = createRouter({
       meta: { titleKey: 'nav.prices' },
     },
     {
+      path: '/solar',
+      name: 'solar',
+      component: () => import('./views/SolarView.vue'),
+      meta: { titleKey: 'solar.title' },
+    },
+    {
       path: '/car',
       name: 'car',
       component: () => import('./views/CarView.vue'),

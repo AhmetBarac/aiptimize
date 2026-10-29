@@ -27,6 +27,7 @@ type Deps struct {
 	Prices    *prices.Service
 	Telemetry *service.TelemetryPoller
 	Forecast  *service.ForecastService
+	Solar     *service.SolarService
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
@@ -40,6 +41,7 @@ type Server struct {
 	prices    *prices.Service
 	telemetry *service.TelemetryPoller
 	forecast  *service.ForecastService
+	solar     *service.SolarService
 	log       *slog.Logger
 	web       fs.FS
 	started   time.Time
@@ -64,6 +66,7 @@ func New(d Deps) *Server {
 		prices:       d.Prices,
 		telemetry:    d.Telemetry,
 		forecast:     d.Forecast,
+		solar:        d.Solar,
 		log:          d.Logger,
 		web:          d.WebFS,
 		started:      time.Now(),
@@ -96,6 +99,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/prices/refresh", s.requireAuth(s.handleRefreshPrices))
 	s.mux.HandleFunc("GET /api/v1/forecast", s.requireAuth(s.handleForecast))
 	s.mux.HandleFunc("POST /api/v1/forecast/refresh", s.requireAuth(s.handleRefreshForecast))
+	s.mux.HandleFunc("GET /api/v1/solar", s.requireAuth(s.handleSolar))
 	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))

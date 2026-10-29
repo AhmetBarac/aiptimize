@@ -57,6 +57,7 @@ An `Origin` header, when present, must match the request host.
 | POST | `/api/v1/prices/refresh` | yes | Fetch today/tomorrow (or `date`) from the provider |
 | GET | `/api/v1/forecast` | yes | 48-hour PV/load snapshot |
 | POST | `/api/v1/forecast/refresh` | yes | Refresh the forecast from Open-Meteo |
+| GET | `/api/v1/solar` | yes | Today's measured PV, forecast band and load |
 | POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
@@ -246,6 +247,34 @@ and need no arm gate. The full model is documented in
 
 `forecast` in `/status` contains `available`, `stale`, `generated_at`,
 `pv_total_kwh`, `load_total_kwh` and `source`.
+
+`GET /api/v1/solar` returns today's production and forecast:
+
+```json
+{
+  "date": "2026-10-29",
+  "timezone": "Europe/Stockholm",
+  "now": "2026-10-29T22:07:00Z",
+  "current_w": 0,
+  "actual_kwh": 0,
+  "expected_kwh": 19.17,
+  "min_kwh": 13.42,
+  "max_kwh": 24.93,
+  "load_kwh": 12,
+  "has_forecast": true,
+  "stale": false,
+  "generated_at": "2026-10-29T22:07:00Z",
+  "points": [
+    { "start": "…", "end": "…", "actual_w": null, "expected_w": 0,
+      "min_w": 0, "max_w": 0, "load_w": 420.1 }
+  ],
+  "warnings": []
+}
+```
+
+The measured value is the 30-minute average of stored `pv_w` samples; it is
+`null` before measurement. The expected band comes from `pv.confidence` and is
+clamped to the inverter AC limit.
 
 ## Planned endpoints
 

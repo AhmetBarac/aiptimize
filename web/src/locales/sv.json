@@ -68,6 +68,25 @@
     "warnings": "Varningar",
     "refresh": "Uppdatera prognos"
   },
+  "solar": {
+    "title": "Solproduktion",
+    "subtitle": "Uppmätt produktion och prognos",
+    "back": "Översikt",
+    "current": "Aktuell effekt",
+    "actual": "Producerat idag",
+    "expected": "Förväntat idag",
+    "estimateRange": "Uppskattat intervall",
+    "load": "Lastuppskattning",
+    "chartTitle": "Produktion, prognos och last",
+    "measured": "Uppmätt",
+    "expectedCurve": "Förväntat",
+    "minEstimate": "Minsta uppskattning",
+    "maxEstimate": "Högsta uppskattning",
+    "loadCurve": "Hushållslast",
+    "stale": "Inaktuell prognos",
+    "updated": "Uppdaterad {time}",
+    "details": "Detaljer"
+  },
   "dashboard": {
     "title": "Översikt",
     "subtitle": "Energiläget i realtid",

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { RouterLink } from 'vue-router'
 import { api } from '../api/client'
-import type { ForecastSnapshot, Status, TelemetrySample } from '../api/types'
+import type { ForecastSnapshot, SolarSnapshot, Status, TelemetrySample } from '../api/types'
 import { session } from '../session'
 import ForecastChart from '../components/ForecastChart.vue'
 import PageHead from '../components/PageHead.vue'
+import SolarSparkline from '../components/SolarSparkline.vue'
 
 const { t, locale } = useI18n()
 const status = ref<Status | null>(null)
@@ -13,9 +15,11 @@ const error = ref('')
 const forecast = ref<ForecastSnapshot | null>(null)
 const forecastError = ref('')
 const forecastRefreshing = ref(false)
+const solar = ref<SolarSnapshot | null>(null)
 const horizonHours = ref<24 | 48>(24)
 let timer: ReturnType<typeof setInterval> | undefined
 let forecastTimer: ReturnType<typeof setInterval> | undefined
+let solarTimer: ReturnType<typeof setInterval> | undefined
 
 async function load(): Promise<void> {
   try {
@@ -47,16 +51,27 @@ async function refreshForecast(): Promise<void> {
   }
 }
 
+async function loadSolar(): Promise<void> {
+  try {
+    solar.value = await api.get<SolarSnapshot>('/solar')
+  } catch {
+    // The solar detail page reports its own error; the dashboard sparkline is optional.
+  }
+}
+
 onMounted(() => {
   void load()
   void loadForecast()
+  void loadSolar()
   timer = setInterval(() => void load(), 10_000)
   forecastTimer = setInterval(() => void loadForecast(), 300_000)
+  solarTimer = setInterval(() => void loadSolar(), 60_000)
 })
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
   if (forecastTimer) clearInterval(forecastTimer)
+  if (solarTimer) clearInterval(solarTimer)
 })
 
 const site = computed<{ name: string; area?: string; timezone?: string; currency?: string } | null>(
@@ -209,8 +224,7 @@ const tiles = computed(() => [
     cls: 'tile-solar',
     value: powerParts(sample.value?.pv_w),
     hint: pvStringHint.value,
-  },
-  {
+  },  {
     key: 'grid',
     label: t('dashboard.grid'),
     icon: 'bi-plug',
@@ -280,16 +294,28 @@ const sources = computed(() => {
       </span>
     </div>
     <div class="energy-grid">
-      <div v-for="tile in tiles" :key="tile.key" class="energy-tile">
-        <span class="tile-label">
-          <i class="bi" :class="tile.icon" aria-hidden="true"></i>
-          {{ tile.label }}
-        </span>
-        <span class="tile-value tabular" :class="tile.cls">
-          {{ tile.value.value }}<span v-if="tile.value.unit" class="unit">{{ tile.value.unit }}</span>
-        </span>
-        <span v-if="tile.hint" class="tile-hint">{{ tile.hint }}</span>
-      </div>
+      <template v-for="tile in tiles" :key="tile.key">
+        <component
+          :is="tile.key === 'solar' ? RouterLink : 'div'"
+          :to="tile.key === 'solar' ? '/solar' : undefined"
+          class="energy-tile"
+          :class="[tile.cls, tile.key === 'solar' ? 'energy-tile-link' : '']"
+        >
+          <span class="tile-label">
+            <i class="bi" :class="tile.icon" aria-hidden="true"></i>
+            {{ tile.label }}
+          </span>
+          <span class="tile-value tabular" :class="tile.cls">
+            {{ tile.value.value }}<span v-if="tile.value.unit" class="unit">{{ tile.value.unit }}</span>
+          </span>
+          <SolarSparkline v-if="tile.key === 'solar' && solar" :points="solar.points" />
+          <span v-if="tile.hint && !(tile.key === 'solar' && solar)" class="tile-hint">{{ tile.hint }}</span>
+          <span v-if="tile.key === 'solar'" class="solar-link-hint">
+            {{ t('solar.details') }}
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          </span>
+        </component>
+      </template>
     </div>
     <p v-if="!hasData" class="text-muted small mb-0 mt-3">{{ t('dashboard.waitingTelemetry') }}</p>
   </section>

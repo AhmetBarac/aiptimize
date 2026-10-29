@@ -91,6 +91,33 @@ export interface ForecastStatus {
   source?: string
 }
 
+export interface SolarPoint {
+  start: string
+  end: string
+  actual_w: number | null
+  expected_w: number
+  min_w: number
+  max_w: number
+  load_w: number
+}
+
+export interface SolarSnapshot {
+  date: string
+  timezone: string
+  now: string
+  current_w: number
+  actual_kwh: number
+  expected_kwh: number
+  min_kwh: number
+  max_kwh: number
+  load_kwh: number
+  has_forecast: boolean
+  stale: boolean
+  generated_at?: string
+  points: SolarPoint[]
+  warnings: string[]
+}
+
 export interface PVStringSettings {
   name: string
   kwp: number

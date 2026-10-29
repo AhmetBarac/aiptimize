@@ -152,6 +152,7 @@ func runServe() int {
 		Simulator: cfg.Simulator,
 		Version:   cfg.Version,
 	})
+	solarSvc := service.NewSolarService(settingsSvc, st, forecastSvc)
 
 	srv := api.New(api.Deps{
 		Config:    cfg,
@@ -160,6 +161,7 @@ func runServe() int {
 		Prices:    priceSvc,
 		Telemetry: telemetryPoller,
 		Forecast:  forecastSvc,
+		Solar:     solarSvc,
 		Broker:    broker,
 		Logger:    logger,
 		WebFS:     webui.FS(),

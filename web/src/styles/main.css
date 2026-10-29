@@ -1122,6 +1122,73 @@ a {
   letter-spacing: 0;
 }
 
+.solar-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.solar-stats .aipt-card {
+  padding: 0.9rem;
+}
+
+.solar-value {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 1.35rem;
+  font-weight: 620;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.solar-value .unit {
+  font-size: 0.72rem;
+  color: var(--aipt-muted);
+  margin-left: 0.2rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+@media (min-width: 768px) {
+  .solar-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .solar-stats .aipt-card:last-child {
+    grid-column: span 2;
+  }
+}
+
+.energy-tile-link {
+  color: var(--aipt-text);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.energy-tile-link:hover {
+  color: var(--aipt-text);
+  border-color: var(--aipt-border-strong);
+}
+
+.energy-tile-link .solar-sparkline {
+  margin-top: 0.3rem;
+}
+
+.solar-link-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--aipt-muted);
+}
+
+.energy-tile-link:hover .solar-link-hint {
+  color: var(--aipt-green);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

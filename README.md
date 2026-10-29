@@ -103,6 +103,8 @@ hardware with deterministic in-process simulators — useful for demos and tests
   temperature model, with optional measured-PV calibration.
 - House-load forecast from a configurable profile, blended with 14 days of
   measured load when available.
+- Solar overview card with today's sparkline and a full-page production chart
+  showing measured output, expected/ min/max forecast and estimated house load.
 - Mobile-first, dark-first GUI inspired by the EcoFlow app family: card-based
   energy flow, forecast and price charts, large tabular values, light/dark
   theme, English and Swedish, SSE updates.

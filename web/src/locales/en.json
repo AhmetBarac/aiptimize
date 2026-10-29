@@ -68,6 +68,25 @@
     "warnings": "Warnings",
     "refresh": "Refresh forecast"
   },
+  "solar": {
+    "title": "Solar production",
+    "subtitle": "Measured output and forecast",
+    "back": "Dashboard",
+    "current": "Current output",
+    "actual": "Produced today",
+    "expected": "Expected today",
+    "estimateRange": "Estimate range",
+    "load": "Load estimate",
+    "chartTitle": "Production, forecast and load",
+    "measured": "Measured",
+    "expectedCurve": "Expected",
+    "minEstimate": "Minimum estimate",
+    "maxEstimate": "Maximum estimate",
+    "loadCurve": "House load",
+    "stale": "Stale forecast",
+    "updated": "Updated {time}",
+    "details": "Details"
+  },
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Live energy at a glance",

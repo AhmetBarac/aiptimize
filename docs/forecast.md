@@ -96,7 +96,8 @@ the factor and sample count.
   "load_total_kwh": 24.0,
   "strings": [{ "name": "East", "kwp": 4.2, "tilt": 35, "azimuth": 120 }],
   "points": [
-    { "start": "…", "end": "…", "pv_w": 0, "pv_strings": [0, 0], "load_w": 504.1 }
+    { "start": "…", "end": "…", "pv_w": 0, "pv_min_w": 0, "pv_max_w": 0,
+      "pv_strings": [0, 0], "load_w": 504.1 }
   ],
   "warnings": [],
   "source": "Open-Meteo"
@@ -109,6 +110,25 @@ gate.
 
 `/status` exposes `forecast.available`, `stale`, `generated_at`,
 `pv_total_kwh`, `load_total_kwh` and `source`.
+
+### Solar detail
+
+`GET /api/v1/solar` combines today's measured PV with the full-day forecast:
+
+- `current_w`, `actual_kwh`, `expected_kwh`, `min_kwh`, `max_kwh`, `load_kwh`;
+- `has_forecast`, `stale`, `generated_at`, `warnings`;
+- 30-minute `points` with `actual_w` (null until measured), `expected_w`,
+  `min_w`, `max_w` and `load_w`.
+
+The expected band is derived from `pv.confidence`: with confidence `c`, the
+minimum is `expected × c` and the maximum is `expected × (2 − c)`, clamped to
+the inverter AC limit. The daily expected/load points are cached with the
+forecast so the full day is available even after a refresh that starts at the
+current half-hour.
+
+The UI shows this as a full-page “Solar production” chart with measured
+production, expected production, minimum/maximum estimates and the house-load
+forecast in one graph.
 
 ## Simulator
 

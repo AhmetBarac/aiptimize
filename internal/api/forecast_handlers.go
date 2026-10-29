@@ -53,3 +53,16 @@ func (s *Server) handleRefreshForecast(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, snap)
 }
+
+func (s *Server) handleSolar(w http.ResponseWriter, r *http.Request) {
+	if s.solar == nil {
+		writeError(w, http.StatusServiceUnavailable, "solar_unavailable", "Solar history is not configured.", nil)
+		return
+	}
+	snap, err := s.solar.Snapshot(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not build the solar snapshot.", nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}

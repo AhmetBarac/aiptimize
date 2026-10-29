@@ -39,6 +39,8 @@ type ForecastService struct {
 	mu      sync.Mutex
 	latest  *forecast.Snapshot
 	history map[time.Time]float64
+	dayPV   []forecast.Point
+	dayDate string
 }
 
 // NewForecastService builds the service.
@@ -107,6 +109,8 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 	now := s.now().In(loc)
 	from := now.UTC().Truncate(30 * time.Minute)
 	to := from.Add(48 * time.Hour)
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	dayEnd := dayStart.AddDate(0, 0, 1)
 
 	specs := make([]pv.StringSpec, 0, len(values.PV.Strings))
 	infos := make([]forecast.StringInfo, 0, len(values.PV.Strings))
@@ -121,19 +125,21 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 	}
 
 	warnings := []string{}
-	var pvBlocks []pv.Block
+	var pvBlocks, dayBlocks []pv.Block
 	pvFailed := false
 	if len(specs) == 0 {
 		warnings = append(warnings, "no PV strings configured")
 	} else if s.opts.Simulator {
 		pvBlocks = pv.Simulate(specs, from, to, loc)
+		dayBlocks = pv.Simulate(specs, dayStart, dayEnd, loc)
 	} else {
-		blocks, err := s.fetchPV(ctx, values, specs, from, to)
+		series, err := s.fetchSeries(ctx, values, specs)
 		if err != nil {
 			pvFailed = true
 			warnings = append(warnings, "PV forecast unavailable: "+err.Error())
 		} else {
-			pvBlocks = blocks
+			pvBlocks = pv.Build(series, specs, from, to, values.PV.InverterACLimitW)
+			dayBlocks = pv.Build(series, specs, dayStart, dayEnd, values.PV.InverterACLimitW)
 		}
 	}
 
@@ -141,6 +147,10 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 	warnings = append(warnings, loadWarnings...)
 	if err != nil {
 		warnings = append(warnings, "load forecast failed: "+err.Error())
+	}
+	dayLoadPoints, _, dayLoadErr := s.loadProvider.Build(ctx, dayStart, dayEnd)
+	if dayLoadErr != nil {
+		warnings = append(warnings, "day load forecast failed: "+dayLoadErr.Error())
 	}
 
 	if pvFailed {
@@ -151,27 +161,22 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 
 	factor, samples := s.calibration(ctx, now)
 	if values.PV.CalibrationEnabled && factor != 1 {
-		for i := range pvBlocks {
-			pvBlocks[i].PVW = round1(pvBlocks[i].PVW * factor)
-			for j := range pvBlocks[i].PVStrings {
-				pvBlocks[i].PVStrings[j] = round1(pvBlocks[i].PVStrings[j] * factor)
-			}
-		}
+		scaleBlocks(pvBlocks, factor)
+		scaleBlocks(dayBlocks, factor)
 	}
 
 	loadByStart := make(map[int64]float64, len(loadPoints))
 	for _, point := range loadPoints {
 		loadByStart[point.Start.Unix()] = point.LoadW
 	}
+	confidence := values.PV.Confidence
+	acLimit := values.PV.InverterACLimitW
 	points := make([]forecast.Point, 0, len(pvBlocks))
 	pvTotal := 0.0
 	loadTotal := 0.0
 	for _, block := range pvBlocks {
 		loadW := loadByStart[block.Start.Unix()]
-		points = append(points, forecast.Point{
-			Start: block.Start, End: block.End, PVW: block.PVW,
-			PVStrings: block.PVStrings, LoadW: loadW,
-		})
+		points = append(points, makePoint(block, loadW, confidence, acLimit))
 		pvTotal += block.PVW * 0.5 / 1000
 		loadTotal += loadW * 0.5 / 1000
 	}
@@ -184,6 +189,15 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 		}
 	}
 	sort.Slice(points, func(i, j int) bool { return points[i].Start.Before(points[j].Start) })
+
+	dayPoints := make([]forecast.Point, 0, len(dayBlocks))
+	dayLoadByStart := make(map[int64]float64, len(dayLoadPoints))
+	for _, point := range dayLoadPoints {
+		dayLoadByStart[point.Start.Unix()] = point.LoadW
+	}
+	for _, block := range dayBlocks {
+		dayPoints = append(dayPoints, makePoint(block, dayLoadByStart[block.Start.Unix()], confidence, acLimit))
+	}
 
 	source := "Open-Meteo"
 	if s.opts.Simulator {
@@ -208,6 +222,8 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 
 	s.mu.Lock()
 	s.latest = &snap
+	s.dayPV = dayPoints
+	s.dayDate = dayStart.Format("2006-01-02")
 	for _, point := range points {
 		if point.PVW > 0 {
 			s.history[point.Start] = point.PVW
@@ -230,7 +246,7 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 	return snap, nil
 }
 
-func (s *ForecastService) fetchPV(ctx context.Context, values settings.Values, specs []pv.StringSpec, from, to time.Time) ([]pv.Block, error) {
+func (s *ForecastService) fetchSeries(ctx context.Context, values settings.Values, specs []pv.StringSpec) (map[string]pv.Hourly, error) {
 	fetcher := pv.Fetcher(nil)
 	if s.opts.NewFetcher != nil {
 		var err error
@@ -250,14 +266,61 @@ func (s *ForecastService) fetchPV(ctx context.Context, values settings.Values, s
 		}
 		hourly, err := fetcher.Fetch(ctx, pv.Request{
 			Latitude: values.Site.Latitude, Longitude: values.Site.Longitude,
-			Tilt: spec.Tilt, Azimuth: spec.Azimuth, Days: 2,
+			Tilt: spec.Tilt, Azimuth: spec.Azimuth, Days: 3,
 		})
 		if err != nil {
 			return nil, err
 		}
 		series[key] = hourly
 	}
-	return pv.Build(series, specs, from, to, values.PV.InverterACLimitW), nil
+	return series, nil
+}
+
+// TodayPV returns today's full-day PV forecast (including past blocks).
+func (s *ForecastService) TodayPV() ([]forecast.Point, string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.dayPV) == 0 {
+		return nil, s.dayDate, false
+	}
+	out := make([]forecast.Point, len(s.dayPV))
+	for i, p := range s.dayPV {
+		out[i] = p
+		out[i].PVStrings = append([]float64{}, p.PVStrings...)
+	}
+	return out, s.dayDate, true
+}
+
+func makePoint(block pv.Block, loadW, confidence, acLimitW float64) forecast.Point {
+	uncertainty := 1 - confidence
+	if uncertainty < 0 {
+		uncertainty = 0
+	}
+	if uncertainty > 1 {
+		uncertainty = 1
+	}
+	minW := block.PVW * (1 - uncertainty)
+	maxW := block.PVW * (1 + uncertainty)
+	if minW < 0 {
+		minW = 0
+	}
+	if acLimitW > 0 && maxW > acLimitW {
+		maxW = acLimitW
+	}
+	return forecast.Point{
+		Start: block.Start, End: block.End,
+		PVW: block.PVW, PVMinW: round1(minW), PVMaxW: round1(maxW),
+		PVStrings: block.PVStrings, LoadW: loadW,
+	}
+}
+
+func scaleBlocks(blocks []pv.Block, factor float64) {
+	for i := range blocks {
+		blocks[i].PVW = round1(blocks[i].PVW * factor)
+		for j := range blocks[i].PVStrings {
+			blocks[i].PVStrings[j] = round1(blocks[i].PVStrings[j] * factor)
+		}
+	}
 }
 
 func (s *ForecastService) fallback(ctx context.Context, now time.Time, warnings []string) (forecast.Snapshot, bool) {
@@ -273,6 +336,8 @@ func (s *ForecastService) fallback(ctx context.Context, now time.Time, warnings 
 		snap.PVTotalKWh = 0
 		for i := range snap.Points {
 			snap.Points[i].PVW = 0
+			snap.Points[i].PVMinW = 0
+			snap.Points[i].PVMaxW = 0
 			for j := range snap.Points[i].PVStrings {
 				snap.Points[i].PVStrings[j] = 0
 			}
