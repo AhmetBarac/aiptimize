@@ -1,0 +1,34 @@
+# Runtime data
+/data/
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# Go build output
+/bin/
+/aiptimize
+/aiptimize.exe
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+web/coverage/
+/internal/webui/dist/*
+!/internal/webui/dist/.gitkeep
+
+# Test output
+/coverage.out
+*.test
+web/test-results/
+web/playwright-report/
+web/e2e/screenshots/
+.ui-data/
+.smoke-data/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

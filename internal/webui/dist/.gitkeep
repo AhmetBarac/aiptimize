@@ -1,0 +1,1 @@
+# Vite writes the built SPA here; the Go binary embeds this directory.

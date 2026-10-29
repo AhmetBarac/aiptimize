@@ -1,0 +1,19 @@
+# The web build output is produced inside the Docker build.
+web/node_modules
+web/dist
+internal/webui/dist
+internal/webui/dist/index.html
+internal/webui/dist/assets
+
+.git
+.gitignore
+.github
+data
+*.db
+*.db-wal
+*.db-shm
+.env
+bin
+coverage.out
+*.test
+docs
