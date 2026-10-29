@@ -85,6 +85,18 @@ keys enabled, and a single pooled connection.
 | API | `GET /plan`, `POST /plan/recompute`, plan summary/slots in `/status`, SSE `plan` event |
 | UI | plan summary, combined price/PV/load/battery/SOC chart, slot table, dry-run label, Plan settings |
 
+## Phase 5 — plan editing and actuation
+
+| Area | Implementation |
+|---|---|
+| Editing | manual drafts per local day, structural/SOC/site validation, cost preview, optimistic revisions |
+| Locking | manual day lock; auto suggestions continue but never overwrite a draft/applied manual plan |
+| Revisions | `plan_revisions` audit on every draft/apply; `schedule_writes` linked to plan/revision |
+| Actuation | seven-day `setdefine` builder, simulator and Solplanet writer, readback and diff |
+| Safety | writes armed (env + UI) and confirmation, active-slot protection, 60 s write rate limit, foreign-schedule refusal, clear/takeover |
+| API | plan view, drafts/preview/apply/discard, auto apply, revisions, schedule read/clear/takeover |
+| UI | day tabs, editable slot form, validation, draft/applied/locked/foreign states, resubmit/reset |
+
 ## Request lifecycle
 
 1. `withRecovery` converts panics into `500 internal_error`.
@@ -105,10 +117,11 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phases 0–4 actively use `users`, `sessions`, `settings`,
-`events`, `prices`, `telemetry`, `plans` and `plan_slots`; forecasts are cached
-in memory and the exact planner inputs are stored with each plan. Timestamps are
-RFC3339 UTC text; local-day keys are `YYYY-MM-DD` in the site timezone.
+by the first migration. Phases 0–5 actively use `users`, `sessions`, `settings`,
+`events`, `prices`, `telemetry`, `plans`, `plan_slots`, `plan_revisions` and
+`schedule_writes`; forecasts are cached in memory and the exact planner inputs
+are stored with each plan. Timestamps are RFC3339 UTC text; local-day keys are
+`YYYY-MM-DD` in the site timezone.
 
 Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
 expired sessions removed. WAL is checkpointed on graceful shutdown.
@@ -124,12 +137,12 @@ settings.
 Gates are derived: `effective = environment gate && in-app arming switch`.
 Phase 0 exposes them read-only through `/meta` and `/status`.
 
-## Deliberate omissions after phase 4
+## Deliberate omissions after phase 5
 
-Manual plan editing, draft revisions, locks, apply/reconcile and EV charging are
-phase 5–6 work. `/status` reports `plan_editing`, `actuation` and `ev_charging`
-as `false`; the UI shows the phase in which each arrives. No code path writes to
-hardware.
+EV charging, history and PWA work are phase 6–7. `/status` reports
+`ev_charging` as `false`; the UI shows the phase in which it arrives. Real
+hardware schedule writes remain HIL-gated and are not exercised by the test
+suite.
 
 ## Phase roadmap
 
@@ -139,6 +152,7 @@ hardware.
 | 2 ✅ | Solplanet client, codec, simulator, 30 s telemetry, energy-flow dashboard |
 | 3 ✅ | Open-Meteo PV model per MPPT, load profile, forecast UI |
 | 4 ✅ | Deterministic DP battery planner, plan API and chart |
+| 5 ✅ | Plan drafts/validation/revisions, schedule actuation and GUI editor |
 | 5 | Schedule writer, reconciler, watchdog, plan drafts/editing/resubmit |
 | 6 | Charger interface, Zaptec cloud adapter, EV plans and controller |
 | 7 | History, PWA, backups, Playwright, security review, v1.0 |

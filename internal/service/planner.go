@@ -57,8 +57,9 @@ func (s *PlannerService) Latest(ctx context.Context) (domain.Plan, error) {
 	return plan, err
 }
 
-// Compute builds, stores and returns a fresh suggestion.
-func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
+// BuildInputs assembles the current planner inputs from prices, forecast,
+// telemetry and settings. It is shared by the optimiser and the draft preview.
+func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []string, error) {
 	values := s.cfg.Get()
 	loc := s.cfg.Location()
 	now := s.now().In(loc)
@@ -75,15 +76,15 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 
 	sample, receivedAt, ok := s.telemetry.Latest()
 	if !ok {
-		return domain.Plan{}, ErrSOCUnavailable
+		return planner.Inputs{}, nil, ErrSOCUnavailable
 	}
 	if s.now().Sub(receivedAt) > 5*time.Minute {
-		return domain.Plan{}, ErrSOCUnavailable
+		return planner.Inputs{}, nil, ErrSOCUnavailable
 	}
 
 	priceSnap, err := s.prices.Snapshot(ctx, from, horizonEnd)
 	if err != nil {
-		return domain.Plan{}, err
+		return planner.Inputs{}, nil, err
 	}
 	byStart := make(map[int64]domain.PriceBlock, len(priceSnap.Blocks))
 	for _, block := range priceSnap.Blocks {
@@ -105,7 +106,7 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 		})
 	}
 	if len(blocks) == 0 {
-		return domain.Plan{}, ErrPricesUnavailable
+		return planner.Inputs{}, nil, ErrPricesUnavailable
 	}
 	if len(blocks) < int(horizonEnd.Sub(from)/(30*time.Minute)) {
 		warnings = append(warnings, "The price horizon is shorter than the configured plan horizon.")
@@ -116,7 +117,8 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 			if snap.Stale {
 				warnings = append(warnings, "The PV/load forecast is stale.")
 			}
-			if s.now().Sub(snap.GeneratedAt) > 3*time.Hour {
+			oldPV := s.now().Sub(snap.GeneratedAt) > 3*time.Hour
+			if oldPV {
 				warnings = append(warnings, "The PV forecast is older than 3 hours; planning with PV = 0.")
 			}
 			pvByStart := make(map[int64]float64, len(snap.Points))
@@ -125,18 +127,11 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 				pvByStart[point.Start.Unix()] = point.PVW
 				loadByStart[point.Start.Unix()] = point.LoadW
 			}
-			oldPV := s.now().Sub(snap.GeneratedAt) > 3*time.Hour
 			for i := range blocks {
-				if oldPV {
-					continue
+				if !oldPV {
+					blocks[i].PVW = pvByStart[blocks[i].Start.Unix()]
 				}
-				blocks[i].PVW = pvByStart[blocks[i].Start.Unix()]
 				blocks[i].LoadW = loadByStart[blocks[i].Start.Unix()]
-			}
-			if oldPV {
-				for i := range blocks {
-					blocks[i].LoadW = loadByStart[blocks[i].Start.Unix()]
-				}
 			}
 		} else {
 			warnings = append(warnings, "No forecast is available; planning with PV = 0.")
@@ -160,9 +155,9 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 	if maxSlotBlocks > 8 {
 		maxSlotBlocks = 8
 	}
-	inputs := planner.Inputs{
+	return planner.Inputs{
 		Timezone: values.Site.Timezone, HorizonStart: blocks[0].Start, HorizonEnd: blocks[len(blocks)-1].End,
-		StartSOC: sample.SOC, CapacityKWh: inv.CapacityKWh,
+		Now: now.UTC(), StartSOC: sample.SOC, CapacityKWh: inv.CapacityKWh,
 		MinSOC: inv.MinSOC, MaxSOC: inv.MaxSOC, ReserveSOC: math.Max(inv.MinSOC, inv.ReserveSOC),
 		MaxChargeW: inv.MaxChargeW, MaxDischargeW: inv.MaxDischargeW,
 		ChargeW: chargeW, DischargeW: dischargeW,
@@ -173,6 +168,15 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 		MinDailySaving: planCfg.MinDailySaving, PVConfidence: values.PV.Confidence,
 		AllowDischargeToGrid: planCfg.AllowDischargeToGrid,
 		Currency:             values.Price.Currency, Blocks: blocks,
+	}, warnings, nil
+}
+
+// Compute builds, stores and returns a fresh suggestion.
+func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
+	values := s.cfg.Get()
+	inputs, warnings, err := s.BuildInputs(ctx)
+	if err != nil {
+		return domain.Plan{}, err
 	}
 	result, err := planner.Optimize(inputs)
 	if err != nil {
@@ -184,7 +188,7 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 	}
 	hash := sha256.Sum256(rawInputs)
 	plan := domain.Plan{
-		CreatedAt: now.UTC(), HorizonStart: inputs.HorizonStart.UTC(), HorizonEnd: inputs.HorizonEnd.UTC(),
+		CreatedAt: s.now().UTC(), HorizonStart: inputs.HorizonStart.UTC(), HorizonEnd: inputs.HorizonEnd.UTC(),
 		Timezone: values.Site.Timezone, Status: domain.PlanStatusSuggestion, Origin: domain.OriginAuto,
 		Revision: 1, InputsHash: hex.EncodeToString(hash[:8]), Summary: result.Summary,
 		Slots: result.Slots, Curve: result.Curve, Warnings: append(warnings, result.Warnings...),

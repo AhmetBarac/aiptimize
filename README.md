@@ -9,11 +9,12 @@ resubmit the plan — all from a mobile-first web UI.
 The full design and delivery plan live in
 [DEVELOPMENT_PLAN.MD](DEVELOPMENT_PLAN.MD).
 
-> **Status: phase 4 (battery planner) complete.** Prices, read-only Solplanet
-> telemetry, a 48-hour PV/load forecast and a deterministic battery schedule
-> suggestion are running. The planner is a dry run: no schedule is written to
-> hardware. Verified against a real ASW08kH-T2 dongle. Manual plan editing,
-> actuation and EV control follow in phases 5–6.
+> **Status: phase 5 (plan editing and actuation) complete.** Prices, read-only
+> Solplanet telemetry, a 48-hour PV/load forecast, a deterministic battery plan,
+> manual plan drafts/validation/revisions and gated schedule resubmission are
+> implemented. Writes are simulator-tested and require both the environment
+> switch and the UI arm gate; real-hardware HIL verification remains outstanding.
+> EV control and history follow in phases 6–7.
 >
 > This software controls mains equipment. Read [docs/safety.md](docs/safety.md)
 > before enabling writes.
@@ -101,8 +102,11 @@ hardware with deterministic in-process simulators — useful for demos and tests
 - 48-hour PV forecast per MPPT string from Open-Meteo tilted irradiance and a
   temperature model, with optional measured-PV calibration.
 - Deterministic 30-minute battery planner: price/PV/load inputs, SOC and reserve
-  constraints, slot budget, import limit, savings baseline and a dry-run plan
-  with chart and schedule table.
+  constraints, slot budget, import limit, savings baseline and a plan.
+- Manual plan drafts with structural/SOC/site validation, optimistic revisions,
+  one-day locks, automatic suggestions, and gated resubmission to the inverter
+  with readback and schedule diff.- Seven-day Solplanet schedule codec, simulator writes, foreign-schedule
+  detection, clear and takeover paths.
 - House-load forecast from a configurable profile, blended with 14 days of
   measured load when available.
 - Solar overview card with today's sparkline and a full-page production chart

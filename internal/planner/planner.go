@@ -15,6 +15,7 @@ type Inputs struct {
 	Timezone             string    `json:"timezone"`
 	HorizonStart         time.Time `json:"horizon_start"`
 	HorizonEnd           time.Time `json:"horizon_end"`
+	Now                  time.Time `json:"now"`
 	StartSOC             float64   `json:"start_soc"`
 	CapacityKWh          float64   `json:"capacity_kwh"`
 	MinSOC               float64   `json:"min_soc"`

@@ -167,6 +167,31 @@ type Plan struct {
 	ParentPlanID *int64           `json:"parent_plan_id,omitempty"`
 }
 
+// PlanRevision is an immutable audit row for a plan edit/apply.
+type PlanRevision struct {
+	ID        int64       `json:"id"`
+	PlanID    int64       `json:"plan_id"`
+	Revision  int         `json:"revision"`
+	CreatedAt time.Time   `json:"created_at"`
+	Actor     string      `json:"actor"`
+	Action    string      `json:"action"`
+	Slots     []Slot      `json:"slots"`
+	Summary   PlanSummary `json:"summary"`
+}
+
+// ScheduleWrite records one inverter write and its readback.
+type ScheduleWrite struct {
+	ID           int64           `json:"id"`
+	TS           time.Time       `json:"ts"`
+	Kind         string          `json:"kind"`
+	Payload      json.RawMessage `json:"payload,omitempty"`
+	Response     string          `json:"response,omitempty"`
+	Readback     json.RawMessage `json:"readback,omitempty"`
+	OK           bool            `json:"ok"`
+	PlanID       *int64          `json:"plan_id,omitempty"`
+	PlanRevision int             `json:"plan_revision,omitempty"`
+}
+
 // Telemetry is one inverter/meter/battery sample.
 type Telemetry struct {
 	TS           time.Time      `json:"ts"`

@@ -53,6 +53,12 @@ test('first-run setup, dashboard, nav, settings and login', async ({ page }) => 
   await expectNoHorizontalScroll(page)
   await page.screenshot({ path: 'e2e/screenshots/plan-mobile.png', fullPage: true })
 
+  await page.getByRole('button', { name: 'Edit plan' }).click()
+  await expect(page.getByRole('button', { name: 'Save draft' })).toBeVisible()
+  await page.screenshot({ path: 'e2e/screenshots/plan-editor-mobile.png', fullPage: true })
+  await page.getByRole('button', { name: 'Cancel' }).first().click()
+  await expect(page.getByRole('button', { name: 'Edit plan' })).toBeVisible()
+
   await nav.getByRole('link', { name: 'Prices' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Prices' })).toBeVisible()
   await expect(page.locator('.price-chart canvas')).toBeVisible()

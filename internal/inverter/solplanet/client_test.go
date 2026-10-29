@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AhmetBarac/aiptimize/internal/domain"
 	"github.com/AhmetBarac/aiptimize/internal/inverter"
 )
 
@@ -64,6 +65,52 @@ func TestDecodeSlotRejectsInvalid(t *testing.T) {
 		if _, err := DecodeSlot(code); err == nil {
 			t.Errorf("%#08x: expected error", code)
 		}
+	}
+}
+
+func TestEncodeSlotGolden(t *testing.T) {
+	cases := []struct {
+		slot domain.ScheduleSlot
+		code uint32
+	}{
+		{domain.ScheduleSlot{Hour: 0, Minute: 0, DurationMin: 30}, 0x1E02},
+		{domain.ScheduleSlot{Hour: 0, Minute: 0, DurationMin: 30, Discharge: true}, 0x1E03},
+		{domain.ScheduleSlot{Hour: 2, Minute: 0, DurationMin: 60}, 0x02003C02},
+	}
+	for _, tc := range cases {
+		code, err := EncodeSlot(tc.slot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code != tc.code {
+			t.Errorf("%+v = %#08x, want %#08x", tc.slot, code, tc.code)
+		}
+	}
+	if _, err := EncodeSlot(domain.ScheduleSlot{Hour: 0, Minute: 15, DurationMin: 30}); err == nil {
+		t.Error("expected bad-minute error")
+	}
+}
+
+func TestEncodeScheduleRoundTrip(t *testing.T) {
+	schedule := domain.Schedule{
+		Days: map[string][]domain.ScheduleSlot{
+			"Mon": {{Hour: 2, Minute: 30, DurationMin: 120}, {Hour: 16, Minute: 0, DurationMin: 60, Discharge: true}},
+		},
+		PinW: 6000, PoutW: 3000,
+	}
+	payload, err := EncodeSchedule(schedule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, warnings, err := DecodeSchedule(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %v", warnings)
+	}
+	if len(decoded.Days["Mon"]) != 2 || decoded.Days["Mon"][0].DurationMin != 120 || decoded.PinW != 6000 {
+		t.Fatalf("decoded = %+v", decoded)
 	}
 }
 

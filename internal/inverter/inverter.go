@@ -47,6 +47,11 @@ type Reading struct {
 	Extra     map[string]any `json:"extra,omitempty"`
 }
 
+// ScheduleWriter is the optional write contract used only after the arm gate.
+type ScheduleWriter interface {
+	WriteSchedule(ctx context.Context, schedule domain.Schedule) (domain.Schedule, error)
+}
+
 // Reader is the read-only inverter contract.
 type Reader interface {
 	Identity(ctx context.Context) (Identity, error)

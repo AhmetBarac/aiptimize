@@ -102,8 +102,10 @@ Solar**, add the MPPT strings (name, kWp, tilt, compass azimuth) and save; the
 forecast refreshes within the configured interval. **Settings → Load** sets the
 daily house energy and measured-profile blending. **Settings → Plan** sets the
 optimiser horizon, slot budget, setpoints and reserve policy. The planner
-computes a dry-run suggestion automatically 8 s after startup and every 5
-minutes; it never writes to the inverter in phase 4. Set
+computes a suggestion automatically 8 s after startup and every 5 minutes.
+Drafts can be edited and applied from the Plan screen. Applying requires
+`AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, so leave writes
+disarmed until the HIL checklist is complete. Set
 `AIPTIMIZE_SIMULATOR=true` to run without a dongle or internet weather.
 
 ## Upgrades

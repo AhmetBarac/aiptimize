@@ -228,6 +228,64 @@ export interface PlanStatus {
   no_plan_reason?: string
 }
 
+export interface PlanValidation {
+  errors?: string[] | null
+  warnings?: string[] | null
+}
+
+export interface PlanView {
+  date: string
+  auto?: Plan
+  draft?: Plan
+  applied?: Plan
+  effective?: Plan
+  locked: boolean
+  validation: PlanValidation
+  schedule_diff: string[]
+  inverter_match: boolean
+  foreign_schedule: boolean
+  last_write?: ScheduleWrite
+  warnings: string[]
+}
+
+export interface ScheduleWrite {
+  id: number
+  ts: string
+  kind: string
+  ok: boolean
+  plan_id?: number
+  plan_revision?: number
+}
+
+export interface DraftSlot {
+  start: string
+  end: string
+  direction: 'charge' | 'discharge'
+  power_w: number
+}
+
+export interface ScheduleSlot {
+  hour: number
+  minute: number
+  duration_min: number
+  discharge: boolean
+  code: number
+}
+
+export interface Schedule {
+  days: Record<string, ScheduleSlot[]>
+  pin_w: number
+  pout_w: number
+}
+
+export interface PlanApplyResult {
+  plan: Plan
+  schedule: Schedule
+  schedule_diff: string[]
+  wrote: boolean
+  message: string
+}
+
 export interface Status {
   version: string
   now: string

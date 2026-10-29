@@ -12,6 +12,7 @@ import (
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 	"github.com/AhmetBarac/aiptimize/internal/inverter"
+	"github.com/AhmetBarac/aiptimize/internal/inverter/solplanet"
 )
 
 // Config configures the simulated installation.
@@ -37,6 +38,7 @@ type Inverter struct {
 	last      time.Time
 	importKWh float64
 	exportKWh float64
+	schedule  *domain.Schedule
 }
 
 // New builds a simulator with sensible defaults.
@@ -188,8 +190,13 @@ func (s *Inverter) Read(context.Context) (inverter.Reading, error) {
 	return reading, nil
 }
 
-// Schedule returns an empty weekly schedule.
+// Schedule returns the current weekly schedule. It starts empty.
 func (s *Inverter) Schedule(context.Context) (domain.Schedule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.schedule != nil {
+		return cloneSchedule(*s.schedule), nil
+	}
 	days := make(map[string][]domain.ScheduleSlot, len(dayKeys))
 	for _, day := range dayKeys {
 		days[day] = []domain.ScheduleSlot{}
@@ -197,19 +204,35 @@ func (s *Inverter) Schedule(context.Context) (domain.Schedule, error) {
 	return domain.Schedule{Days: days, PinW: 6000, PoutW: 3000}, nil
 }
 
+// WriteSchedule validates and stores a schedule, returning the readback.
+func (s *Inverter) WriteSchedule(_ context.Context, schedule domain.Schedule) (domain.Schedule, error) {
+	if _, err := solplanet.EncodeSchedule(schedule); err != nil {
+		return domain.Schedule{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copy := cloneSchedule(schedule)
+	s.schedule = &copy
+	return cloneSchedule(copy), nil
+}
+
 // Close implements inverter.Reader.
 func (s *Inverter) Close() error { return nil }
 
 var dayKeys = []string{"Mon", "Tus", "Wen", "Thu", "Fri", "Sat", "Sun"}
 
-// Handler serves the read-only dongle HTTP API for tests and manual demos.
-// Write endpoints answer 405 and never change state.
+// Handler serves the dongle HTTP API for tests and manual demos. setdefine and
+// setbattery are accepted; the simulator is the only writable target in tests.
 func (s *Inverter) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/setting.cgi" {
+			s.handleSetting(w, r)
+			return
+		}
 		if r.Method != http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			_, _ = w.Write([]byte(`{"dat":"failed","error":"simulator is read-only"}`))
+			_, _ = w.Write([]byte(`{"dat":"failed","error":"simulator accepts only setdefine/setbattery"}`))
 			return
 		}
 		switch r.URL.Path {
@@ -287,11 +310,65 @@ func (s *Inverter) handleGetDevData(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Inverter) handleGetDefine(w http.ResponseWriter) {
-	payload := map[string]any{"Pin": 6000, "Pout": 3000}
-	for _, day := range dayKeys {
-		payload[day] = []int{0, 0, 0, 0, 0, 0}
+	schedule, err := s.Schedule(context.Background())
+	if err != nil {
+		writeJSON(w, map[string]any{"dat": "failed", "error": err.Error()})
+		return
 	}
-	writeJSON(w, payload)
+	body, err := solplanet.EncodeSchedule(schedule)
+	if err != nil {
+		writeJSON(w, map[string]any{"dat": "failed", "error": err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(body)
+}
+
+func (s *Inverter) handleSetting(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Device int             `json:"device"`
+		Action string          `json:"action"`
+		Value  json.RawMessage `json:"value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"dat":"failed","error":"invalid request"}`))
+		return
+	}
+	switch req.Action {
+	case "setdefine":
+		schedule, warnings, err := solplanet.DecodeSchedule(req.Value)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"dat":"failed","error":"invalid schedule"}`))
+			return
+		}
+		if _, err := s.WriteSchedule(r.Context(), schedule); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"dat":"failed","error":"invalid schedule"}`))
+			return
+		}
+		_ = warnings
+		writeJSON(w, map[string]any{"dat": "success"})
+	case "setbattery":
+		writeJSON(w, map[string]any{"dat": "success"})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"dat":"failed","error":"unsupported action"}`))
+	}
+}
+
+func cloneSchedule(s domain.Schedule) domain.Schedule {
+	out := domain.Schedule{Days: make(map[string][]domain.ScheduleSlot, len(s.Days)), PinW: s.PinW, PoutW: s.PoutW}
+	for day, slots := range s.Days {
+		out.Days[day] = append([]domain.ScheduleSlot(nil), slots...)
+	}
+	return out
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

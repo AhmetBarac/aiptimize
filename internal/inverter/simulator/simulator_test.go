@@ -2,10 +2,12 @@ package simulator
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,18 +122,40 @@ func TestSimulatorHTTPHandlerWithClient(t *testing.T) {
 	}
 }
 
-func TestSimulatorRejectsWrites(t *testing.T) {
+func TestSimulatorAcceptsSetdefine(t *testing.T) {
 	now := time.Now()
 	sim := fixedInverter(t, &now)
 	srv := httptest.NewServer(sim.Handler())
 	defer srv.Close()
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/setting.cgi", nil)
+	payload := `{"device":4,"action":"setdefine","value":{"Mon":[7682],"Tus":[],"Wen":[],"Thu":[],"Fri":[],"Sat":[],"Sun":[],"Pin":6000,"Pout":3000}}`
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/setting.cgi", strings.NewReader(payload))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		t.Fatalf("write status = %d, want 405", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("write status = %d", resp.StatusCode)
 	}
+	read, err := http.Get(srv.URL + "/getdefine.cgi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer read.Body.Close()
+	schedule, _, err := solplanet.DecodeSchedule(readBody(t, read))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(schedule.Days["Mon"]) != 1 || schedule.Days["Mon"][0].DurationMin != 30 {
+		t.Fatalf("schedule = %+v", schedule.Days["Mon"])
+	}
+}
+
+func readBody(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
 }

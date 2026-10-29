@@ -75,6 +75,40 @@ func (p *TelemetryPoller) Run(ctx context.Context) {
 	}
 }
 
+// ReadSchedule reads the inverter's weekly schedule without writing.
+func (p *TelemetryPoller) ReadSchedule(ctx context.Context) (domain.Schedule, error) {
+	reader, err := p.readerFor(p.cfg.Get())
+	if err != nil {
+		return domain.Schedule{}, err
+	}
+	return reader.Schedule(ctx)
+}
+
+// ApplySchedule writes a schedule when the reader supports writes, returning
+// the readback and whether a write was needed. The caller enforces the gates.
+func (p *TelemetryPoller) ApplySchedule(ctx context.Context, desired domain.Schedule) (domain.Schedule, bool, error) {
+	reader, err := p.readerFor(p.cfg.Get())
+	if err != nil {
+		return domain.Schedule{}, false, err
+	}
+	current, err := reader.Schedule(ctx)
+	if err != nil {
+		return domain.Schedule{}, false, err
+	}
+	if ScheduleEqual(current, desired) {
+		return current, false, nil
+	}
+	writer, ok := reader.(inverter.ScheduleWriter)
+	if !ok {
+		return domain.Schedule{}, false, errors.New("inverter does not support schedule writes")
+	}
+	written, err := writer.WriteSchedule(ctx, desired)
+	if err != nil {
+		return domain.Schedule{}, false, err
+	}
+	return written, true, nil
+}
+
 // Latest returns the newest sample and the time it was received.
 func (p *TelemetryPoller) Latest() (domain.Telemetry, time.Time, bool) {
 	p.mu.Lock()

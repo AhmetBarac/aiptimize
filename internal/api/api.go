@@ -103,8 +103,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/forecast", s.requireAuth(s.handleForecast))
 	s.mux.HandleFunc("POST /api/v1/forecast/refresh", s.requireAuth(s.handleRefreshForecast))
 	s.mux.HandleFunc("GET /api/v1/solar", s.requireAuth(s.handleSolar))
-	s.mux.HandleFunc("GET /api/v1/plan", s.requireAuth(s.handleGetPlan))
+	s.mux.HandleFunc("GET /api/v1/plan", s.requireAuth(s.handlePlanView))
 	s.mux.HandleFunc("POST /api/v1/plan/recompute", s.requireAuth(s.handleRecomputePlan))
+	s.mux.HandleFunc("POST /api/v1/plan/drafts", s.requireAuth(s.handleSaveDraft))
+	s.mux.HandleFunc("POST /api/v1/plan/drafts/{id}/preview", s.requireAuth(s.handlePreviewDraft))
+	s.mux.HandleFunc("POST /api/v1/plan/drafts/{id}/apply", s.requireAuth(s.handleApplyDraft))
+	s.mux.HandleFunc("DELETE /api/v1/plan/drafts/{id}", s.requireAuth(s.handleDiscardDraft))
+	s.mux.HandleFunc("POST /api/v1/plan/auto/apply", s.requireAuth(s.handleApplyAuto))
+	s.mux.HandleFunc("GET /api/v1/plan/revisions", s.requireAuth(s.handlePlanRevisions))
+	s.mux.HandleFunc("GET /api/v1/schedule", s.requireAuth(s.handleSchedule))
+	s.mux.HandleFunc("POST /api/v1/schedule/clear", s.requireAuth(s.handleScheduleClear))
+	s.mux.HandleFunc("POST /api/v1/schedule/takeover", s.requireAuth(s.handleScheduleTakeover))
 	s.mux.HandleFunc("POST /api/v1/settings/test/inverter", s.requireAuth(s.handleTestInverter))
 	s.mux.HandleFunc("GET /api/v1/settings", s.requireAuth(s.handleGetSettings))
 	s.mux.HandleFunc("PATCH /api/v1/settings", s.requireAuth(s.handlePatchSettings))
@@ -173,13 +182,13 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 // featureSet describes which product phases are implemented.
 func featureSet() map[string]any {
 	return map[string]any{
-		"phase":        4,
+		"phase":        5,
 		"prices":       true,
 		"telemetry":    true,
 		"forecast":     true,
 		"battery_plan": true,
-		"actuation":    false,
-		"plan_editing": false,
+		"actuation":    true,
+		"plan_editing": true,
 		"ev_charging":  false,
 		"history":      false,
 	}
@@ -254,7 +263,7 @@ func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 		"forecast":  s.forecastStatus(),
 		"plan":      s.planStatus(ctx),
 		"ev":        map[string]any{"available": false},
-		"schedule":  map[string]any{"available": false},
+		"schedule":  s.scheduleStatus(ctx),
 		"checks":    s.checks(),
 	}
 }

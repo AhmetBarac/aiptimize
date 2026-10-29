@@ -58,8 +58,17 @@ An `Origin` header, when present, must match the request host.
 | GET | `/api/v1/forecast` | yes | 48-hour PV/load snapshot |
 | POST | `/api/v1/forecast/refresh` | yes | Refresh the forecast from Open-Meteo |
 | GET | `/api/v1/solar` | yes | Today's measured PV, forecast band and load |
-| GET | `/api/v1/plan` | yes | Latest stored battery plan |
+| GET | `/api/v1/plan` | yes | Plan view: auto, draft, applied, effective, lock, validation, schedule diff |
 | POST | `/api/v1/plan/recompute` | yes | Recompute the automatic plan (dry run) |
+| POST | `/api/v1/plan/drafts` | yes | Validate and save an edited draft |
+| POST | `/api/v1/plan/drafts/{id}/preview` | yes | Revalidate without saving |
+| POST | `/api/v1/plan/drafts/{id}/apply` | yes | Resubmit a draft (armed + confirm) |
+| DELETE | `/api/v1/plan/drafts/{id}` | yes | Discard a draft |
+| POST | `/api/v1/plan/auto/apply` | yes | Apply the auto suggestion and clear the lock |
+| GET | `/api/v1/plan/revisions?date=` | yes | Plan revision audit |
+| GET | `/api/v1/schedule` | yes | Read the inverter schedule and diff |
+| POST | `/api/v1/schedule/clear` | yes | Clear the schedule (armed + confirm) |
+| POST | `/api/v1/schedule/takeover` | yes | Replace a foreign schedule (armed + confirm) |
 | POST | `/api/v1/settings/test/inverter` | yes | Read-only dongle identity and live sample |
 | GET | `/api/v1/settings` | yes | All settings sections |
 | PATCH | `/api/v1/settings` | yes | Patch one section |
@@ -280,23 +289,57 @@ clamped to the inverter AC limit.
 
 ### Battery plan
 
-`GET /api/v1/plan` returns the newest plan, or `404 plan_unavailable` before the
-first computation. The plan contains `horizon_start`, `horizon_end`, `timezone`,
-`status`, `origin`, `inputs_hash`, `summary`, `slots`, `curve`, `warnings` and
-`inputs`. Slots carry direction, power, energy, average price and expected
-saving; the curve carries price, PV, load, battery power and SOC for every
-30-minute block.
+`GET /api/v1/plan?date=YYYY-MM-DD` returns a plan view:
+
+```json
+{
+  "date": "2026-10-29",
+  "auto": { "id": 1, "status": "suggestion", "slots": [] },
+  "draft": null,
+  "applied": null,
+  "effective": { "id": 1, "slots": [] },
+  "locked": false,
+  "validation": { "errors": [], "warnings": [] },
+  "schedule_diff": [],
+  "inverter_match": true,
+  "foreign_schedule": false,
+  "last_write": null,
+  "warnings": []
+}
+```
 
 `POST /api/v1/plan/recompute` recomputes, stores and returns a suggestion. It
-is a dry run and does not require the hardware arm gate. Errors:
+is a dry run and does not require the hardware arm gate.
 
-- `409 soc_stale` — no SOC or older than 5 minutes; the previous plan is kept.
-- `503 price_stale` — no price blocks for the horizon.
-- `422 plan_infeasible` — no schedule satisfies SOC/slot constraints.
+`POST /api/v1/plan/drafts` takes:
 
-`/status.plan` contains `available`, `id`, horizon, summary, slots, the next
-upcoming slot, warnings and the no-plan reason. The full model is in
-[planning.md](planning.md).
+```json
+{
+  "date": "2026-10-30",
+  "revision": 1,
+  "slots": [
+    { "start": "2026-10-30T03:30:00Z", "end": "2026-10-30T04:00:00Z",
+      "direction": "charge", "power_w": 3000 }
+  ],
+  "note": "cheap night"
+}
+```
+
+It returns `201` with `plan` and `validation`, `422 draft_invalid` with
+`details.validation`, or `409 revision_conflict`.
+
+`POST /plan/drafts/{id}/apply` requires `{"confirm":true,"revision":2}` and the
+write gate (`409 writes_disarmed`, `409 foreign_schedule`, `409 active_slot`,
+`409 revision_conflict`). It writes the schedule, reads it back, records
+`schedule_writes`, marks the plan applied and returns the applied plan and
+schedule diff. `POST /plan/auto/apply` does the same for the latest
+automatic suggestion and clears the manual day lock.
+
+`GET /schedule` returns the readback, the desired/actual diff and foreign state.
+`POST /schedule/clear` and `/schedule/takeover` require the gate and
+`confirm:true`.
+
+The planned-plan model is in [planning.md](planning.md).
 
 ## Planned endpoints
 

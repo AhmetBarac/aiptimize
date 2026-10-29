@@ -4,6 +4,7 @@
 package solplanet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -141,6 +142,33 @@ func (c *Client) getMap(ctx context.Context, path string, query url.Values) (map
 		return nil, fmt.Errorf("solplanet %s: invalid JSON: %w", path, err)
 	}
 	return m, nil
+}
+
+func (c *Client) postJSON(ctx context.Context, path string, payload any) ([]byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL()+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", c.cfg.UserAgent)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("solplanet %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+	out, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, fmt.Errorf("solplanet %s: read body: %w", path, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, &Error{Path: path, Status: resp.StatusCode, Body: string(out)}
+	}
+	return out, nil
 }
 
 // Identity reads and caches the inverter and battery description.
@@ -339,6 +367,37 @@ func (c *Client) Schedule(ctx context.Context) (domain.Schedule, error) {
 		c.log.Warn("schedule decode warning", "warning", w)
 	}
 	return schedule, nil
+}
+
+// WriteSchedule selects Custom mode, writes the full seven-day setdefine value
+// and returns the readback. The caller must enforce the arm gate first.
+func (c *Client) WriteSchedule(ctx context.Context, schedule domain.Schedule) (domain.Schedule, error) {
+	if c.serial == "" {
+		if _, err := c.Identity(ctx); err != nil {
+			return domain.Schedule{}, err
+		}
+	}
+	encoded, err := EncodeSchedule(schedule)
+	if err != nil {
+		return domain.Schedule{}, err
+	}
+	var value any
+	if err := json.Unmarshal(encoded, &value); err != nil {
+		return domain.Schedule{}, err
+	}
+	selectPayload := map[string]any{
+		"device": 4,
+		"action": "setbattery",
+		"value":  map[string]any{"sn": c.serial, "mod_r": 4, "type": 1},
+	}
+	if _, err := c.postJSON(ctx, "/setting.cgi", selectPayload); err != nil {
+		return domain.Schedule{}, err
+	}
+	writePayload := map[string]any{"device": 4, "action": "setdefine", "value": value}
+	if _, err := c.postJSON(ctx, "/setting.cgi", writePayload); err != nil {
+		return domain.Schedule{}, err
+	}
+	return c.Schedule(ctx)
 }
 
 // Close releases idle connections.

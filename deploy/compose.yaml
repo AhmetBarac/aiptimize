@@ -20,6 +20,7 @@ services:
       AIPTIMIZE_LISTEN: 0.0.0.0:8080
       AIPTIMIZE_TZ: ${AIPTIMIZE_TZ:-Europe/Stockholm}
       AIPTIMIZE_SIMULATOR: ${AIPTIMIZE_SIMULATOR:-false}
+      AIPTIMIZE_ENABLE_WRITES: ${AIPTIMIZE_ENABLE_WRITES:-false}
     volumes:
       - aiptimize-data:/data
     stop_grace_period: 30s

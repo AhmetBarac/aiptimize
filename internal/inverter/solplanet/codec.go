@@ -101,6 +101,60 @@ func DecodeSlot(code uint32) (domain.ScheduleSlot, error) {
 	}, nil
 }
 
+// EncodeSlot packs one schedule entry.
+func EncodeSlot(s domain.ScheduleSlot) (uint32, error) {
+	if s.Hour < 0 || s.Hour > 23 {
+		return 0, fmt.Errorf("slot: invalid hour %d", s.Hour)
+	}
+	if s.Minute != 0 && s.Minute != 30 {
+		return 0, fmt.Errorf("slot: start must be on :00/:30")
+	}
+	if s.DurationMin < 30 || s.DurationMin > 240 || s.DurationMin%30 != 0 {
+		return 0, fmt.Errorf("slot: invalid duration %d", s.DurationMin)
+	}
+	code := uint32(s.Hour)<<24 | uint32(s.Minute)<<16 | uint32(s.DurationMin)<<8 | 0x02
+	if s.Discharge {
+		code |= 1
+	}
+	return code, nil
+}
+
+// EncodeSchedule produces the full seven-day setdefine value. Every day is
+// emitted so old slots are cleared.
+func EncodeSchedule(s domain.Schedule) ([]byte, error) {
+	out := make(map[string]any, len(DayKeys)+2)
+	for _, day := range DayKeys {
+		slots := append([]domain.ScheduleSlot(nil), s.Days[day]...)
+		if len(slots) > 6 {
+			return nil, fmt.Errorf("schedule: %s has %d slots; maximum is 6", day, len(slots))
+		}
+		sort.Slice(slots, func(i, j int) bool {
+			return SlotStartMinutes(slots[i]) < SlotStartMinutes(slots[j])
+		})
+		codes := make([]uint32, 0, len(slots))
+		prevEnd := -1
+		for _, slot := range slots {
+			code, err := EncodeSlot(slot)
+			if err != nil {
+				return nil, fmt.Errorf("schedule: %s: %w", day, err)
+			}
+			start := SlotStartMinutes(slot)
+			if start < prevEnd {
+				return nil, fmt.Errorf("schedule: %s: overlapping slots", day)
+			}
+			prevEnd = start + slot.DurationMin
+			if prevEnd > 24*60 {
+				return nil, fmt.Errorf("schedule: %s: slot crosses midnight", day)
+			}
+			codes = append(codes, code)
+		}
+		out[day] = codes
+	}
+	out["Pin"] = s.PinW
+	out["Pout"] = s.PoutW
+	return json.Marshal(out)
+}
+
 // SlotStartMinutes returns the start of day in minutes.
 func SlotStartMinutes(s domain.ScheduleSlot) int { return s.Hour*60 + s.Minute }
 

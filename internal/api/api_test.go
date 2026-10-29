@@ -41,6 +41,7 @@ type testAPI struct {
 	inverter  *fakeInverter
 	forecast  *service.ForecastService
 	planner   *service.PlannerService
+	srv       *Server
 }
 
 // apiPVFetcher returns a constant 800 W/m² series for every request.
@@ -58,9 +59,10 @@ func (f *apiPVFetcher) Fetch(context.Context, pv.Request) (pv.Hourly, error) {
 }
 
 type fakeInverter struct {
-	mu      sync.Mutex
-	reading inverter.Reading
-	err     error
+	mu       sync.Mutex
+	reading  inverter.Reading
+	err      error
+	schedule domain.Schedule
 }
 
 func (f *fakeInverter) Identity(context.Context) (inverter.Identity, error) {
@@ -80,7 +82,19 @@ func (f *fakeInverter) Read(context.Context) (inverter.Reading, error) {
 }
 
 func (f *fakeInverter) Schedule(context.Context) (domain.Schedule, error) {
-	return domain.Schedule{Days: map[string][]domain.ScheduleSlot{}}, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.schedule.Days == nil {
+		return domain.Schedule{Days: map[string][]domain.ScheduleSlot{}}, nil
+	}
+	return f.schedule, nil
+}
+
+func (f *fakeInverter) WriteSchedule(_ context.Context, schedule domain.Schedule) (domain.Schedule, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.schedule = schedule
+	return schedule, nil
 }
 
 func (f *fakeInverter) Close() error { return nil }
@@ -162,6 +176,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 		t: t, server: ts, client: client, jar: jar, store: st,
 		settings: svc, prices: priceSvc, fetcher: fetcher,
 		telemetry: telemetrySvc, inverter: fakeInv, forecast: forecastSvc, planner: plannerSvc,
+		srv: srv,
 	}
 }
 
@@ -273,7 +288,8 @@ func TestPublicEndpoints(t *testing.T) {
 	}
 	features := meta["features"].(map[string]any)
 	if features["prices"] != true || features["telemetry"] != true || features["forecast"] != true ||
-		features["battery_plan"] != true || features["phase"].(float64) != 4 {
+		features["battery_plan"] != true || features["actuation"] != true || features["plan_editing"] != true ||
+		features["phase"].(float64) != 5 {
 		t.Errorf("features = %v", features)
 	}
 

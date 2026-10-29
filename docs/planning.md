@@ -122,9 +122,65 @@ expensive blocks, and must end at or above `min(endTarget, startSOC)`. A
 typical day produces four slots and several SEK of savings; the exact numbers
 are in the golden tests and the stored plan.
 
-## Limitations
+## Editing, drafts and resubmission
 
-- EV load is wired through the planner inputs but remains zero until phase 6.
-- Manual editing, draft revisions, locks and apply/reconcile are phase 5.
-- The planner does not know the inverter's live hardware setpoint beyond the
-  configured max charge/discharge values.
+A manual plan locks one local day (`locked_day`). The auto planner keeps
+producing suggestions but never overwrites a draft or applied manual plan for
+that day. The effective plan is the applied manual plan, otherwise the applied
+auto plan, otherwise the latest auto suggestion. A draft is not effective until
+resubmitted.
+
+- `POST /api/v1/plan/drafts` validates and stores a draft. The request carries
+  `date`, `revision`, `slots` (`start`, `end`, `direction`, `power_w`) and an
+  optional note.
+- Structural validation covers the slot budget, 30–240-minute duration,
+  `:00`/`:30` starts, overlap, local midnight, plan horizon, SOC/reserve,
+  site import and end SOC. Invalid drafts return `422 draft_invalid` with the
+  validation errors.
+- Revisions are optimistic: a stale `revision` returns `409 revision_conflict`.
+  Every save/apply writes a `plan_revisions` audit row.
+- Active slots may be kept but not changed; a changed/removed active slot
+  returns `409 active_slot`. Ended slots are rejected.
+- `POST /plan/drafts/{id}/preview` revalidates without saving.
+- `DELETE /plan/drafts/{id}` discards a draft.
+- `POST /plan/drafts/{id}/apply` requires `confirm: true`, writes armed and a
+  matching revision; it revalidates against current SOC/prices/forecast, builds
+  the schedule, writes, reads back and marks the plan applied.
+- `POST /plan/auto/apply` applies the automatic suggestion and clears the manual
+  day lock.
+- `GET /plan/revisions?date=` returns the audit history.
+
+## Schedule and inverter writes
+
+The schedule builder emits the full seven-day `setdefine` payload. Only the
+manual day and the adjacent automatic day are populated; all other days are
+explicitly zeroed. Pin/Pout come from the plan settings. Slots are encoded with
+the dongle's packed format and validated for duration, overlap and midnight.
+
+Writes require `AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, plus
+`confirm: true`. A write is skipped when the inverter already matches. Writes
+are rate-limited to one per 60 seconds. The readback is stored in
+`schedule_writes` and shown in the UI; a mismatch is a warning, not a failed
+write.
+
+A foreign schedule (one this app did not write) blocks apply until the user
+presses **Take control**. `POST /schedule/takeover` replaces it; `POST
+/schedule/clear` writes an empty seven-day schedule. Both require the gates and
+confirmation. Manual plans are marked superseded when the automatic plan is
+applied.
+
+## Safety
+
+- No draft or edit touches the inverter until **Resubmit to inverter**.
+- Active-slot protection, optimistic revisions and audit rows prevent silent
+  overwrites.
+- HIL verification of 210/240-minute slots, dongle write variants and real
+  hardware sign conventions is still required before production use; tests in
+  this phase use the simulator only.
+
+## Tests
+
+Planner preview tests, codec golden/round-trip tests, simulator setdefine
+tests, draft/apply API tests, schedule diff/lock/revision assertions, UI mobile
+smoke tests, and the full Go race suite.
+
