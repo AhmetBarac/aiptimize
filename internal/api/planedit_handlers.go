@@ -179,6 +179,34 @@ func (s *Server) handleApplyAuto(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleDownloadPlan(w http.ResponseWriter, r *http.Request) {
+	if s.planner == nil {
+		writeError(w, http.StatusServiceUnavailable, "plan_unavailable", "The planner is not configured.", nil)
+		return
+	}
+	if !s.writesArmed() {
+		writeError(w, http.StatusConflict, "writes_disarmed",
+			"Arm inverter writes (environment and UI gate) before downloading a plan.", nil)
+		return
+	}
+	var req applyRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
+	if !req.Confirm {
+		writeError(w, http.StatusUnprocessableEntity, "confirmation_required",
+			"Downloading the plan to the inverter requires confirm: true.", nil)
+		return
+	}
+	result, err := s.planner.DownloadPlan(r.Context(), r.URL.Query().Get("date"), s.actor(r))
+	if err != nil {
+		s.planApplyError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handlePlanRevisions(w http.ResponseWriter, r *http.Request) {
 	if s.planner == nil {
 		writeError(w, http.StatusServiceUnavailable, "plan_unavailable", "The planner is not configured.", nil)

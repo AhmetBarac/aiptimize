@@ -65,6 +65,7 @@ An `Origin` header, when present, must match the request host.
 | POST | `/api/v1/plan/drafts/{id}/apply` | yes | Resubmit a draft (armed + confirm) |
 | DELETE | `/api/v1/plan/drafts/{id}` | yes | Discard a draft |
 | POST | `/api/v1/plan/auto/apply` | yes | Apply the auto suggestion and clear the lock |
+| POST | `/api/v1/plan/download` | yes | Write the effective plan to the inverter (armed + confirm) |
 | GET | `/api/v1/plan/revisions?date=` | yes | Plan revision audit |
 | GET | `/api/v1/schedule` | yes | Read the inverter schedule and diff |
 | POST | `/api/v1/schedule/clear` | yes | Clear the schedule (armed + confirm) |
@@ -350,7 +351,10 @@ write gate (`409 writes_disarmed`, `409 foreign_schedule`, `409 active_slot`,
 `409 revision_conflict`). It writes the schedule, reads it back, records
 `schedule_writes`, marks the plan applied and returns the applied plan and
 schedule diff. `POST /plan/auto/apply` does the same for the latest
-automatic suggestion and clears the manual day lock.
+automatic suggestion and clears the manual day lock. `POST /plan/download`
+writes the effective plan (applied manual day otherwise auto) without changing
+the lock, requires the same gate and `{"confirm":true}`, and records a
+`download` write/revision.
 
 `GET /schedule` returns the readback, the desired/actual diff and foreign state.
 `POST /schedule/clear` and `/schedule/takeover` require the gate and

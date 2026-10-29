@@ -103,6 +103,35 @@ func TestPlanDraftAndApply(t *testing.T) {
 	}
 }
 
+func TestPlanDownload(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	seedPricesAndTelemetry(t, a)
+	resp, body := a.post("/api/v1/plan/recompute", map[string]any{})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("recompute = %d %s", resp.StatusCode, body)
+	}
+	a.srv.cfg.EnableWrites = true
+	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"writes_armed_ui":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	resp, body = a.post("/api/v1/plan/download", map[string]any{"confirm": true})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("download = %d %s", resp.StatusCode, body)
+	}
+	result := decodeMap(t, body)
+	if result["plan"].(map[string]any)["status"] != "applied" {
+		t.Errorf("plan = %v", result["plan"])
+	}
+	resp, body = a.get("/api/v1/schedule")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("schedule = %d %s", resp.StatusCode, body)
+	}
+	if decodeMap(t, body)["matches"] != true {
+		t.Errorf("schedule does not match: %s", body)
+	}
+}
+
 func seedPricesAndTelemetry(t *testing.T, a *testAPI) {
 	t.Helper()
 	loc, err := time.LoadLocation("Europe/Stockholm")

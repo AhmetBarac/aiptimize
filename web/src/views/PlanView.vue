@@ -196,7 +196,29 @@ async function resubmit(): Promise<void> {
       revision: draft.value.revision,
     })
     message.value = result.message
-    await load()
+    await load(view.value?.date)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function downloadPlan(): Promise<void> {
+  if (!view.value) return
+  if (!window.confirm(t('plan.confirmDownload'))) return
+  busy.value = true
+  error.value = ''
+  message.value = ''
+  try {
+    const result = draft.value
+      ? await api.post<PlanApplyResult>(`/plan/drafts/${draft.value.id}/apply`, {
+          confirm: true,
+          revision: draft.value.revision,
+        })
+      : await api.post<PlanApplyResult>(`/plan/download?date=${view.value.date}`, { confirm: true })
+    message.value = result.message
+    await load(view.value.date)
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -391,7 +413,11 @@ function fmtTime(iso: string): string {
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <h2>{{ t('plan.slotsTitle') }}</h2>
         <div v-if="!editing" class="d-flex flex-wrap gap-2">
-          <button v-if="draft && canWrite" class="btn btn-sm btn-primary" type="button" :disabled="busy" @click="resubmit">
+          <button v-if="plan && canWrite" class="btn btn-sm btn-primary" type="button" :disabled="busy" @click="downloadPlan">
+            <i class="bi bi-download" aria-hidden="true"></i>
+            <span class="ms-1">{{ t('plan.downloadPlan') }}</span>
+          </button>
+          <button v-if="draft && canWrite" class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="resubmit">
             <i class="bi bi-upload" aria-hidden="true"></i>
             <span class="ms-1">{{ t('plan.resubmit') }}</span>
           </button>

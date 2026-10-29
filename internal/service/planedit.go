@@ -337,6 +337,50 @@ func (s *PlannerService) ApplyAuto(ctx context.Context, day string, actor string
 	return result, nil
 }
 
+// DownloadPlan writes the effective plan for a local day to the inverter. It is
+// the explicit manual action behind the "Download plan" button.
+func (s *PlannerService) DownloadPlan(ctx context.Context, day, actor string) (ApplyResult, error) {
+	loc := s.cfg.Location()
+	if day == "" {
+		day = s.now().In(loc).Format("2006-01-02")
+	}
+	auto, autoErr := s.st.LatestPlanByStatus(ctx, domain.PlanStatusSuggestion)
+	manual, manualErr := s.st.LatestAppliedForDay(ctx, day)
+	values := s.cfg.Get()
+	var plan *domain.Plan
+	var desired domain.Schedule
+	var err error
+	if manualErr == nil {
+		plan = &manual
+		desired, err = BuildSchedule(values, day, &manual, &auto)
+	} else if autoErr == nil {
+		plan = &auto
+		desired, err = BuildSchedule(values, day, nil, &auto)
+	} else {
+		return ApplyResult{}, ErrPlanUnavailable
+	}
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	result, err := s.writeSchedule(ctx, desired, plan, plan.Revision, "download", false)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	if plan.Status == domain.PlanStatusSuggestion {
+		if err := s.st.MarkPlanApplied(ctx, plan.ID, actor); err != nil {
+			return ApplyResult{}, err
+		}
+		plan.Status = domain.PlanStatusApplied
+		now := time.Now().UTC()
+		plan.AppliedAt = &now
+		plan.AppliedBy = actor
+	}
+	_ = s.st.SavePlanRevision(ctx, *plan, actor, "download")
+	result.Plan = *plan
+	s.publishPlan(*plan)
+	return result, nil
+}
+
 func (s *PlannerService) writeSchedule(ctx context.Context, desired domain.Schedule, plan *domain.Plan, revision int, kind string, force bool) (ApplyResult, error) {
 	current, err := s.telemetry.ReadSchedule(ctx)
 	if err != nil {

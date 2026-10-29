@@ -67,8 +67,8 @@ with import price, PV, house load, battery bars and SOC, shaded slot windows,
 and a schedule table. Day tabs select today/tomorrow. **Edit plan** opens an
 inline slot editor (start, duration, direction, power, add/remove) with server
 validation; **Save draft**, **Resubmit to inverter**, **Discard draft**, **Use
-automatic**, **Take control** and **Clear schedule** are gated by the write
-switch. Status chips show automatic, manual draft/applied, lock, foreign
+automatic**, **Download plan to inverter**, **Take control** and **Clear
+schedule** are gated by the write switch. Status chips show automatic, manual draft/applied, lock, foreign
 schedule and inverter diff. The screen is explicitly a dry run until
 resubmitted. The dashboard shows savings, plan cost and the next slot, linking
 to the plan.

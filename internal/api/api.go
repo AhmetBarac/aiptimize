@@ -116,6 +116,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/plan/drafts/{id}/apply", s.requireAuth(s.handleApplyDraft))
 	s.mux.HandleFunc("DELETE /api/v1/plan/drafts/{id}", s.requireAuth(s.handleDiscardDraft))
 	s.mux.HandleFunc("POST /api/v1/plan/auto/apply", s.requireAuth(s.handleApplyAuto))
+	s.mux.HandleFunc("POST /api/v1/plan/download", s.requireAuth(s.handleDownloadPlan))
 	s.mux.HandleFunc("GET /api/v1/plan/revisions", s.requireAuth(s.handlePlanRevisions))
 	s.mux.HandleFunc("GET /api/v1/schedule", s.requireAuth(s.handleSchedule))
 	s.mux.HandleFunc("POST /api/v1/schedule/clear", s.requireAuth(s.handleScheduleClear))

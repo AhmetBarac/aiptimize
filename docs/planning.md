@@ -148,6 +148,9 @@ resubmitted.
   the schedule, writes, reads back and marks the plan applied.
 - `POST /plan/auto/apply` applies the automatic suggestion and clears the manual
   day lock.
+- `POST /plan/download` writes the effective plan (applied manual otherwise
+  automatic) to the inverter on demand; it keeps the manual lock and records a
+  `download` audit row.
 - `GET /plan/revisions?date=` returns the audit history.
 
 ## Schedule and inverter writes
