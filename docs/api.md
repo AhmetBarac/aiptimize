@@ -316,15 +316,36 @@ clamped to the inverter AC limit.
   "draft": null,
   "applied": null,
   "effective": { "id": 1, "slots": [] },
+  "inverter_plan": { "id": 0, "status": "applied", "slots": [], "summary": { "savings": 0 } },
   "locked": false,
   "validation": { "errors": [], "warnings": [] },
   "schedule_diff": [],
   "inverter_match": true,
   "foreign_schedule": false,
+  "sync": {
+    "id": 12, "ts": "2026-10-30T06:30:00Z", "day": "2026-10-29",
+    "plan_id": 17, "plan_revision": 3, "origin": "manual", "status": "applied",
+    "match": true, "diff": [], "source": "check"
+  },
   "last_write": null,
   "warnings": []
 }
 ```
+
+`inverter_plan` is reconstructed from the schedule actually read back from the
+inverter for the requested local day. The dashboard uses this plan, not the
+draft/effective plan. Its expected savings assume each charge window's energy is
+used immediately after the window at the next tariff block's import price,
+including efficiency and cycle cost; discharge-only schedules use the avoided
+import price of the discharge block. If prices are unavailable the plan is still
+returned with a warning and no savings estimate.
+
+`sync` is the newest saved comparison between the effective plan and the
+schedule read back from the inverter (`match`, human-readable `diff`, the plan
+and revision compared, and when). Reading the view performs the comparison and
+saves it when the result changed or the last saved row is older than five
+minutes; a failed inverter read falls back to the stored snapshot. Comparisons
+are kept for 90 days.
 
 `POST /api/v1/plan/recompute` recomputes, stores and returns a suggestion. It
 is a dry run and does not require the hardware arm gate.
@@ -334,7 +355,8 @@ is a dry run and does not require the hardware arm gate.
 ```json
 {
   "date": "2026-10-30",
-  "revision": 1,
+  "revision": 3,
+  "base_plan_id": 17,
   "slots": [
     { "start": "2026-10-30T03:30:00Z", "end": "2026-10-30T04:00:00Z",
       "direction": "charge", "power_w": 3000 }
@@ -343,14 +365,19 @@ is a dry run and does not require the hardware arm gate.
 }
 ```
 
-It returns `201` with `plan` and `validation`, `422 draft_invalid` with
+`revision` and `base_plan_id` identify the plan the editor loaded (the draft,
+otherwise the applied plan, otherwise the automatic suggestion). They are only
+checked when the day already has a manual plan: a different revision or plan id
+means another tab saved in the meantime and returns `409 revision_conflict`.
+Automatic suggestions are regenerated continuously and never cause a conflict.
+The response is `201` with `plan` and `validation`, `422 draft_invalid` with
 `details.validation`, or `409 revision_conflict`.
 
-`POST /plan/drafts/{id}/apply` requires `{"confirm":true,"revision":2}` and the
-write gate (`409 writes_disarmed`, `409 foreign_schedule`, `409 active_slot`,
-`409 revision_conflict`). It writes the schedule, reads it back, records
-`schedule_writes`, marks the plan applied and returns the applied plan and
-schedule diff. `POST /plan/auto/apply` does the same for the latest
+`POST /plan/drafts/{id}/apply` requires `{"confirm":true,"revision":<draft
+revision>}` and the write gate (`409 writes_disarmed`, `409 foreign_schedule`,
+`409 active_slot`, `409 revision_conflict`). It writes the schedule, reads it
+back, records `schedule_writes`, marks the plan applied and returns the applied
+plan and schedule diff. `POST /plan/auto/apply` does the same for the latest
 automatic suggestion and clears the manual day lock. `POST /plan/download`
 writes the effective plan (applied manual day otherwise auto) without changing
 the lock, requires the same gate and `{"confirm":true}`, and records a

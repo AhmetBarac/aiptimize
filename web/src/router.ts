@@ -35,6 +35,12 @@ export const router = createRouter({
       meta: { titleKey: 'nav.history' },
     },
     {
+      path: '/system',
+      name: 'system',
+      component: () => import('./views/SystemView.vue'),
+      meta: { titleKey: 'system.title' },
+    },
+    {
       path: '/car',
       name: 'car',
       component: () => import('./views/CarView.vue'),

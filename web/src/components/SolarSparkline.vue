@@ -62,19 +62,19 @@ const segments = computed<Segment[]>(() => {
 
 <template>
   <svg class="solar-sparkline" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
-    <path v-if="backdrop" :d="backdrop" fill="rgba(50, 215, 75, 0.08)" />
+    <path v-if="backdrop" :d="backdrop" fill="rgba(255, 209, 102, 0.08)" />
     <path
       v-for="(segment, index) in segments"
       :key="index"
       :d="segment.area"
-      fill="rgba(50, 215, 75, 0.18)"
+      fill="rgba(255, 209, 102, 0.18)"
     />
     <path
       v-for="(segment, index) in segments"
       :key="`line-${index}`"
       :d="segment.line"
       fill="none"
-      stroke="var(--aipt-green)"
+      stroke="var(--aipt-solar-warm)"
       stroke-width="1.6"
       stroke-linejoin="round"
       stroke-linecap="round"

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import BottomNav from './components/BottomNav.vue'
+import MoreSheet from './components/MoreSheet.vue'
 
 const route = useRoute()
 const isPublic = computed(() => route.meta.public === true)
@@ -15,6 +16,7 @@ const isPublic = computed(() => route.meta.public === true)
   <div v-else class="app-shell">
     <AppHeader />
     <BottomNav />
+    <MoreSheet />
     <main class="app-main" role="main">
       <router-view />
     </main>

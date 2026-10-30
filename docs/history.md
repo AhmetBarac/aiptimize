@@ -25,9 +25,11 @@ warnings rather than a hard failure.
 
 ## History UI
 
-`/history` shows daily or weekly totals (PV, load, grid import, cost, savings),
-an energy/cost chart and a breakdown table. The page is in the main navigation
-and works at 390 px.
+`/history` offers `7 days`, `30 days` and `12 weeks` ranges (daily or weekly
+aggregation) with summary cards for PV, consumption, grid import and savings,
+the self-powered share, an energy/cost chart and a collapsible breakdown table.
+The page is reachable from the mobile More sheet and the desktop sidebar and
+works at 360 px.
 
 ## PWA
 

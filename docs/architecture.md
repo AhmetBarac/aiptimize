@@ -92,6 +92,7 @@ keys enabled, and a single pooled connection.
 | Editing | manual drafts per local day, structural/SOC/site validation, cost preview, optimistic revisions |
 | Locking | manual day lock; auto suggestions continue but never overwrite a draft/applied manual plan |
 | Revisions | `plan_revisions` audit on every draft/apply; `schedule_writes` linked to plan/revision |
+| Synchronisation | `plan_sync` snapshots of each plan/inverter comparison (match, diff, plan/revision, source), shown on the plan page |
 | Actuation | seven-day `setdefine` builder, simulator and Solplanet writer, readback and diff |
 | Safety | writes armed (env + UI) and confirmation, active-slot protection, 60 s write rate limit, foreign-schedule refusal, clear/takeover |
 | API | plan view, drafts/preview/apply/discard, auto apply, revisions, schedule read/clear/takeover |
@@ -137,15 +138,16 @@ back to HTML.
 
 The complete v1 schema (prices, plans, plan slots and revisions, schedule
 writes, telemetry, EV configs/plans/runs/sessions/commands, events) is created
-by the first migration. Phases 0–6 actively use `users`, `sessions`, `settings`,
-`events`, `prices`, `telemetry`, `plans`, `plan_slots`, `plan_revisions`,
-`schedule_writes`, `ev_plans`, `ev_plan_runs`, `ev_sessions` and `ev_commands`;
-forecasts are cached in memory and the exact planner inputs are stored with
-each plan. Timestamps are RFC3339 UTC text; local-day keys are `YYYY-MM-DD` in
-the site timezone.
+by the first migration; phase 5 adds the curve/warnings columns and the
+`plan_sync` comparison snapshots. Phases 0–6 actively use `users`, `sessions`,
+`settings`, `events`, `prices`, `telemetry`, `plans`, `plan_slots`,
+`plan_revisions`, `plan_sync`, `schedule_writes`, `ev_plans`, `ev_plan_runs`,
+`ev_sessions` and `ev_commands`; forecasts are cached in memory and the exact
+planner inputs are stored with each plan. Timestamps are RFC3339 UTC text;
+local-day keys are `YYYY-MM-DD` in the site timezone.
 
-Retention (daily, from `RunBackground`): telemetry 90 days, events 1 year,
-expired sessions removed. WAL is checkpointed on graceful shutdown.
+Retention (daily, from `RunBackground`): telemetry and plan sync 90 days, events
+1 year, expired sessions removed. WAL is checkpointed on graceful shutdown.
 
 ## Settings
 

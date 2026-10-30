@@ -1,10 +1,25 @@
 # User interface
 
-The visual target is the EcoFlow app family (dark, card-based energy
-dashboards): near-black background, charcoal cards, large tabular values with
-small muted units, one accent colour per energy source, pill buttons and a
-minimal bottom navigation. Reference images supplied by the project owner live
-in `GUI inspiration/` and are intentionally not committed.
+The visual target is the EcoFlow app family: a dark, device-like energy home
+screen, large tabular values, one accent colour per energy source, generous
+cards, a live topology and a compact primary navigation. The interface is
+mobile-first and remains usable at 360 px.
+
+Reference material reviewed during the v1.1 refresh:
+
+- [EcoFlow App](https://www.ecoflow.com/us/app) — system overview, TOU planning,
+  backup reserve, energy statistics and device management.
+- [EcoFlow on the App Store](https://apps.apple.com/us/app/ecoflow-power-a-new-world/id1506693140)
+  — Space / Automation / Profile tabs and scheduled tasks.
+- [ComputerBase EcoFlow Stream review](https://www.computerbase.de/artikel/smart-home/balkonkraftwerk-ecoflow-stream-ultra-ac-pro-test.92117/)
+  — hands-on description of the energy-flow screen, tappable house demand,
+  widget statistics and day/week/month/year history.
+- Local owner-supplied screenshots in `GUI inspiration/` (intentionally not
+  committed).
+
+We borrow the information hierarchy and interaction patterns, not EcoFlow
+branding, product renders or account features. Aiptimize has no weather,
+multi-home or device-pairing data, so those widgets are deliberately absent.
 
 ## Design tokens
 
@@ -12,97 +27,164 @@ in `GUI inspiration/` and are intentionally not committed.
 |---|---|---|
 | Background | `#000000` | Page, phone chrome |
 | Surface | `#141416` | Cards |
-| Surface 2 | `#1c1c1f` | Inputs, tiles, inactive pills |
+| Surface 2 | `#1c1c1f` | Inputs, chips, tiles |
+| Surface 3 | `#26262a` | Inactive controls, skeletons |
 | Text | `#f5f5f7` | Values and headings |
-| Muted | `#9a9aa2` | Labels and secondary text |
+| Muted | `#9a9aa2` | Labels, units and secondary text |
 | Border | `rgba(255,255,255,.08)` | Card and input outlines |
 | Green | `#32d74b` | Solar, charging, success |
 | Orange | `#ff9f0a` | Grid import, discharging, warnings |
-| Blue | `#0a84ff` | Battery, links, chart bars |
-| Yellow | `#ffd60a` | Prices/price marker |
+| Blue | `#0a84ff` | Battery and links |
+| Cyan | `#64d2ff` | Grid export and surplus |
+| Purple | `#bf5af2` | EV / car |
+| Yellow | `#ffd60a` | Prices |
 | Red | `#ff453a` | Errors |
 
-Cards use a 20 px radius, a subtle dark gradient and a soft shadow. Values use
-`font-variant-numeric: tabular-nums` and tight letter spacing; units are small
-and muted. Buttons are pills; the primary action is white with black text.
+Cards use 22–28 px radii, a restrained gradient and a single-pixel border.
+Values use `font-variant-numeric: tabular-nums`; units are small and muted.
+Primary actions are white pills on dark surfaces. Light theme preserves the
+same geometry and uses darker source colours for contrast.
 
-## Layout
+## Navigation
 
-- **Mobile:** sticky translucent header (brand, theme, language, logout), fixed
-  bottom tab bar (Home, Plan, Prices, Car, Settings), safe-area padding,
-  44 px targets, single column, charts full width.
-- **Desktop:** left sidebar with the same destinations, content max-width
-  1180 px, three-column card rows where useful.
-- **Theme:** dark by default, stored in `localStorage`; a sun/moon button
-  switches to a light palette that keeps the same component geometry.
-- **Accessibility:** labels on every control, `aria-label` on icon buttons,
-  `aria-live` for results, colour never the only signal (icons/text accompany
-  it), reduced motion respected, no horizontal page scrolling at 390 px.
+**Mobile** — five slots: Home · Prices · **Plan** (raised centre action) · Car ·
+More.
 
-## Dashboard
+- More opens a bottom sheet with History, Solar, Settings, theme, language,
+  sign out and the version.
+- The header contains the brand, live status and an avatar/menu button.
+- History and Solar remain one tap away from the home metric cards.
 
-1. Energy-flow card with five source tiles (solar, grid, battery, house, car);
-   each has a coloured icon, a large value, a unit and a state hint. The solar
-   tile is a button with a small today sparkline (measured over expected) and
-   opens **Solar production**.
-2. Solar & load forecast card: 24/48-hour tabs, PV and load totals, confidence,
-   a green PV area with a house-load line, source, timestamp and warnings.
-3. State-of-charge ring with the battery state and telemetry freshness.
-4. Prices card with current import price, next price and the cheapest 2-hour
-   window.
-5. Safety gates and inverter check.
-6. Data-source status and build information.
+**Desktop** — a 232 px left sidebar with Home, Plan, Prices, History, Car and
+Settings, plus theme, language and sign out at the bottom. The mobile header
+and More sheet are not shown.
 
-## Solar production
+## Home
 
-Full-page chart with today's measured production (green area), expected curve
-(yellow), minimum and maximum estimates (dashed) and the house-load forecast
-(blue), plus current output, produced/expected/load kWh and the estimate range.
-A back button returns to the dashboard.
+The home page is a site overview rather than a generic dashboard.
 
-## Battery plan
+1. **Hero** — site name, local date, live badge and a self-powered ring for
+   today. Solar, consumption and savings so far are shown beside the ring.
+   Missing history shows `—` and "Collecting today's data", never a fake zero.
+2. **Energy flow** — solar, grid, house, battery and (when configured) car
+   nodes connected by animated, directional lines. The house is a button that
+   opens the live supply-mix sheet. Each other node links to its detail page.
+   Stale telemetry stops the animation and is labelled.
+3. **Today's plan** — automatic/draft/applied status, a 24 h timeline with
+   charge and discharge lanes, the actual slot list, expected savings, the next
+   slot, the write-gate state and the saved inverter sync state. Actions remain
+   gated by the safety switches.
+4. **Today widgets** — solar, consumption, grid import and savings for today,
+   with a seven-day sparkline when enough measured data exists. Each widget
+   opens the relevant detail page.
+5. **Forecast** — 24/48 h PV and load totals, confidence, source, warnings and
+   the measured/forecast chart.
+6. **Prices** — current and next import price, the cheapest window and a
+   compact 24 h price strip.
+7. **System status** — inverter, telemetry, forecast, writes and EV gates in a
+   compact card. Build and database diagnostics live in **Settings → System**.
 
-Summary cards (savings, plan cost, no-battery cost, slots, cycles), one chart
-with import price, PV, house load, battery bars and SOC, shaded slot windows,
-and a schedule table. Day tabs select today/tomorrow. **Edit plan** opens an
-inline slot editor (start, duration, direction, power, add/remove) with server
-validation; **Save draft**, **Resubmit to inverter**, **Discard draft**, **Use
-automatic**, **Download plan to inverter**, **Take control** and **Clear
-schedule** are gated by the write switch. Status chips show automatic, manual draft/applied, lock, foreign
-schedule and inverter diff. The screen is explicitly a dry run until
-resubmitted. The dashboard shows savings, plan cost and the next slot, linking
-to the plan.
+### Energy-flow semantics
 
-## Prices
+- Solar and grid values are absolute; the hint says producing/importing/
+  exporting.
+- Battery power is shown absolute with a charging/discharging hint; positive
+  `battery_w` means charging.
+- House supply is an instantaneous estimate: solar direct first, then battery
+  discharge, then grid. Percentages are normalised to the house load.
+- The supply sheet notes that surplus solar can charge the battery or export.
+- The self-powered percentage is
+  `(1 - grid_import_kwh / (load_kwh + ev_kwh)) * 100`, clamped to 0–100. It is
+  calculated from today's measured history, not from the plan.
 
-Segmented day tabs, a 15-minute bar chart with a "now" marker, min/max/average
-cards, per-day cheapest windows, a scrollable 30-minute block table, tariff
-breakdown and attribution.
+## Detail pages
 
-## Car
+### History
 
-Live state, power, current, session energy and mode; Off/Now/Smart selector,
-manual current and pause/resume; a charging-plan card with target, remaining,
-duration, windows, state and warnings; a static plan form; and the Zaptec
-15-minute cadence notice. Controls are disabled when EV control is disarmed.
+Range presets `7 days`, `30 days` and `12 weeks` use the existing history API
+(`resolution=day|week`, 92-day limit). Summary cards show PV, consumption, grid
+import and savings, plus the self-powered share. The chart keeps PV and load as
+separate series, draws grid import/export as bars and cost/savings on the
+secondary axis; the breakdown table is collapsed by default.
 
-## History
+### Solar production
 
-Daily/weekly totals for PV, load, grid import, cost and savings, an energy/cost
-chart and a breakdown table. Available from the main navigation.
+Current output, produced/expected kWh, the estimate range, actual-vs-expected
+accuracy and house-load estimate, followed by the full production chart.
 
-## PWA
+### Battery plan
 
-The app ships a manifest, 192/512 px icons (including maskable), favicon and
-Apple touch icon for standalone installation. There is deliberately no service
-worker in v1, so control data is never stale.
+Savings hero, plan cost/baseline, slots/cycles/charge, a day timeline above the
+price/PV/load/battery/SOC chart, the schedule table, editor, an inverter
+synchronisation card and warnings. The card shows the saved sync state (in
+sync / out of sync / not checked), when the comparison was made, which plan and
+revision it compared, the differences and the last write, with a "Check now"
+action that re-reads the schedule. Existing validation, revisions, locks and
+write gates are unchanged.
 
-## Settings
+### Car
 
-Segmented section pills (Site, Inverter, Solar, Load, Plan, Safety, System) and
-generous forms. Inverter includes a read-only connection test whose result is
-shown as a green summary card. Solar edits 1–3 MPPT strings and forecast
-parameters; Load edits daily energy, measured-profile blending and the 24-hour
-profile; Plan edits the slot budget, horizon, saving threshold, setpoints and
-end-SOC policy; EV edits charging limits, modes, smart switches and the grid
-charging acknowledgment.
+State, power, current, session and mode cards; three descriptive mode cards
+(Off / Now / Smart); the current/pause controls; the active charging plan; and
+the existing static plan form. EV commands remain gated by the EV switch.
+
+### Prices
+
+Now / next / cheapest summary, day tabs, the 15-minute spot chart, min/max/
+average, cheapest windows, 30-minute blocks and tariff breakdown.
+
+### Settings
+
+Site, inverter, solar, load, plan, EV, safety and system sections. System adds
+build commit/date alongside the existing version and hardware details. Safety
+continues to show both the environment and in-app gates.
+
+## Component behaviour
+
+- `Sheet` — teleported dialog with focus trap, Escape/backdrop close, body
+  scroll lock, focus restoration and a bottom-sheet layout on mobile.
+- `SegmentedControl` — labelled group of pill buttons using `aria-pressed`.
+- `MetricCard` — label/value/unit, optional sparkline, link and skeleton.
+- `EnergyFlow` — semantic node links/button, hidden text summary and reduced
+  motion fallback.
+- `PlanTimeline` — clips overnight slots to the selected local day, supports
+  23/25-hour DST days, shows a now marker and exposes a hidden text list.
+- `PriceStrip` — 24 h 30-minute price bars with a cheapest-window band and a
+  now marker; decorative bars have a text summary.
+- `LiveBadge` — live / stale / waiting / offline state with freshness age.
+
+## Data sources and refresh
+
+| Surface | Source | Refresh |
+|---|---|---|
+| Live flow and hero status | `/status` and `/stream` (SSE) | 15 s stream, 10 s polling fallback |
+| Today's metrics | `/history?from=&to=&resolution=day` | 5 min |
+| Home plan | `/plan?date=` | 60 s |
+| Forecast | `/forecast` | 5 min |
+| Prices | `/prices` | 15 min |
+
+All date keys and labels use the site timezone. Requests load independently so
+one failed source does not blank the page. Writes and EV commands are never
+triggered by this UI refresh.
+
+## Accessibility and responsive rules
+
+- Every control has a label; icon-only buttons have `aria-label`.
+- Sheets are dialogs with `aria-modal`, labelled titles, focus trapping and
+  focus restoration.
+- Colour is never the only signal; icons, text and direction hints accompany it.
+- The flow has a visually hidden text equivalent and each node an accessible
+  name.
+- Targets are at least 44 px; the primary nav action is 56 px.
+- `prefers-reduced-motion` disables flow, pulse and sheet animation.
+- No horizontal page scrolling at 360, 390, 768 or 1280 px.
+- Charts react to the data-bs theme and use muted axes, dashed grids and source
+  colours from CSS variables.
+
+## Non-goals
+
+- No 3D house scene, weather tile, multi-home selector, EcoCredits, device
+  pairing or cloud account surfaces.
+- No service worker; control data must not be stale.
+- No new chart or UI dependency; the interface uses Vue, Bootstrap icons,
+  ECharts and CSS/SVG.

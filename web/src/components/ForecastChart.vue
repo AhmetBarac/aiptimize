@@ -9,13 +9,17 @@ import type { ForecastPoint } from '../api/types'
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
-const props = defineProps<{
-  points: ForecastPoint[]
-  timezone: string
-  locale: string
-  labelPv: string
-  labelLoad: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    points: ForecastPoint[]
+    timezone: string
+    locale: string
+    labelPv: string
+    labelLoad: string
+    height?: number
+  }>(),
+  { height: 260 },
+)
 
 const el = ref<HTMLDivElement | null>(null)
 let chart: ReturnType<typeof echarts.init> | null = null
@@ -43,7 +47,7 @@ function render(): void {
   const text = css('--aipt-muted', '#9a9aa2')
   const border = css('--aipt-border', 'rgba(255,255,255,.08)')
   const surface = css('--aipt-surface', '#141416')
-  const green = css('--aipt-green', '#32d74b')
+  const warm = css('--aipt-solar-warm', '#ffd166')
   const blue = css('--aipt-blue', '#0a84ff')
 
   chart.setOption(
@@ -92,12 +96,12 @@ function render(): void {
           smooth: 0.25,
           symbol: 'none',
           data: pv,
-          lineStyle: { width: 2, color: green },
-          itemStyle: { color: green },
+          lineStyle: { width: 2, color: warm },
+          itemStyle: { color: warm },
           areaStyle: {
             color: new graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(50,215,75,0.34)' },
-              { offset: 1, color: 'rgba(50,215,75,0.02)' },
+              { offset: 0, color: 'rgba(255,209,102,0.34)' },
+              { offset: 1, color: 'rgba(255,209,102,0.02)' },
             ]),
           },
         },
@@ -144,12 +148,11 @@ watch(
 </script>
 
 <template>
-  <div ref="el" class="forecast-chart" role="img" :aria-label="`${labelPv} / ${labelLoad}`"></div>
+  <div ref="el" class="forecast-chart" :style="{ height: `${height}px` }" role="img" :aria-label="`${labelPv} / ${labelLoad}`"></div>
 </template>
 
 <style scoped>
 .forecast-chart {
   width: 100%;
-  height: 260px;
 }
 </style>

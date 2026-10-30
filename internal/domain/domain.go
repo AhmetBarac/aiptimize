@@ -192,6 +192,21 @@ type ScheduleWrite struct {
 	PlanRevision int             `json:"plan_revision,omitempty"`
 }
 
+// PlanSync is one saved comparison between the effective plan and the schedule
+// actually present in the inverter.
+type PlanSync struct {
+	ID           int64      `json:"id"`
+	TS           time.Time  `json:"ts"`
+	Day          string     `json:"day"`
+	PlanID       *int64     `json:"plan_id,omitempty"`
+	PlanRevision int        `json:"plan_revision"`
+	Origin       PlanOrigin `json:"origin,omitempty"`
+	Status       PlanStatus `json:"status,omitempty"`
+	Match        bool       `json:"match"`
+	Diff         []string   `json:"diff"`
+	Source       string     `json:"source"` // check | apply | apply_auto | download | takeover
+}
+
 // Telemetry is one inverter/meter/battery sample.
 type Telemetry struct {
 	TS           time.Time      `json:"ts"`

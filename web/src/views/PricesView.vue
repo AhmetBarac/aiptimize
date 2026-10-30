@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client'
 import type { PriceSnapshot, PriceWindow } from '../api/types'
 import PageHead from '../components/PageHead.vue'
 import PriceChart from '../components/PriceChart.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 
 const { t, locale } = useI18n()
 
@@ -123,6 +124,19 @@ const cheapestWindows = computed<PriceWindow[]>(() => {
   return picked.sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
 })
 
+const currentBlock = computed(() => {
+  const at = Date.parse(nowIso.value)
+  return blocks.value.find((block) => Date.parse(block.start) <= at && Date.parse(block.end) > at) ?? null
+})
+const nextBlock = computed(() => {
+  const at = Date.parse(nowIso.value)
+  return blocks.value.find((block) => Date.parse(block.start) > at) ?? null
+})
+const cheapestNow = computed(() => cheapestWindows.value[0] ?? null)
+const dayOptions = computed(() =>
+  groups.value.map((group) => ({ value: group.key, label: dayShort(group.start) })),
+)
+
 function time(iso: string): string {
   return new Intl.DateTimeFormat(locale.value, {
     hour: '2-digit',
@@ -226,25 +240,30 @@ onMounted(() => load())
 
   <template v-else-if="snapshot && snapshot.points.length">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-      <div class="day-tabs" role="tablist" :aria-label="t('prices.title')">
-        <button
-          v-for="group in groups"
-          :key="group.key"
-          class="btn btn-sm"
-          :class="activeDay === group.key ? 'btn-primary' : 'btn-outline-secondary'"
-          type="button"
-          role="tab"
-          :aria-selected="activeDay === group.key"
-          @click="activeDay = group.key"
-        >
-          {{ dayShort(group.start) }}
-        </button>
-      </div>
+      <SegmentedControl v-model="activeDay" :options="dayOptions" :group-label="t('prices.title')" size="sm" />
       <span class="badge-soft" :class="stateClass(dayState)">{{ stateLabel(dayState) }}</span>
       <span v-if="snapshot.stale" class="badge-soft badge-warn">{{ t('prices.stale') }}</span>
       <span class="ms-auto small text-muted">
         {{ t('prices.pointsBlocks', { points: snapshot.points.length, blocks: snapshot.blocks.length }) }}
       </span>
+    </div>
+
+    <div class="price-hero mb-3">
+      <div>
+        <span>{{ t('prices.now') }}</span>
+        <strong class="tabular">{{ currentBlock ? money(currentBlock.import_price, 3) : '—' }}</strong>
+        <small>{{ currency }}/kWh</small>
+      </div>
+      <div>
+        <span>{{ t('prices.next') }}</span>
+        <strong class="tabular">{{ nextBlock ? money(nextBlock.import_price, 3) : '—' }}</strong>
+        <small>{{ nextBlock ? time(nextBlock.start) : '' }}</small>
+      </div>
+      <div>
+        <span>{{ t('prices.cheapestShort') }}</span>
+        <strong class="tabular">{{ cheapestNow ? money(cheapestNow.avg_import_price, 3) : '—' }}</strong>
+        <small>{{ cheapestNow ? `${time(cheapestNow.start)}–${time(cheapestNow.end)}` : '' }}</small>
+      </div>
     </div>
 
     <div class="row g-3">

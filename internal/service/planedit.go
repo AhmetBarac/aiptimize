@@ -33,18 +33,21 @@ type DraftSlot struct {
 // PlanView is the editor-facing bundle: auto suggestion, manual draft/applied
 // plan, effective plan, validation and the schedule diff.
 type PlanView struct {
-	Date          string                `json:"date"`
-	Auto          *domain.Plan          `json:"auto,omitempty"`
-	Draft         *domain.Plan          `json:"draft,omitempty"`
-	Applied       *domain.Plan          `json:"applied,omitempty"`
-	Effective     *domain.Plan          `json:"effective,omitempty"`
-	Locked        bool                  `json:"locked"`
-	Validation    planner.Validation    `json:"validation"`
-	ScheduleDiff  []string              `json:"schedule_diff"`
-	InverterMatch bool                  `json:"inverter_match"`
-	Foreign       bool                  `json:"foreign_schedule"`
-	LastWrite     *domain.ScheduleWrite `json:"last_write,omitempty"`
-	Warnings      []string              `json:"warnings"`
+	Date           string                `json:"date"`
+	Auto           *domain.Plan          `json:"auto,omitempty"`
+	Draft          *domain.Plan          `json:"draft,omitempty"`
+	Applied        *domain.Plan          `json:"applied,omitempty"`
+	Effective      *domain.Plan          `json:"effective,omitempty"`
+	Inverter       *domain.Plan          `json:"inverter_plan,omitempty"`
+	Locked         bool                  `json:"locked"`
+	Validation     planner.Validation    `json:"validation"`
+	ScheduleDiff   []string              `json:"schedule_diff"`
+	InverterMatch  bool                  `json:"inverter_match"`
+	InverterReadOK bool                  `json:"inverter_read_ok"`
+	Foreign        bool                  `json:"foreign_schedule"`
+	Sync           *domain.PlanSync      `json:"sync,omitempty"`
+	LastWrite      *domain.ScheduleWrite `json:"last_write,omitempty"`
+	Warnings       []string              `json:"warnings"`
 }
 
 // ApplyResult is returned after resubmitting or applying the automatic plan.
@@ -70,13 +73,14 @@ func (s *PlannerService) PlanView(ctx context.Context, day string) (PlanView, er
 	if auto, err := s.st.LatestPlanByStatus(ctx, domain.PlanStatusSuggestion); err == nil {
 		view.Auto = &auto
 	}
-	if manual, err := s.st.LatestManualForDay(ctx, day); err == nil {
-		if manual.Status == domain.PlanStatusDraft {
-			view.Draft = &manual
-		}
-		if manual.Status == domain.PlanStatusApplied {
-			view.Applied = &manual
-		}
+	// A pending draft and the applied plan coexist: the draft is what the editor
+	// shows, the applied plan is what the inverter should still be running.
+	if draft, err := s.st.LatestDraftForDay(ctx, day); err == nil {
+		view.Draft = &draft
+		view.Locked = true
+	}
+	if applied, err := s.st.LatestAppliedForDay(ctx, day); err == nil {
+		view.Applied = &applied
 		view.Locked = true
 	}
 	if view.Applied != nil {
@@ -94,6 +98,13 @@ func (s *PlannerService) PlanView(ctx context.Context, day string) (PlanView, er
 			_ = result
 		}
 	}
+	current, scheduleErr := s.telemetry.ReadSchedule(ctx)
+	if scheduleErr == nil {
+		view.InverterReadOK = true
+		view.Inverter = s.buildInverterPlan(ctx, day, current)
+	} else {
+		view.Warnings = append(view.Warnings, "Could not read the inverter schedule: "+scheduleErr.Error())
+	}
 	if view.Effective != nil {
 		values := s.cfg.Get()
 		manualForSchedule := view.Applied
@@ -104,14 +115,16 @@ func (s *PlannerService) PlanView(ctx context.Context, day string) (PlanView, er
 		if autoForSchedule == nil && view.Applied != nil && view.Applied.Origin == domain.OriginAuto {
 			autoForSchedule = view.Applied
 		}
-		if desired, err := BuildSchedule(values, day, manualForSchedule, autoForSchedule); err == nil {
-			if current, err := s.telemetry.ReadSchedule(ctx); err == nil {
-				view.ScheduleDiff = ScheduleDiff(desired, current)
-				view.InverterMatch = len(view.ScheduleDiff) == 0
-				view.Foreign = s.foreignSchedule(ctx, current)
-			} else {
-				view.Warnings = append(view.Warnings, "Could not read the inverter schedule: "+err.Error())
-			}
+		if desired, err := BuildSchedule(values, day, manualForSchedule, autoForSchedule); err == nil && scheduleErr == nil {
+			view.ScheduleDiff = ScheduleDiff(desired, current)
+			view.InverterMatch = len(view.ScheduleDiff) == 0
+			view.Foreign = s.foreignSchedule(ctx, current)
+			view.Sync = s.saveSync(ctx, day, "check", view.Effective, view.ScheduleDiff, false)
+		}
+	}
+	if view.Sync == nil {
+		if last, err := s.st.LatestPlanSync(ctx, day); err == nil {
+			view.Sync = &last
 		}
 	}
 	if last, err := s.st.LatestScheduleWrite(ctx); err == nil {
@@ -131,8 +144,71 @@ func (s *PlannerService) Preview(ctx context.Context, slots []domain.Slot) (plan
 	return result, validation, err
 }
 
-// SaveDraft validates and stores a manual draft for one local day.
-func (s *PlannerService) SaveDraft(ctx context.Context, day string, baseRevision int, slots []DraftSlot, note, actor string) (domain.Plan, planner.Validation, error) {
+// planSyncMinInterval throttles automatic comparisons so that polling the plan
+// view does not flood the saved sync history with identical rows.
+const planSyncMinInterval = 5 * time.Minute
+
+// saveSync stores one comparison between the effective plan and the inverter
+// schedule. Unchanged snapshots younger than planSyncMinInterval reuse the
+// stored row unless force is set.
+func (s *PlannerService) saveSync(ctx context.Context, day, source string, plan *domain.Plan, diff []string, force bool) *domain.PlanSync {
+	snap := domain.PlanSync{
+		TS: s.now().UTC(), Day: day, Match: len(diff) == 0,
+		Diff: append([]string{}, diff...), Source: source,
+	}
+	if snap.Diff == nil {
+		snap.Diff = []string{}
+	}
+	if plan != nil {
+		id := plan.ID
+		snap.PlanID = &id
+		snap.PlanRevision = plan.Revision
+		snap.Origin = plan.Origin
+		snap.Status = plan.Status
+	}
+	if !force {
+		if last, err := s.st.LatestPlanSync(ctx, day); err == nil &&
+			last.TS.Add(planSyncMinInterval).After(snap.TS) && samePlanSync(last, snap) {
+			// Same result within the throttle window: report it as freshly
+			// checked but keep the stored history row.
+			snap.ID = last.ID
+			return &snap
+		}
+	}
+	saved, err := s.st.RecordPlanSync(ctx, snap)
+	if err != nil {
+		s.log.Warn("save plan sync failed", "err", err)
+		return &snap
+	}
+	return &saved
+}
+
+func samePlanSync(a, b domain.PlanSync) bool {
+	if a.Match != b.Match || a.PlanRevision != b.PlanRevision ||
+		a.Origin != b.Origin || a.Status != b.Status {
+		return false
+	}
+	if (a.PlanID == nil) != (b.PlanID == nil) {
+		return false
+	}
+	if a.PlanID != nil && *a.PlanID != *b.PlanID {
+		return false
+	}
+	if len(a.Diff) != len(b.Diff) {
+		return false
+	}
+	for i := range a.Diff {
+		if a.Diff[i] != b.Diff[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// SaveDraft validates and stores a manual draft for one local day. baseRevision
+// and basePlanID are optimistic guards: when the day already has a manual plan,
+// they must describe that plan or the save is rejected as a conflict.
+func (s *PlannerService) SaveDraft(ctx context.Context, day string, baseRevision int, basePlanID int64, slots []DraftSlot, note, actor string) (domain.Plan, planner.Validation, error) {
 	loc := s.cfg.Location()
 	if day == "" {
 		day = s.now().In(loc).Format("2006-01-02")
@@ -166,14 +242,20 @@ func (s *PlannerService) SaveDraft(ctx context.Context, day string, baseRevision
 
 	auto, autoErr := s.st.LatestPlanByStatus(ctx, domain.PlanStatusSuggestion)
 	manual, manualErr := s.st.LatestManualForDay(ctx, day)
+	if manualErr != nil && !errors.Is(manualErr, store.ErrNotFound) {
+		return domain.Plan{}, validation, manualErr
+	}
 	currentRevision := 0
 	if manualErr == nil {
 		currentRevision = manual.Revision
-	} else if autoErr == nil {
-		currentRevision = auto.Revision
-	}
-	if baseRevision != 0 && baseRevision != currentRevision {
-		return domain.Plan{}, validation, ErrRevisionConflict
+		// Only a manual plan can be edited concurrently: automatic suggestions
+		// keep being regenerated and must not look like another editor.
+		if baseRevision != 0 && baseRevision != manual.Revision {
+			return domain.Plan{}, validation, ErrRevisionConflict
+		}
+		if basePlanID != 0 && basePlanID != manual.ID {
+			return domain.Plan{}, validation, ErrRevisionConflict
+		}
 	}
 	revision := currentRevision + 1
 	if revision < 1 {
@@ -301,6 +383,7 @@ func (s *PlannerService) ApplyDraft(ctx context.Context, id int64, revision int,
 	_ = s.st.SavePlanRevision(ctx, plan, actor, "apply")
 	result.Plan = plan
 	s.publishPlan(plan)
+	s.saveSync(ctx, plan.LockedDay, "apply", &plan, result.Diff, true)
 	return result, nil
 }
 
@@ -334,6 +417,7 @@ func (s *PlannerService) ApplyAuto(ctx context.Context, day string, actor string
 	_ = s.st.SavePlanRevision(ctx, auto, actor, "apply_auto")
 	result.Plan = auto
 	s.publishPlan(auto)
+	s.saveSync(ctx, day, "apply_auto", &auto, result.Diff, true)
 	return result, nil
 }
 
@@ -378,6 +462,7 @@ func (s *PlannerService) DownloadPlan(ctx context.Context, day, actor string) (A
 	_ = s.st.SavePlanRevision(ctx, *plan, actor, "download")
 	result.Plan = *plan
 	s.publishPlan(*plan)
+	s.saveSync(ctx, day, "download", plan, result.Diff, true)
 	return result, nil
 }
 
@@ -464,11 +549,11 @@ func (s *PlannerService) TakeControl(ctx context.Context, day, actor string) (Ap
 		day = s.now().In(loc).Format("2006-01-02")
 	}
 	auto, autoErr := s.st.LatestPlanByStatus(ctx, domain.PlanStatusSuggestion)
-	manual, manualErr := s.st.LatestManualForDay(ctx, day)
+	manual, manualErr := s.st.LatestAppliedForDay(ctx, day)
 	values := s.cfg.Get()
 	var desired domain.Schedule
 	var err error
-	if manualErr == nil && manual.Status == domain.PlanStatusApplied {
+	if manualErr == nil {
 		desired, err = BuildSchedule(values, day, &manual, &auto)
 	} else if autoErr == nil {
 		desired, err = BuildSchedule(values, day, nil, &auto)
@@ -483,6 +568,7 @@ func (s *PlannerService) TakeControl(ctx context.Context, day, actor string) (Ap
 		return ApplyResult{}, err
 	}
 	result.Message = "Control taken; the schedule was replaced."
+	s.saveSync(ctx, day, "takeover", nil, result.Diff, true)
 	return result, nil
 }
 

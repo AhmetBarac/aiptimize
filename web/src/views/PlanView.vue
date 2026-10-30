@@ -6,6 +6,9 @@ import type { DraftSlot, Plan, PlanApplyResult, PlanValidation, PlanView } from 
 import { session } from '../session'
 import PageHead from '../components/PageHead.vue'
 import PlanChart from '../components/PlanChart.vue'
+import PlanTimeline from '../components/PlanTimeline.vue'
+import { addDays, localDateKey } from '../lib/energy'
+import { basePlanID, baseRevision } from '../lib/plan'
 
 interface EditSlot {
   start: string
@@ -30,12 +33,32 @@ const canWrite = computed(() => Boolean(session.meta?.gates?.writes_armed))
 const currency = computed(() => plan.value?.summary.currency ?? '')
 const hasSlots = computed(() => (plan.value?.slots.length ?? 0) > 0)
 const draft = computed(() => view.value?.draft ?? null)
+const sync = computed(() => view.value?.sync ?? null)
 const todayDate = ref('')
+const daySlots = computed(() => {
+  const day = view.value?.date
+  if (!day) return plan.value?.slots ?? []
+  return (plan.value?.slots ?? []).filter((slot) => slot.day_local === day)
+})
+const timelineLabels = computed(() => ({
+  charge: t('plan.charge'),
+  discharge: t('plan.discharge'),
+  now: t('home.now'),
+  empty: t('home.noSlotsShort'),
+}))
+const nowIso = new Date().toISOString()
+const selectedDayLabel = computed(() => {
+  if (!view.value) return ''
+  if (view.value.date === todayDate.value) return t('plan.today')
+  if (view.value.date === tomorrowDate.value) return t('plan.tomorrow')
+  return view.value.date
+})
 const tomorrowDate = computed(() => {
-  const base = todayDate.value || view.value?.date || new Date().toISOString().slice(0, 10)
-  const d = new Date(`${base}T12:00:00`)
-  d.setDate(d.getDate() + 1)
-  return d.toISOString().slice(0, 10)
+  const base =
+    todayDate.value ||
+    view.value?.date ||
+    localDateKey(new Date(), session.meta?.timezone ?? 'UTC')
+  return addDays(base, 1)
 })
 
 async function load(day?: string): Promise<void> {
@@ -157,10 +180,12 @@ async function saveDraft(): Promise<void> {
   error.value = ''
   message.value = ''
   try {
-    const revision = draft.value?.revision ?? view.value.auto?.revision ?? 0
+    const revision = baseRevision(view.value)
+    const planID = basePlanID(view.value)
     const response = await api.post<{ plan: Plan; validation: PlanValidation }>('/plan/drafts', {
       date: view.value.date,
       revision,
+      base_plan_id: planID,
       slots: slotPayload(),
       note: note.value,
     })
@@ -176,9 +201,23 @@ async function saveDraft(): Promise<void> {
     if (err instanceof ApiError && err.code === 'draft_invalid') {
       validation.value = validationFromApi(err)
       error.value = t('plan.draftInvalid')
+    } else if (err instanceof ApiError && err.code === 'revision_conflict') {
+      // Reload so the next save carries the current revision; the edited
+      // slots stay in place.
+      await load(view.value.date)
+      error.value = t('plan.revisionConflict')
     } else {
       error.value = err instanceof Error ? err.message : String(err)
     }
+  } finally {
+    busy.value = false
+  }
+}
+
+async function checkSync(): Promise<void> {
+  busy.value = true
+  try {
+    await load(view.value?.date)
   } finally {
     busy.value = false
   }
@@ -351,7 +390,7 @@ function fmtTime(iso: string): string {
           {{ t('plan.tomorrow') }}
         </button>
       </div>
-      <span class="badge-soft" :class="view.applied ? 'badge-on' : view.draft ? 'badge-warn' : ''">
+      <span class="badge-soft" :class="view.applied ? 'badge-on' : view.draft ? 'badge-draft' : ''">
         {{ view.applied ? t('plan.statusApplied') : view.draft ? t('plan.statusDraft') : t('plan.statusAuto') }}
       </span>
       <span v-if="view.locked" class="badge-soft badge-warn">{{ t('plan.manualLock') }}</span>
@@ -360,30 +399,38 @@ function fmtTime(iso: string): string {
       <span v-if="!canWrite" class="badge-soft">{{ t('plan.writesDisarmed') }}</span>
     </div>
 
-    <div class="plan-stats mb-3">
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('plan.savings') }}</span>
-        <strong class="plan-value" :class="{ 'text-success': plan.summary.savings > 0 }">
-          {{ fmtMoney(plan.summary.savings) }}<span class="unit">{{ currency }}</span>
+    <section class="plan-hero mb-3">
+      <div class="plan-hero-main">
+        <span class="hero-kicker">{{ t('plan.savings') }}</span>
+        <strong class="plan-hero-value tabular" :class="{ 'text-success': plan.summary.savings > 0 }">
+          {{ fmtMoney(plan.summary.savings) }}<small>{{ currency }}</small>
         </strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('plan.cost') }}</span>
-        <strong class="plan-value">{{ fmtMoney(plan.summary.cost) }}<span class="unit">{{ currency }}</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('plan.baseline') }}</span>
-        <strong class="plan-value">{{ fmtMoney(plan.summary.baseline_cost) }}<span class="unit">{{ currency }}</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('plan.slots') }}</span>
-        <strong class="plan-value">{{ plan.slots.length }}<span class="unit">{{ t('plan.perDay') }}</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('plan.cycles') }}</span>
-        <strong class="plan-value">{{ plan.summary.cycles.toFixed(2) }}</strong>
-      </section>
-    </div>
+        <span class="plan-hero-note">{{ t('plan.cost') }} {{ fmtMoney(plan.summary.cost) }} {{ currency }} · {{ t('plan.baseline') }} {{ fmtMoney(plan.summary.baseline_cost) }} {{ currency }}</span>
+      </div>
+      <div class="plan-hero-side">
+        <div><span>{{ t('plan.slots') }}</span><strong>{{ plan.slots.length }}</strong></div>
+        <div><span>{{ t('plan.cycles') }}</span><strong>{{ plan.summary.cycles.toFixed(2) }}</strong></div>
+        <div><span>{{ t('plan.charge') }}</span><strong>{{ fmtEnergy(plan.summary.charge_kwh) }} <small>kWh</small></strong></div>
+      </div>
+    </section>
+
+    <section class="aipt-card plan-timeline-card mb-3">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">{{ t('plan.slotsTitle') }}</p>
+          <h2>{{ selectedDayLabel }}</h2>
+        </div>
+        <span class="small text-muted">{{ view.date }}</span>
+      </div>
+      <PlanTimeline
+        :slots="daySlots"
+        :day="view.date"
+        :timezone="plan.timezone"
+        :locale="locale"
+        :now="nowIso"
+        :labels="timelineLabels"
+      />
+    </section>
 
     <section class="aipt-card mb-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -522,15 +569,32 @@ function fmtTime(iso: string): string {
       </div>
     </section>
 
-    <section v-if="view.schedule_diff.length || view.last_write" class="aipt-card mb-3">
-      <h2>{{ t('plan.scheduleState') }}</h2>
-      <p v-if="!view.inverter_match" class="small text-muted">{{ t('plan.inverterDiffers') }}</p>
-      <ul v-if="view.schedule_diff.length" class="small text-muted">
-        <li v-for="diff in view.schedule_diff" :key="diff">{{ diff }}</li>
-      </ul>
-      <p v-if="view.last_write" class="small text-muted mb-0">
+    <section class="aipt-card mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h2 class="mb-0">{{ t('plan.syncTitle') }}</h2>
+        <span class="badge-soft" :class="sync ? (sync.match ? 'badge-on' : 'badge-warn') : ''">
+          {{ sync ? (sync.match ? t('plan.syncInSync') : t('plan.syncOutOfSync')) : t('plan.syncUnknown') }}
+        </span>
+      </div>
+      <template v-if="sync">
+        <p class="small text-muted mt-2 mb-1">{{ t('plan.syncChecked', { time: fmtTime(sync.ts) }) }}</p>
+        <p v-if="sync.plan_id" class="small text-muted mb-1">
+          {{ t('plan.syncCompared', { id: sync.plan_id, revision: sync.plan_revision }) }}
+        </p>
+        <ul v-if="sync.diff.length" class="small text-muted mb-1">
+          <li v-for="diff in sync.diff" :key="diff">{{ diff }}</li>
+        </ul>
+        <p v-else class="small text-muted mb-1">{{ t('plan.syncMatches') }}</p>
+        <p v-if="draft" class="small text-muted mb-1">{{ t('plan.syncDraftHint') }}</p>
+      </template>
+      <p v-else class="small text-muted mt-2 mb-1">{{ t('plan.syncNever') }}</p>
+      <p v-if="view.last_write" class="small text-muted mb-1">
         {{ t('plan.lastWrite', { time: fmtTime(view.last_write.ts), kind: view.last_write.kind }) }}
       </p>
+      <button class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="checkSync">
+        <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+        <span class="ms-1">{{ t('plan.syncCheckNow') }}</span>
+      </button>
     </section>
 
     <section v-if="view.warnings.length" class="aipt-card">

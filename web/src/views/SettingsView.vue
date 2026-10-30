@@ -944,6 +944,14 @@ async function importSettings(event: Event): Promise<void> {
           <dd class="mono">{{ session.meta?.version ?? '—' }}</dd>
         </div>
         <div class="key-value">
+          <dt>{{ t('settings.buildCommit') }}</dt>
+          <dd class="mono">{{ session.meta?.commit || '—' }}</dd>
+        </div>
+        <div class="key-value">
+          <dt>{{ t('settings.buildDate') }}</dt>
+          <dd class="mono">{{ session.meta?.build_date || '—' }}</dd>
+        </div>
+        <div class="key-value">
           <dt>{{ t('settings.inverter') }}</dt>
           <dd>{{ settings.inverter.type }}</dd>
         </div>

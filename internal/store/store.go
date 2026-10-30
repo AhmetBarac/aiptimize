@@ -148,6 +148,9 @@ func (s *Store) Prune(ctx context.Context, now time.Time) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM events WHERE ts_utc < ?`, formatTime(now.AddDate(-1, 0, 0))); err != nil {
 		return err
 	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM plan_sync WHERE ts_utc < ?`, formatTime(now.AddDate(0, 0, -90))); err != nil {
+		return err
+	}
 	return nil
 }
 

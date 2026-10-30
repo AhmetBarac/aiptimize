@@ -36,7 +36,7 @@ function render(): void {
   const pv = props.buckets.map((b) => Math.round(b.pv_kwh * 10) / 10)
   const load = props.buckets.map((b) => Math.round(b.load_kwh * 10) / 10)
   const imp = props.buckets.map((b) => Math.round(b.grid_import_kwh * 10) / 10)
-  const exp = props.buckets.map((b) => -Math.round(b.grid_export_kwh * 10) / 10)
+  const exp = props.buckets.map((b) => Math.round(b.grid_export_kwh * 10) / 10)
   const cost = props.buckets.map((b) => Math.round(b.cost * 100) / 100)
   const savings = props.buckets.map((b) => Math.round(b.savings * 100) / 100)
   const text = css('--aipt-muted', '#9a9aa2')
@@ -45,6 +45,7 @@ function render(): void {
   const green = css('--aipt-green', '#32d74b')
   const blue = css('--aipt-blue', '#0a84ff')
   const orange = css('--aipt-orange', '#ff9f0a')
+  const cyan = css('--aipt-cyan', '#64d2ff')
   const yellow = css('--aipt-yellow', '#ffd60a')
   const accent = css('--aipt-accent', '#7c5cff')
 
@@ -104,10 +105,39 @@ function render(): void {
         },
       ],
       series: [
-        { name: props.labels.pv, type: 'bar', stack: 'energy', data: pv, itemStyle: { color: green }, barMaxWidth: 18 },
-        { name: props.labels.load, type: 'bar', stack: 'energy', data: load, itemStyle: { color: blue }, barMaxWidth: 18 },
-        { name: props.labels.gridImport, type: 'bar', stack: 'grid', data: imp, itemStyle: { color: orange }, barMaxWidth: 18 },
-        { name: props.labels.gridExport, type: 'bar', stack: 'grid', data: exp, itemStyle: { color: text }, barMaxWidth: 18 },
+        {
+          name: props.labels.pv,
+          type: 'line',
+          data: pv,
+          symbol: 'none',
+          smooth: 0.2,
+          lineStyle: { color: green, width: 2 },
+          itemStyle: { color: green },
+          areaStyle: { color: 'rgba(50,215,75,0.14)' },
+        },
+        {
+          name: props.labels.load,
+          type: 'line',
+          data: load,
+          symbol: 'none',
+          smooth: 0.2,
+          lineStyle: { color: blue, width: 1.8 },
+          itemStyle: { color: blue },
+        },
+        {
+          name: props.labels.gridImport,
+          type: 'bar',
+          data: imp,
+          itemStyle: { color: orange, borderRadius: [3, 3, 0, 0] },
+          barMaxWidth: 10,
+        },
+        {
+          name: props.labels.gridExport,
+          type: 'bar',
+          data: exp,
+          itemStyle: { color: cyan, borderRadius: [3, 3, 0, 0] },
+          barMaxWidth: 10,
+        },
         {
           name: props.labels.cost,
           type: 'line',

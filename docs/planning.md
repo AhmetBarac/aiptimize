@@ -107,12 +107,13 @@ There is no apply endpoint in phase 4. The UI labels the plan as a dry run.
 
 ## UI
 
-The Plan screen shows expected savings, plan and baseline cost, slots, cycles,
-a combined chart (import price, PV, house load, battery bars, SOC) with shaded
-slot windows, a responsive schedule table and warnings. The dashboard shows a
-plan card with savings, cost and the next slot. Settings → Plan edits the slot
-budget, maximum slot length, horizon, minimum saving, setpoints, end SOC and
-reserve policy.
+The Plan screen shows a savings hero (plan and baseline cost), slots, cycles and
+charge energy, a day timeline with charge/discharge lanes, a combined chart
+(import price, PV, house load, battery bars, SOC) with shaded slot windows, a
+responsive schedule table, editor and warnings. The home plan card shows the
+same timeline and slot list, expected savings, the next slot and the write-gate
+state. Settings → Plan edits the slot budget, maximum slot length, horizon,
+minimum saving, setpoints, end SOC and reserve policy.
 
 ## Worked example
 
@@ -128,17 +129,24 @@ A manual plan locks one local day (`locked_day`). The auto planner keeps
 producing suggestions but never overwrites a draft or applied manual plan for
 that day. The effective plan is the applied manual plan, otherwise the applied
 auto plan, otherwise the latest auto suggestion. A draft is not effective until
-resubmitted.
+resubmitted, so the view can return a pending draft together with the applied
+plan that the inverter should still be running.
 
 - `POST /api/v1/plan/drafts` validates and stores a draft. The request carries
-  `date`, `revision`, `slots` (`start`, `end`, `direction`, `power_w`) and an
-  optional note.
+  `date`, `revision`, `base_plan_id`, `slots` (`start`, `end`, `direction`,
+  `power_w`) and an optional note.
 - Structural validation covers the slot budget, 30–240-minute duration,
   `:00`/`:30` starts, overlap, local midnight, plan horizon, SOC/reserve,
   site import and end SOC. Invalid drafts return `422 draft_invalid` with the
   validation errors.
-- Revisions are optimistic: a stale `revision` returns `409 revision_conflict`.
-  Every save/apply writes a `plan_revisions` audit row.
+- Revisions are optimistic: `revision` and `base_plan_id` must match the plan
+  that is currently editable for the day (draft, otherwise applied). A stale
+  pair returns `409 revision_conflict`; regenerated automatic suggestions do not
+  count as another editor. Every save/apply writes a `plan_revisions` audit row.
+- Every comparison between the effective plan and the inverter schedule is saved
+  as a `plan_sync` snapshot (time, plan/revision, match, diff, source) so the UI
+  can show when the two last matched. Unchanged fresh snapshots are reused; the
+  rows are pruned after 90 days.
 - Active slots may be kept but not changed; a changed/removed active slot
   returns `409 active_slot`. Ended slots are rejected.
 - `POST /plan/drafts/{id}/preview` revalidates without saving.

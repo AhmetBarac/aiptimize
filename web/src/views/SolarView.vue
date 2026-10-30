@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
 import type { SolarSnapshot } from '../api/types'
+import MetricCard from '../components/MetricCard.vue'
 import PageHead from '../components/PageHead.vue'
 import SolarChart from '../components/SolarChart.vue'
 
@@ -51,6 +52,11 @@ function kWh(value: number | null | undefined): string {
   }).format(value)
 }
 
+const accuracy = computed(() => {
+  if (!snapshot.value || snapshot.value.expected_kwh <= 0 || snapshot.value.actual_kwh <= 0) return null
+  return (snapshot.value.actual_kwh / snapshot.value.expected_kwh) * 100
+})
+
 const dateLabel = computed(() => {
   const start = snapshot.value?.points[0]?.start
   if (!start) return ''
@@ -76,43 +82,31 @@ const updated = computed(() => {
 
 <template>
   <PageHead :title="t('solar.title')" :subtitle="dateLabel || t('solar.subtitle')">
-    <router-link class="btn btn-sm btn-outline-secondary" to="/">
+    <RouterLink class="btn btn-sm btn-outline-secondary" to="/">
       <i class="bi bi-arrow-left" aria-hidden="true"></i>
       <span class="ms-1">{{ t('solar.back') }}</span>
-    </router-link>
+    </RouterLink>
   </PageHead>
 
   <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
   <div v-if="loading" class="empty-state">{{ t('common.loading') }}</div>
 
   <template v-else-if="snapshot">
-    <div class="solar-stats mb-3">
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('solar.current') }}</span>
-        <strong class="solar-value">{{ formatPower(snapshot.current_w) }}</strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('solar.actual') }}</span>
-        <strong class="solar-value">{{ kWh(snapshot.actual_kwh) }}<span class="unit">kWh</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('solar.expected') }}</span>
-        <strong class="solar-value">{{ kWh(snapshot.expected_kwh) }}<span class="unit">kWh</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('solar.estimateRange') }}</span>
-        <strong class="solar-value">{{ kWh(snapshot.min_kwh) }}–{{ kWh(snapshot.max_kwh) }}<span class="unit">kWh</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('solar.load') }}</span>
-        <strong class="solar-value">{{ kWh(snapshot.load_kwh) }}<span class="unit">kWh</span></strong>
-      </section>
+    <div class="metric-grid">
+      <MetricCard :label="t('solar.current')" :value="formatPower(snapshot.current_w)" icon="bi-brightness-high" tone="solar" />
+      <MetricCard :label="t('solar.actual')" :value="kWh(snapshot.actual_kwh)" unit="kWh" icon="bi-graph-up-arrow" tone="solar" />
+      <MetricCard :label="t('solar.expected')" :value="kWh(snapshot.expected_kwh)" unit="kWh" icon="bi-cloud-sun" tone="neutral" :hint="`${kWh(snapshot.min_kwh)}–${kWh(snapshot.max_kwh)} kWh`" />
+      <MetricCard :label="t('solar.accuracy')" :value="accuracy === null ? '—' : String(Math.round(accuracy))" :unit="accuracy === null ? '' : '%'" icon="bi-bullseye" tone="neutral" :hint="t('solar.accuracyHint')" />
+      <MetricCard :label="t('solar.load')" :value="kWh(snapshot.load_kwh)" unit="kWh" icon="bi-house-door" tone="neutral" />
     </div>
 
-    <section class="aipt-card">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <h2 class="mb-0">{{ t('solar.chartTitle') }}</h2>
-        <div class="d-flex align-items-center gap-2">
+    <section class="aipt-card mt-3">
+      <div class="card-head">
+        <div>
+          <p class="card-kicker">{{ t('solar.title') }}</p>
+          <h2>{{ t('solar.chartTitle') }}</h2>
+        </div>
+        <div class="card-tools">
           <span v-if="snapshot.stale" class="badge-soft badge-warn">{{ t('solar.stale') }}</span>
           <span v-if="updated" class="small text-muted">{{ t('solar.updated', { time: updated }) }}</span>
         </div>
@@ -129,9 +123,7 @@ const updated = computed(() => {
           load: t('solar.loadCurve'),
         }"
       />
-      <p v-for="warning in snapshot.warnings" :key="warning" class="small text-muted mb-1 mt-2">
-        {{ warning }}
-      </p>
+      <p v-for="warning in snapshot.warnings" :key="warning" class="card-warnings">{{ warning }}</p>
     </section>
   </template>
 </template>

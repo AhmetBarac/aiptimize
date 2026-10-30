@@ -56,10 +56,10 @@ function render(): void {
   const text = css('--aipt-muted', '#9a9aa2')
   const border = css('--aipt-border', 'rgba(255,255,255,.08)')
   const surface = css('--aipt-surface', '#141416')
-  const green = css('--aipt-green', '#32d74b')
-  const yellow = css('--aipt-yellow', '#ffd60a')
-  const orange = css('--aipt-orange', '#ff9f0a')
-  const blue = css('--aipt-blue', '#0a84ff')
+  const warm = css('--aipt-solar-warm', '#ffd166')
+  const warmLight = css('--aipt-solar-warm-light', '#ffe6a3')
+  const warmDim = css('--aipt-solar-warm-dim', 'rgba(255, 209, 102, 0.55)')
+  const warmArea = css('--aipt-solar-warm-area', 'rgba(255, 209, 102, 0.16)')
 
   chart.setOption(
     {
@@ -115,10 +115,10 @@ function render(): void {
           symbol: 'none',
           data: actual,
           connectNulls: false,
-          lineStyle: { width: 2.2, color: green },
-          itemStyle: { color: green },
+          lineStyle: { width: 2.4, color: warm },
+          itemStyle: { color: warm },
           areaStyle: {
-            color: 'rgba(50,215,75,0.18)',
+            color: warmArea,
           },
         },
         {
@@ -127,8 +127,8 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: expected,
-          lineStyle: { width: 2, color: yellow },
-          itemStyle: { color: yellow },
+          lineStyle: { width: 2, color: warmLight },
+          itemStyle: { color: warmLight },
         },
         {
           name: props.labels.minimum,
@@ -136,8 +136,8 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: min,
-          lineStyle: { width: 1, color: text, type: 'dashed' },
-          itemStyle: { color: text },
+          lineStyle: { width: 1, color: warmDim, type: 'dashed' },
+          itemStyle: { color: warmDim },
         },
         {
           name: props.labels.maximum,
@@ -145,8 +145,8 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: max,
-          lineStyle: { width: 1, color: orange, type: 'dashed' },
-          itemStyle: { color: orange },
+          lineStyle: { width: 1, color: warm, type: 'dashed' },
+          itemStyle: { color: warm },
         },
         {
           name: props.labels.load,
@@ -154,8 +154,8 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: load,
-          lineStyle: { width: 1.6, color: blue },
-          itemStyle: { color: blue },
+          lineStyle: { width: 1.6, color: warmLight, type: [6, 3, 2, 3] },
+          itemStyle: { color: warmLight },
         },
       ],
     },

@@ -13,6 +13,11 @@
   --aipt-green-soft: rgba(50, 215, 75, 0.14);
   --aipt-yellow: #ffd60a;
   --aipt-yellow-soft: rgba(255, 214, 10, 0.14);
+  --aipt-solar-warm: #ffd166;
+  --aipt-solar-warm-light: #ffe6a3;
+  --aipt-solar-warm-dim: rgba(255, 209, 102, 0.55);
+  --aipt-solar-warm-area: rgba(255, 209, 102, 0.16);
+  --aipt-grid-import: #c26000;
   --aipt-orange: #ff9f0a;
   --aipt-orange-soft: rgba(255, 159, 10, 0.14);
   --aipt-blue: #0a84ff;
@@ -41,6 +46,11 @@
   --aipt-green-soft: rgba(14, 159, 63, 0.12);
   --aipt-yellow: #b58900;
   --aipt-yellow-soft: rgba(181, 137, 0, 0.12);
+  --aipt-solar-warm: #b37a00;
+  --aipt-solar-warm-light: #d29a24;
+  --aipt-solar-warm-dim: rgba(179, 122, 0, 0.55);
+  --aipt-solar-warm-area: rgba(179, 122, 0, 0.12);
+  --aipt-grid-import: #9a4600;
   --aipt-orange: #c76a00;
   --aipt-orange-soft: rgba(199, 106, 0, 0.12);
   --aipt-blue: #0a6cff;
@@ -579,6 +589,11 @@ a {
 .badge-warn {
   background: var(--aipt-orange-soft);
   color: var(--aipt-orange);
+}
+
+.badge-draft {
+  background: var(--aipt-blue-soft);
+  color: var(--aipt-blue);
 }
 
 .badge-charge {

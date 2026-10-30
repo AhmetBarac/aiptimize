@@ -20,10 +20,11 @@ type draftSlotRequest struct {
 }
 
 type draftRequest struct {
-	Date     string             `json:"date"`
-	Revision int                `json:"revision"`
-	Slots    []draftSlotRequest `json:"slots"`
-	Note     string             `json:"note"`
+	Date       string             `json:"date"`
+	Revision   int                `json:"revision"`
+	BasePlanID int64              `json:"base_plan_id"`
+	Slots      []draftSlotRequest `json:"slots"`
+	Note       string             `json:"note"`
 }
 
 func (s *Server) handlePlanView(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +56,7 @@ func (s *Server) handleSaveDraft(w http.ResponseWriter, r *http.Request) {
 			Start: slot.Start, End: slot.End, Direction: slot.Direction, PowerW: slot.PowerW,
 		})
 	}
-	plan, validation, err := s.planner.SaveDraft(r.Context(), req.Date, req.Revision, slots, req.Note, s.actor(r))
+	plan, validation, err := s.planner.SaveDraft(r.Context(), req.Date, req.Revision, req.BasePlanID, slots, req.Note, s.actor(r))
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrDraftInvalid):

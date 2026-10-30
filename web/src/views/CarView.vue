@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api } from '../api/client'
 import type { ChargerPayload, ChargerPlanPayload, ChargerStatus, EVPlan, EVPreview } from '../api/types'
 import { session } from '../session'
+import MetricCard from '../components/MetricCard.vue'
 import PageHead from '../components/PageHead.vue'
 
 const { t, locale } = useI18n()
@@ -169,37 +170,35 @@ onBeforeUnmount(() => {
   <div v-if="loading" class="empty-state">{{ t('common.loading') }}</div>
 
   <template v-else-if="charger && status">
-    <div class="solar-stats mb-3">
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('car.state') }}</span>
-        <strong class="solar-value">{{ status.connected ? (status.charging ? t('car.charging') : t('car.connected')) : t('car.unplugged') }}</strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('car.power') }}</span>
-        <strong class="solar-value">{{ Math.round(status.power_w) }}<span class="unit">W</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('car.current') }}</span>
-        <strong class="solar-value">{{ status.current_a.toFixed(0) }}<span class="unit">A</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('car.session') }}</span>
-        <strong class="solar-value">{{ status.session_kwh.toFixed(1) }}<span class="unit">kWh</span></strong>
-      </section>
-      <section class="aipt-card">
-        <span class="tile-label">{{ t('car.mode') }}</span>
-        <strong class="solar-value">{{ mode }}</strong>
-      </section>
+    <div class="metric-grid mb-3">
+      <MetricCard :label="t('car.state')" :value="status.connected ? (status.charging ? t('car.charging') : t('car.connected')) : t('car.unplugged')" icon="bi-ev-station" tone="car" :hint="canControl ? t('home.liveNow') : t('car.controlDisarmed')" />
+      <MetricCard :label="t('car.power')" :value="String(Math.round(status.power_w))" unit="W" icon="bi-lightning-charge" tone="battery" />
+      <MetricCard :label="t('car.current')" :value="status.current_a.toFixed(0)" unit="A" icon="bi-sliders" tone="neutral" />
+      <MetricCard :label="t('car.session')" :value="status.session_kwh.toFixed(1)" unit="kWh" icon="bi-battery-charging" tone="neutral" />
+      <MetricCard :label="t('car.mode')" :value="mode.toUpperCase()" icon="bi-stars" tone="neutral" />
     </div>
 
     <section class="aipt-card mb-3">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h2 class="mb-0">{{ t('car.modeTitle') }}</h2>
         <span v-if="!canControl" class="badge-soft badge-warn">{{ t('car.controlDisarmed') }}</span>
       </div>
-      <div class="day-tabs mt-3">
-        <button v-for="option in ['off', 'now', 'smart']" :key="option" class="btn btn-sm" :class="mode === option ? 'btn-primary' : 'btn-outline-secondary'" type="button" :disabled="!canControl || busy" @click="setMode(option)">
-          {{ t(`car.modes.${option}`) }}
+      <div class="mode-grid">
+        <button
+          v-for="option in ['off', 'now', 'smart']"
+          :key="option"
+          class="mode-card"
+          :class="{ active: mode === option }"
+          type="button"
+          :aria-pressed="mode === option"
+          :disabled="!canControl || busy"
+          @click="setMode(option)"
+        >
+          <span class="mode-icon">
+            <i class="bi" :class="option === 'off' ? 'bi-power' : option === 'now' ? 'bi-lightning-charge' : 'bi-stars'" aria-hidden="true"></i>
+          </span>
+          <strong>{{ t(`car.modes.${option}`) }}</strong>
+          <span>{{ t(`car.modeHints.${option}`) }}</span>
         </button>
       </div>
       <div class="row g-3 mt-2">

@@ -174,6 +174,27 @@ func (s *Store) LatestManualForDay(ctx context.Context, day string) (domain.Plan
 	return plan, nil
 }
 
+// LatestDraftForDay returns the newest manual draft for a day.
+func (s *Store) LatestDraftForDay(ctx context.Context, day string) (domain.Plan, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, created_at, horizon_start, horizon_end, timezone, status, inputs_hash,
+			summary_json, inputs_json, origin, revision, locked_day, note, applied_at,
+			applied_by, parent_plan_id, curve_json, warnings_json, no_plan_reason
+		FROM plans WHERE locked_day = ? AND origin = 'manual' AND status = 'draft'
+		ORDER BY id DESC LIMIT 1`, day)
+	plan, err := scanPlan(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Plan{}, ErrNotFound
+	}
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	if err := s.loadPlanSlots(ctx, &plan); err != nil {
+		return domain.Plan{}, err
+	}
+	return plan, nil
+}
+
 // LatestAppliedForDay returns the newest applied manual plan for a day.
 func (s *Store) LatestAppliedForDay(ctx context.Context, day string) (domain.Plan, error) {
 	row := s.db.QueryRowContext(ctx, `

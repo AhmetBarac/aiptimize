@@ -99,11 +99,12 @@ Mode/current/pause/resume return `409 ev_control_disarmed` unless armed.
 
 ## UI
 
-The Car page shows charger state, power, current, session energy and mode; mode
-switches and current/pause controls; a charging-plan card with target,
-remaining, duration, windows and warnings; and a static-plan form
-(target/deadline/strategy/precondition). The dashboard has a compact EV card
-linking to the car page. Settings → EV edits the charger configuration.
+The Car page shows charger state, power, current, session energy and mode as
+metric cards, three descriptive mode cards (Off / Now / Smart), the current/
+pause controls, a charging-plan card with target, remaining, duration, windows
+and warnings, and a static-plan form (target/deadline/strategy/precondition).
+The home energy flow includes the car node when a charger is configured.
+Settings → EV edits the charger configuration.
 
 ## Tests
 

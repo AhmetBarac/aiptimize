@@ -239,13 +239,29 @@ export interface PlanView {
   draft?: Plan
   applied?: Plan
   effective?: Plan
+  inverter_plan?: Plan
   locked: boolean
   validation: PlanValidation
   schedule_diff: string[]
   inverter_match: boolean
+  inverter_read_ok?: boolean
   foreign_schedule: boolean
+  sync?: PlanSync
   last_write?: ScheduleWrite
   warnings: string[]
+}
+
+export interface PlanSync {
+  id: number
+  ts: string
+  day: string
+  plan_id?: number
+  plan_revision: number
+  origin?: 'auto' | 'manual'
+  status?: 'suggestion' | 'draft' | 'applied' | 'superseded' | 'expired'
+  match: boolean
+  diff: string[]
+  source: string
 }
 
 export interface ScheduleWrite {

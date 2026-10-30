@@ -117,9 +117,11 @@ hardware with deterministic in-process simulators — useful for demos and tests
   measured load when available.
 - Solar overview card with today's sparkline and a full-page production chart
   showing measured output, expected/ min/max forecast and estimated house load.
-- Mobile-first, dark-first GUI inspired by the EcoFlow app family: card-based
-  energy flow, forecast and price charts, large tabular values, light/dark
-  theme, English and Swedish, SSE updates.
+- Mobile-first, dark-first GUI inspired by the EcoFlow app family: a live
+  energy-flow diagram with a tap-through supply mix, today's solar/consumption/
+  grid/savings widgets, a battery-plan timeline, forecast and price charts,
+  large tabular values, five-slot navigation with a primary Plan action,
+  light/dark theme, English and Swedish and SSE updates.
 - Single admin account, sessions, CSRF protection, login rate limiting.
 - Docker image with non-root user, healthcheck and a persistent `/data` volume.
 
