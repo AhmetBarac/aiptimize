@@ -36,7 +36,7 @@ func TestPlanDraftAndApply(t *testing.T) {
 	for _, raw := range auto["slots"].([]any) {
 		slot := raw.(map[string]any)
 		start, _ := time.Parse(time.RFC3339, slot["start"].(string))
-		if start.After(now.Add(2 * time.Minute)) {
+		if start.After(now.Add(12 * time.Hour)) {
 			chosen = slot
 			break
 		}
@@ -170,7 +170,7 @@ func TestPlanDraftRevisionGuard(t *testing.T) {
 	for _, raw := range auto["slots"].([]any) {
 		slot := raw.(map[string]any)
 		start, _ := time.Parse(time.RFC3339, slot["start"].(string))
-		if start.After(now.Add(2 * time.Minute)) {
+		if start.After(now.Add(12 * time.Hour)) {
 			chosen = slot
 			break
 		}
@@ -489,5 +489,80 @@ func TestPlanAPIRecomputeAndRead(t *testing.T) {
 	statusPlan := decodeMap(t, body)["plan"].(map[string]any)
 	if statusPlan["available"] != true {
 		t.Errorf("status plan = %v", statusPlan)
+	}
+}
+
+func TestManualControlDoesNotWrite(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	seedPricesAndTelemetry(t, a)
+	resp, body := a.post("/api/v1/plan/recompute", map[string]any{})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("recompute = %d %s", resp.StatusCode, body)
+	}
+	resp, body = a.post("/api/v1/plan/control", map[string]any{"locked": true})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("lock = %d %s", resp.StatusCode, body)
+	}
+	locked := decodeMap(t, body)
+	if locked["locked"] != true {
+		t.Errorf("not locked: %s", body)
+	}
+	applied, ok := locked["applied"].(map[string]any)
+	if !ok || applied["origin"] != "manual" {
+		t.Errorf("manual plan missing: %s", body)
+	}
+	if locked["last_write"] != nil {
+		t.Errorf("manual control wrote to the inverter: %v", locked["last_write"])
+	}
+
+	resp, body = a.post("/api/v1/plan/control", map[string]any{"locked": false})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unlock = %d %s", resp.StatusCode, body)
+	}
+	if decodeMap(t, body)["locked"] != false {
+		t.Errorf("still locked: %s", body)
+	}
+}
+
+func TestSlotPowerUpdatesOnlySetpoint(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	seedPricesAndTelemetry(t, a)
+	a.srv.cfg.EnableWrites = true
+	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"writes_armed_ui":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	loc := a.settings.Location()
+	now := time.Now().In(loc)
+	start := now.Truncate(30 * time.Minute)
+	end := start.Add(30 * time.Minute)
+	day := start.Format("2006-01-02")
+	plan := domain.Plan{
+		CreatedAt: now.UTC(), HorizonStart: start.UTC(), HorizonEnd: end.UTC(),
+		Timezone: loc.String(), Status: domain.PlanStatusApplied, Origin: domain.OriginManual,
+		Revision: 1, LockedDay: day,
+		Summary: domain.PlanSummary{Currency: "SEK"},
+		Slots: []domain.Slot{{
+			DayLocal: day, Start: start.UTC(), End: end.UTC(), Direction: domain.DirectionDischarge,
+			PowerW: 1234, EnergyKWh: 0.617, AvgImportPrice: 1, ExpectedSaving: 0.5,
+		}},
+	}
+	if _, err := a.store.SavePlan(context.Background(), plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.planner.DownloadPlan(context.Background(), day, "test"); err != nil {
+		t.Fatal(err)
+	}
+	a.planner.SetWriteGate(true)
+	if err := a.planner.SyncSlotPower(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.telemetry.ReadSchedule(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PoutW != 1234 {
+		t.Fatalf("Pout = %v, want 1234", got.PoutW)
 	}
 }

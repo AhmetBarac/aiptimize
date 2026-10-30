@@ -112,6 +112,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/plan", s.requireAuth(s.handlePlanView))
 	s.mux.HandleFunc("POST /api/v1/plan/recompute", s.requireAuth(s.handleRecomputePlan))
 	s.mux.HandleFunc("POST /api/v1/plan/drafts", s.requireAuth(s.handleSaveDraft))
+	s.mux.HandleFunc("POST /api/v1/plan/control", s.requireAuth(s.handlePlanControl))
 	s.mux.HandleFunc("POST /api/v1/plan/drafts/{id}/preview", s.requireAuth(s.handlePreviewDraft))
 	s.mux.HandleFunc("POST /api/v1/plan/drafts/{id}/apply", s.requireAuth(s.handleApplyDraft))
 	s.mux.HandleFunc("DELETE /api/v1/plan/drafts/{id}", s.requireAuth(s.handleDiscardDraft))

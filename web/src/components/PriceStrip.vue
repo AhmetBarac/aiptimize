@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PriceBlock, PriceWindow } from '../api/types'
-import { formatMoney, timelineFraction } from '../lib/energy'
+import { formatMoney, localDateKey, priceShade, timelineFraction, zonedDayBounds } from '../lib/energy'
 
 const props = defineProps<{
   blocks: PriceBlock[]
@@ -12,9 +12,9 @@ const props = defineProps<{
   cheapest?: PriceWindow | null
 }>()
 
-const HOURS = 24
-const start = computed(() => new Date(props.now))
-const end = computed(() => new Date(start.value.getTime() + HOURS * 3_600_000))
+const day = computed(() => localDateKey(props.now, props.timezone))
+const start = computed(() => zonedDayBounds(day.value, props.timezone).start)
+const end = computed(() => zonedDayBounds(day.value, props.timezone).end)
 
 const visible = computed(() =>
   props.blocks.filter((block) => {
@@ -26,20 +26,13 @@ const visible = computed(() =>
 )
 
 const prices = computed(() => visible.value.map((block) => block.import_price))
-const min = computed(() => Math.min(...prices.value, 0))
-const max = computed(() => Math.max(...prices.value, 0.01))
-const span = computed(() => Math.max(0.01, max.value - min.value))
-
-function height(price: number): number {
-  return 18 + ((price - min.value) / span.value) * 82
-}
+const lowPrice = computed(() => Math.min(...prices.value))
+const highPrice = computed(() => Math.max(...prices.value))
 
 function color(block: PriceBlock): string {
-  if (block.import_price < 0) return 'var(--aipt-green)'
-  const ratio = (block.import_price - min.value) / span.value
-  if (ratio <= 0.25) return 'var(--aipt-green)'
-  if (ratio >= 0.75) return 'var(--aipt-orange)'
-  return 'var(--aipt-blue)'
+  const priceSpan = highPrice.value - lowPrice.value
+  const ratio = priceSpan > 0 ? (block.import_price - lowPrice.value) / priceSpan : 0.5
+  return priceShade(ratio)
 }
 
 function left(iso: string): number {
@@ -73,20 +66,27 @@ const summary = computed(() => {
   const high = prices.value.length ? formatMoney(Math.max(...prices.value), props.locale, 3) : '—'
   return `24 h ${props.currency}: ${low}–${high}`
 })
+
+const hourTicks = ['00', '06', '12', '18', '24']
 </script>
 
 <template>
-  <div v-if="visible.length" class="price-strip" role="img" :aria-label="summary">
-    <span v-if="cheapestBand" class="price-strip-band" :style="{ left: `${cheapestBand.left}%`, width: `${cheapestBand.width}%` }" aria-hidden="true"></span>
-    <span
-      v-for="block in visible"
-      :key="block.start"
-      class="price-strip-bar"
-      :style="{ left: `${left(block.start)}%`, width: `${width(block)}%`, height: `${height(block.import_price)}%`, background: color(block) }"
-      aria-hidden="true"
-    ></span>
+  <div v-if="visible.length" class="price-strip-wrap" role="img" :aria-label="summary">
+    <div class="price-strip">
+      <span v-if="cheapestBand" class="price-strip-band" :style="{ left: `${cheapestBand.left}%`, width: `${cheapestBand.width}%` }" aria-hidden="true"></span>
+      <span
+        v-for="block in visible"
+        :key="block.start"
+        class="price-strip-bar"
+        :style="{ left: `${left(block.start)}%`, width: `${width(block)}%`, background: color(block) }"
+        aria-hidden="true"
+      ></span>
+      <span v-if="current" class="visually-hidden">Now {{ formatMoney(current.import_price, locale, 3) }} {{ currency }}/kWh</span>
+    </div>
     <span class="price-strip-now" :style="{ left: `${Math.max(0, Math.min(100, timelineFraction(now, start, end) * 100))}%` }" aria-hidden="true"></span>
-    <span v-if="current" class="visually-hidden">Now {{ formatMoney(current.import_price, locale, 3) }} {{ currency }}/kWh</span>
+    <div class="price-strip-hours" aria-hidden="true">
+      <span v-for="tick in hourTicks" :key="tick">{{ tick }}</span>
+    </div>
   </div>
   <p v-else class="empty-state mb-0">—</p>
 </template>

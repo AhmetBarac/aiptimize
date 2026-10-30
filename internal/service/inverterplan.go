@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"sort"
 	"time"
 
@@ -74,6 +75,7 @@ func (s *PlannerService) buildInverterPlan(ctx context.Context, day string, sche
 				power = values.Plan.DischargeW
 			}
 		}
+		power = math.Round(power)
 		energy := power * end.Sub(start).Hours() / 1000
 		slot := domain.Slot{
 			DayLocal: day, Start: start.UTC(), End: end.UTC(), Direction: direction,

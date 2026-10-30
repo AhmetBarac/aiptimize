@@ -149,6 +149,14 @@ export function localDateKey(value: string | number | Date, timeZone: string): s
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
+/** Local clock time (HH:MM) for an instant in the site timezone. */
+export function localTimeKey(value: string | number | Date, timeZone: string): string {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const parts = partsOf(date, timeZone)
+  return `${parts.hour}:${parts.minute}`
+}
+
 /** Adds calendar days to a YYYY-MM-DD key without involving the host timezone. */
 export function addDays(dateKey: string, days: number): string {
   const [year, month, day] = dateKey.split('-').map(Number)
@@ -218,4 +226,22 @@ export function timelineFraction(at: string | Date, dayStart: Date, dayEnd: Date
   const total = dayEnd.getTime() - dayStart.getTime()
   if (!Number.isFinite(value) || total <= 0) return 0
   return clamp((value - dayStart.getTime()) / total, 0, 1)
+}
+
+/**
+ * Green-to-dark-orange shade for a price normalized against the day's low/high.
+ * The cheaper half stays green (lighter to deeper); the expensive half moves
+ * through orange into dark orange.
+ */
+export function priceShade(ratio: number): string {
+  const normalized = clamp(Number.isFinite(ratio) ? ratio : 0.5, 0, 1)
+  if (normalized <= 0.5) {
+    const green = normalized / 0.5
+    const lightness = 60 - green * 28
+    return `hsl(138 62% ${lightness.toFixed(1)}%)`
+  }
+  const orange = (normalized - 0.5) / 0.5
+  const lightness = 48 - orange * 10
+  const hue = 22 - orange * 10
+  return `hsl(${hue.toFixed(1)} 92% ${lightness.toFixed(1)}%)`
 }

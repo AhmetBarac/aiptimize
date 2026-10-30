@@ -5,6 +5,7 @@ import {
   formatKwh,
   houseSupply,
   localDateKey,
+  localTimeKey,
   powerParts,
   selfPoweredPct,
   timelineFraction,
@@ -100,6 +101,7 @@ describe('timezone helpers', () => {
   it('maps instants to local dates', () => {
     expect(localDateKey('2026-01-01T00:30:00Z', 'Europe/Stockholm')).toBe('2026-01-01')
     expect(localDateKey('2026-01-01T23:30:00Z', 'Europe/Stockholm')).toBe('2026-01-02')
+    expect(localTimeKey('2026-01-01T23:00:00Z', 'Europe/Stockholm')).toBe('00:00')
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01')
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
   })

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -23,7 +24,7 @@ func BuildSchedule(values settings.Values, day string, manual, auto *domain.Plan
 	if err != nil {
 		return domain.Schedule{}, fmt.Errorf("schedule: invalid day %q", day)
 	}
-	out := domain.Schedule{Days: map[string][]domain.ScheduleSlot{}, PinW: values.Plan.ChargeW, PoutW: values.Plan.DischargeW}
+	out := domain.Schedule{Days: map[string][]domain.ScheduleSlot{}, PinW: math.Round(values.Plan.ChargeW), PoutW: math.Round(values.Plan.DischargeW)}
 	for _, key := range scheduleDayKeys {
 		out.Days[key] = []domain.ScheduleSlot{}
 	}
@@ -92,21 +93,24 @@ func ScheduleDiff(desired, actual domain.Schedule) []string {
 			continue
 		}
 		for i := range a {
-			if a[i] != b[i] {
+			if a[i].Hour != b[i].Hour || a[i].Minute != b[i].Minute ||
+				a[i].DurationMin != b[i].DurationMin || a[i].Discharge != b[i].Discharge {
 				out = append(out, fmt.Sprintf("%s: slot %d differs", day, i+1))
 			}
 		}
 	}
 	if desired.PinW != actual.PinW {
-		out = append(out, fmt.Sprintf("Pin: %.0f desired, %.0f in inverter", desired.PinW, actual.PinW))
+		// Pin/Pout are global on the inverter and are managed at slot start by
+		// the slot-power controller, so they are not schedule differences.
+		_ = desired.PinW
 	}
 	if desired.PoutW != actual.PoutW {
-		out = append(out, fmt.Sprintf("Pout: %.0f desired, %.0f in inverter", desired.PoutW, actual.PoutW))
+		_ = desired.PoutW
 	}
 	return out
 }
 
 // ScheduleEqual compares the seven days and the setpoints.
 func ScheduleEqual(a, b domain.Schedule) bool {
-	return len(ScheduleDiff(a, b)) == 0
+	return len(ScheduleDiff(a, b)) == 0 && a.PinW == b.PinW && a.PoutW == b.PoutW
 }

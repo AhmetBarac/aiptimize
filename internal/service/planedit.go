@@ -223,7 +223,7 @@ func (s *PlannerService) SaveDraft(ctx context.Context, day string, baseRevision
 		}
 		domainSlots = append(domainSlots, domain.Slot{
 			DayLocal: day, Start: slot.Start.UTC(), End: slot.End.UTC(),
-			Direction: slot.Direction, PowerW: slot.PowerW,
+			Direction: slot.Direction, PowerW: math.Round(slot.PowerW),
 		})
 	}
 	sort.Slice(domainSlots, func(i, j int) bool { return domainSlots[i].Start.Before(domainSlots[j].Start) })
@@ -466,6 +466,67 @@ func (s *PlannerService) DownloadPlan(ctx context.Context, day, actor string) (A
 	return result, nil
 }
 
+// SetManualControl locks the current day to its current plan or releases the
+// manual lock. Locking copies the inverter plan when available; it never writes
+// to the inverter.
+func (s *PlannerService) SetManualControl(ctx context.Context, day string, locked bool, actor string) (PlanView, error) {
+	loc := s.cfg.Location()
+	if day == "" {
+		day = s.now().In(loc).Format("2006-01-02")
+	}
+	if _, err := time.ParseInLocation("2006-01-02", day, loc); err != nil {
+		return PlanView{}, fmt.Errorf("invalid date %q", day)
+	}
+	if !locked {
+		if err := s.st.SupersedeManualForDay(ctx, day, 0); err != nil {
+			return PlanView{}, err
+		}
+		return s.PlanView(ctx, day)
+	}
+	view, err := s.PlanView(ctx, day)
+	if err != nil {
+		return PlanView{}, err
+	}
+	if view.Locked {
+		return view, nil
+	}
+	source := view.Inverter
+	if source == nil {
+		source = view.Effective
+	}
+	if source == nil {
+		return PlanView{}, ErrPlanUnavailable
+	}
+	now := time.Now().UTC()
+	manual := *source
+	manual.ID = 0
+	manual.Status = domain.PlanStatusApplied
+	manual.Origin = domain.OriginManual
+	manual.Revision = 1
+	manual.LockedDay = day
+	manual.CreatedAt = now
+	manual.AppliedAt = &now
+	manual.AppliedBy = actor
+	manual.Slots = nil
+	for _, slot := range source.Slots {
+		if slot.DayLocal == day {
+			manual.Slots = append(manual.Slots, slot)
+		}
+	}
+	if source.ID > 0 {
+		parent := source.ID
+		manual.ParentPlanID = &parent
+	}
+	saved, err := s.st.SavePlan(ctx, manual)
+	if err != nil {
+		return PlanView{}, err
+	}
+	_ = s.st.SupersedeManualForDay(ctx, day, saved.ID)
+	_ = s.st.SavePlanRevision(ctx, saved, actor, "manual_control_on")
+	s.publishPlan(saved)
+	return s.PlanView(ctx, day)
+}
+
 func (s *PlannerService) writeSchedule(ctx context.Context, desired domain.Schedule, plan *domain.Plan, revision int, kind string, force bool) (ApplyResult, error) {
 	current, err := s.telemetry.ReadSchedule(ctx)
 	if err != nil {
@@ -475,8 +536,9 @@ func (s *PlannerService) writeSchedule(ctx context.Context, desired domain.Sched
 		return ApplyResult{}, ErrForeignSchedule
 	}
 	if !force {
+		setpointOnly := len(ScheduleDiff(current, desired)) == 0 && !ScheduleEqual(current, desired)
 		if last, err := s.st.LatestScheduleWrite(ctx); err == nil && time.Since(last.TS) < 60*time.Second &&
-			!ScheduleEqual(current, desired) {
+			!setpointOnly {
 			return ApplyResult{}, errors.New("write rate limit: wait 60 seconds between schedule changes")
 		}
 	}
@@ -535,7 +597,7 @@ func hasScheduleSlots(s domain.Schedule) bool {
 // ClearSchedule writes an empty schedule and clears every day.
 func (s *PlannerService) ClearSchedule(ctx context.Context) (ApplyResult, error) {
 	values := s.cfg.Get()
-	empty := domain.Schedule{Days: map[string][]domain.ScheduleSlot{}, PinW: values.Plan.ChargeW, PoutW: values.Plan.DischargeW}
+	empty := domain.Schedule{Days: map[string][]domain.ScheduleSlot{}, PinW: math.Round(values.Plan.ChargeW), PoutW: math.Round(values.Plan.DischargeW)}
 	for _, day := range scheduleDayKeys {
 		empty.Days[day] = []domain.ScheduleSlot{}
 	}

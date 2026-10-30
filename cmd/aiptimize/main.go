@@ -169,6 +169,7 @@ func runServe() int {
 	}
 	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
 	plannerSvc.SetEVProvider(evSvc)
+	plannerSvc.SetWriteGate(cfg.EnableWrites)
 	historySvc := service.NewHistoryService(st, settingsSvc, priceSvc, plannerSvc)
 
 	srv := api.New(api.Deps{
@@ -191,6 +192,7 @@ func runServe() int {
 	go telemetryPoller.Run(ctx)
 	go forecastSvc.Run(ctx)
 	go plannerSvc.Run(ctx)
+	go plannerSvc.RunSlotPower(ctx)
 	go evSvc.Run(ctx)
 
 	httpSrv := &http.Server{

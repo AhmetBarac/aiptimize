@@ -42,7 +42,12 @@ type PlannerService struct {
 	log       *slog.Logger
 	now       func() time.Time
 	publish   func(string, any)
+	writesEnv bool
 }
+
+// SetWriteGate records the environment half of the inverter write gate for
+// background slot-power updates.
+func (s *PlannerService) SetWriteGate(enabled bool) { s.writesEnv = enabled }
 
 // SetEVProvider wires the EV planner into the battery planner.
 func (s *PlannerService) SetEVProvider(provider EVLoadProvider) { s.ev = provider }
@@ -163,6 +168,8 @@ func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []str
 	if dischargeW <= 0 {
 		dischargeW = inv.MaxDischargeW
 	}
+	chargeW = math.Round(chargeW)
+	dischargeW = math.Round(dischargeW)
 	maxSlotBlocks := planCfg.MaxSlotMin / 30
 	if maxSlotBlocks < 1 {
 		maxSlotBlocks = 1

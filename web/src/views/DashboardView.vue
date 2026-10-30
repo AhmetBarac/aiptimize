@@ -164,9 +164,21 @@ const forecastUpdated = computed(() => {
 const forecastWarnings = computed(() => forecast.value?.warnings ?? [])
 
 const priceNow = computed(() => status.value?.prices.now_import ?? null)
-const priceNext = computed(() => status.value?.prices.next_import ?? null)
 const cheapestWindow = computed(() => status.value?.prices.cheapest_window ?? null)
 const priceBlocks = computed(() => prices.value?.blocks ?? [])
+
+const currentPriceBlock = computed(() => {
+  const at = Date.parse(nowIso.value)
+  return priceBlocks.value.find(
+    (block) => Date.parse(block.start) <= at && Date.parse(block.end) > at,
+  ) ?? null
+})
+
+const currentPriceRange = computed(() =>
+  currentPriceBlock.value
+    ? `${priceClock(currentPriceBlock.value.start)}–${priceClock(currentPriceBlock.value.end)}`
+    : '',
+)
 
 const horizonOptions = computed(() => [
   { value: '24', label: t('forecast.h24') },
@@ -218,15 +230,20 @@ const nextSlotLabel = computed(() => {
   return `${direction} ${planTime(nextSlot.value.start)}`
 })
 
-const cheapestLabel = computed(() => {
-  if (!cheapestWindow.value) return ''
-  return `${planTime(cheapestWindow.value.start)}–${planTime(cheapestWindow.value.end)}`
-})
-
 function planTime(iso: string | undefined): string {
   if (!iso) return '—'
   return new Intl.DateTimeFormat(locale.value, {
     weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: timezone.value,
+  }).format(new Date(iso))
+}
+
+function priceClock(iso: string | undefined): string {
+  if (!iso) return '—'
+  return new Intl.DateTimeFormat(locale.value, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -462,6 +479,7 @@ watch(today, (value, previous) => {
             :timezone="timezone"
             :locale="locale"
             :now="nowIso"
+            :prices="priceBlocks"
             compact
             :labels="timelineLabels"
           />
@@ -540,27 +558,14 @@ watch(today, (value, previous) => {
         <p v-else class="empty-state mb-0">{{ forecastError || t('forecast.notReady') }}</p>
       </section>
 
-      <section class="aipt-card home-prices">
-        <header class="card-head">
-          <div>
-            <p class="card-kicker">{{ t('dashboard.priceCard') }}</p>
-            <h2>{{ t('home.pricesNext') }}</h2>
+      <section class="aipt-card home-prices price-compact">
+        <header class="price-compact-head">
+          <div class="price-current">
+            <span>{{ currentPriceRange }}</span>
+            <strong class="tabular">{{ money(priceNow) }}<small>{{ currency }}/kWh</small></strong>
           </div>
-          <RouterLink to="/prices" class="card-link">{{ t('home.allPrices') }} →</RouterLink>
+          <RouterLink to="/prices" class="card-link">{{ t('home.todayPrices') }} →</RouterLink>
         </header>
-
-        <div class="price-now">
-          <strong class="tabular">{{ money(priceNow) }}</strong>
-          <span>{{ currency }}/kWh</span>
-        </div>
-        <div class="key-value">
-          <dt>{{ t('dashboard.nextPrice') }}</dt>
-          <dd>{{ priceNext !== null ? `${money(priceNext)} ${currency}` : '—' }}</dd>
-        </div>
-        <div v-if="cheapestWindow" class="key-value">
-          <dt>{{ t('dashboard.cheapestWindow') }}</dt>
-          <dd>{{ cheapestLabel }} · {{ money(cheapestWindow.avg_import_price) }} {{ currency }}</dd>
-        </div>
 
         <PriceStrip
           v-if="prices && priceBlocks.length"

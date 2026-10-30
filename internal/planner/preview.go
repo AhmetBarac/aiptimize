@@ -192,6 +192,7 @@ func Preview(in Inputs, slots []domain.Slot) (Result, Validation, error) {
 	for _, slot := range sorted {
 		energy := slot.PowerW * slot.End.Sub(slot.Start).Hours() / 1000
 		copy := slot
+		copy.PowerW = math.Round(copy.PowerW)
 		copy.DayLocal = slot.Start.In(loc).Format("2006-01-02")
 		copy.EnergyKWh = round2(energy)
 		avg := 0.0

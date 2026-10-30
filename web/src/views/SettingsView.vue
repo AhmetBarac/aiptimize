@@ -241,8 +241,8 @@ async function saveInverter(): Promise<void> {
       scheme: inverterForm.scheme,
       port: Number(inverterForm.port),
       serial: inverterForm.serial.trim(),
-      max_charge_w: Number(inverterForm.maxCharge),
-      max_discharge_w: Number(inverterForm.maxDischarge),
+      max_charge_w: Math.round(Number(inverterForm.maxCharge)),
+      max_discharge_w: Math.round(Number(inverterForm.maxDischarge)),
       capacity_kwh: Number(inverterForm.capacity),
       min_soc: Number(inverterForm.minSoc),
       max_soc: Number(inverterForm.maxSoc),
@@ -366,8 +366,8 @@ async function savePlan(): Promise<void> {
       min_daily_saving: Number(planForm.minDailySaving),
       preserve_soc: planForm.preserveSoc,
       end_soc_target: Number(planForm.endSoc),
-      charge_w: Number(planForm.chargeW),
-      discharge_w: Number(planForm.dischargeW),
+      charge_w: Math.round(Number(planForm.chargeW)),
+      discharge_w: Math.round(Number(planForm.dischargeW)),
       allow_discharge_to_grid: planForm.allowGrid,
     })
     saved.value = t('settings.planSaved')
@@ -796,11 +796,11 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="plan-charge">{{ t('settings.planChargeW') }}</label>
-            <input id="plan-charge" v-model.number="planForm.chargeW" class="form-control" type="number" min="1" step="100" />
+            <input id="plan-charge" v-model.number="planForm.chargeW" class="form-control" type="number" min="1" step="1" />
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="plan-discharge">{{ t('settings.planDischargeW') }}</label>
-            <input id="plan-discharge" v-model.number="planForm.dischargeW" class="form-control" type="number" min="1" step="100" />
+            <input id="plan-discharge" v-model.number="planForm.dischargeW" class="form-control" type="number" min="1" step="1" />
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="plan-end">{{ t('settings.endSoc') }}</label>

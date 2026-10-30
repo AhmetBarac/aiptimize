@@ -471,7 +471,7 @@ func (o *optimizer) reconstruct(startSOC int) Result {
 			Start:          slotStart.UTC(),
 			End:            slotEnd.UTC(),
 			Direction:      direction,
-			PowerW:         math.Abs(power),
+			PowerW:         math.Round(math.Abs(power)),
 			EnergyKWh:      round2(math.Abs(power) * float64(act.dur) * 0.5 / 1000),
 			AvgImportPrice: avgPrice / float64(act.dur),
 			ExpectedSaving: round2(slotBaseline - slotCost),
