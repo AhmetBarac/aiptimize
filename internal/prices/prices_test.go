@@ -211,6 +211,41 @@ func TestAggregateTariffAndMissing(t *testing.T) {
 	}
 }
 
+func TestTariffFromManualSiteFees(t *testing.T) {
+	v := settings.Default()
+	v.Site.TariffMode = "manual"
+	v.Site.TransferFeeOre = 25
+	v.Site.EnergyTaxOre = 40
+	v.Site.VariableCostOre = 10
+	v.Site.FixedMarkupOre = 5
+	v.Site.ExportBenefitOre = 6
+	v.Site.ExportExtraOre = 4
+
+	got := tariffFrom(v)
+	if math.Abs(got.GridFee-(v.Price.GridFee+0.25)) > 1e-9 {
+		t.Errorf("grid fee = %v", got.GridFee)
+	}
+	if math.Abs(got.EnergyTax-(v.Price.EnergyTax+0.40)) > 1e-9 {
+		t.Errorf("energy tax = %v", got.EnergyTax)
+	}
+	if math.Abs(got.Markup-(v.Price.Markup+0.15)) > 1e-9 {
+		t.Errorf("markup = %v", got.Markup)
+	}
+	if math.Abs(got.ExportFee-(v.Price.ExportFee-0.10)) > 1e-9 {
+		t.Errorf("export fee = %v", got.ExportFee)
+	}
+}
+
+func TestTariffFromIgnoresManualFeesInAPIMode(t *testing.T) {
+	v := settings.Default()
+	v.Site.TariffMode = "api"
+	v.Site.TransferFeeOre = 25
+	got := tariffFrom(v)
+	if got.GridFee != v.Price.GridFee {
+		t.Errorf("grid fee = %v, want %v", got.GridFee, v.Price.GridFee)
+	}
+}
+
 func TestAggregateDST(t *testing.T) {
 	t.Run("spring forward 23h", func(t *testing.T) {
 		start := time.Date(2026, 3, 29, 0, 0, 0, 0, stockholm)

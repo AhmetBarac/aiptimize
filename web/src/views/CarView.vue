@@ -23,6 +23,8 @@ const precondition = ref(0)
 let timer: ReturnType<typeof setInterval> | undefined
 
 const canControl = computed(() => Boolean(session.meta?.gates?.ev_control_armed))
+const evRestartRequired = computed(() => session.meta?.ev?.restart_required === true)
+const evProvider = computed(() => session.meta?.ev?.active_provider || session.meta?.ev?.provider || '')
 const status = computed(() => charger.value?.status ?? null)
 const mode = computed(() => status.value?.mode ?? 'off')
 
@@ -166,6 +168,9 @@ onBeforeUnmount(() => {
   </PageHead>
 
   <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+  <div v-if="evRestartRequired" class="alert alert-warning py-2 small" role="status">
+    {{ t('car.restartRequired') }}
+  </div>
   <div v-if="message" class="alert alert-success" role="status">{{ message }}</div>
   <div v-if="loading" class="empty-state">{{ t('common.loading') }}</div>
 
@@ -181,6 +186,7 @@ onBeforeUnmount(() => {
     <section class="aipt-card mb-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h2 class="mb-0">{{ t('car.modeTitle') }}</h2>
+        <span v-if="evProvider" class="badge-soft">{{ evProvider }}</span>
         <span v-if="!canControl" class="badge-soft badge-warn">{{ t('car.controlDisarmed') }}</span>
       </div>
       <div class="mode-grid">

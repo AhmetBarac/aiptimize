@@ -34,6 +34,9 @@ type Deps struct {
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
+	// RequestRestart asks the process supervisor to restart after the response
+	// has been sent. It is nil in tests and standalone API embeddings.
+	RequestRestart func()
 }
 
 // Server serves the API and the SPA.
@@ -52,11 +55,12 @@ type Server struct {
 	web       fs.FS
 	started   time.Time
 
-	mux          *http.ServeMux
-	broker       *Broker
-	loginLimiter *rateLimiter
-	setupMu      sync.Mutex
-	now          func() time.Time
+	mux            *http.ServeMux
+	broker         *Broker
+	loginLimiter   *rateLimiter
+	setupMu        sync.Mutex
+	now            func() time.Time
+	requestRestart func()
 }
 
 // New builds a server and registers all routes.
@@ -66,23 +70,24 @@ func New(d Deps) *Server {
 		broker = NewBroker()
 	}
 	s := &Server{
-		cfg:          d.Config,
-		st:           d.Store,
-		settings:     d.Settings,
-		prices:       d.Prices,
-		telemetry:    d.Telemetry,
-		forecast:     d.Forecast,
-		solar:        d.Solar,
-		planner:      d.Planner,
-		ev:           d.EV,
-		history:      d.History,
-		log:          d.Logger,
-		web:          d.WebFS,
-		started:      time.Now(),
-		mux:          http.NewServeMux(),
-		broker:       broker,
-		loginLimiter: newRateLimiter(5, time.Minute),
-		now:          time.Now,
+		cfg:            d.Config,
+		st:             d.Store,
+		settings:       d.Settings,
+		prices:         d.Prices,
+		telemetry:      d.Telemetry,
+		forecast:       d.Forecast,
+		solar:          d.Solar,
+		planner:        d.Planner,
+		ev:             d.EV,
+		history:        d.History,
+		log:            d.Logger,
+		web:            d.WebFS,
+		started:        time.Now(),
+		mux:            http.NewServeMux(),
+		broker:         broker,
+		loginLimiter:   newRateLimiter(5, time.Minute),
+		now:            time.Now,
+		requestRestart: d.RequestRestart,
 	}
 	s.routes()
 	return s
@@ -123,6 +128,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/schedule/clear", s.requireAuth(s.handleScheduleClear))
 	s.mux.HandleFunc("POST /api/v1/schedule/takeover", s.requireAuth(s.handleScheduleTakeover))
 	s.mux.HandleFunc("GET /api/v1/chargers", s.requireAuth(s.handleChargers))
+	s.mux.HandleFunc("GET /api/v1/ev/config", s.requireAuth(s.handleEVConfig))
+	s.mux.HandleFunc("PUT /api/v1/ev/config", s.requireAuth(s.handleUpdateEVConfig))
+	s.mux.HandleFunc("POST /api/v1/system/restart", s.requireAuth(s.handleRestart))
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}", s.requireAuth(s.handleCharger))
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}/status", s.requireAuth(s.handleChargerStatus))
 	s.mux.HandleFunc("PATCH /api/v1/chargers/{id}/config", s.requireAuth(s.handleChargerConfig))
@@ -259,10 +267,16 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"setup_required": required,
 		"gates":          s.gates(),
 		"features":       featureSet(),
+		"ev": map[string]any{
+			"provider":         s.evConfigPayload()["provider"],
+			"active_provider":  s.evConfigPayload()["active_provider"],
+			"restart_required": s.evConfigPayload()["restart_required"],
+		},
 		"site": map[string]any{
-			"name":     v.Site.Name,
-			"currency": v.Price.Currency,
-			"area":     v.Price.Area,
+			"name":            v.Site.Name,
+			"currency":        v.Price.Currency,
+			"area":            v.Price.Area,
+			"show_full_price": v.Site.ShowFullPrice,
 		},
 	})
 }
@@ -278,10 +292,11 @@ func (s *Server) statusSnapshot(ctx context.Context) map[string]any {
 		"now":      s.now().UTC(),
 		"uptime_s": int(s.now().Sub(s.started).Seconds()),
 		"site": map[string]any{
-			"name":     v.Site.Name,
-			"timezone": v.Site.Timezone,
-			"currency": v.Price.Currency,
-			"area":     v.Price.Area,
+			"name":            v.Site.Name,
+			"timezone":        v.Site.Timezone,
+			"currency":        v.Price.Currency,
+			"area":            v.Price.Area,
+			"show_full_price": v.Site.ShowFullPrice,
 		},
 		"gates":     s.gates(),
 		"prices":    s.priceStatus(ctx),

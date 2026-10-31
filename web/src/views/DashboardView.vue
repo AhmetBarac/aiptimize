@@ -163,7 +163,12 @@ const forecastUpdated = computed(() => {
 })
 const forecastWarnings = computed(() => forecast.value?.warnings ?? [])
 
-const priceNow = computed(() => status.value?.prices.now_import ?? null)
+const priceNow = computed(() =>
+  session.meta?.site.show_full_price === true
+    ? status.value?.prices.now_import ?? null
+    : status.value?.prices.now_spot ?? null,
+)
+const fullPrice = computed(() => session.meta?.site.show_full_price === true)
 const cheapestWindow = computed(() => status.value?.prices.cheapest_window ?? null)
 const priceBlocks = computed(() => prices.value?.blocks ?? [])
 
@@ -480,6 +485,7 @@ watch(today, (value, previous) => {
             :locale="locale"
             :now="nowIso"
             :prices="priceBlocks"
+            :full-price="fullPrice"
             compact
             :labels="timelineLabels"
           />
@@ -575,6 +581,7 @@ watch(today, (value, previous) => {
           :locale="locale"
           :currency="currency"
           :cheapest="cheapestWindow"
+          :full-price="fullPrice"
         />
         <p v-else class="empty-state mb-0">{{ t('dashboard.noPrices') }}</p>
       </section>

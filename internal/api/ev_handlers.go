@@ -4,9 +4,79 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 )
+
+func (s *Server) evConfigPayload() map[string]any {
+	ev := s.settings.Get().EV
+	provider := ev.Provider
+	if provider == "" {
+		provider = "zaptec"
+	}
+	out := map[string]any{
+		"provider":        provider,
+		"charger_id":      ev.ChargerID,
+		"installation_id": ev.InstallationID,
+		"credentials": map[string]bool{
+			"zaptec":     s.cfg.Zaptec.Username != "",
+			"easee":      false,
+			"ocpp_token": false,
+		},
+		"active_provider":  "",
+		"restart_required": false,
+	}
+	if s.ev != nil {
+		out["active_provider"] = s.ev.ActiveProvider()
+		out["restart_required"] = s.ev.RestartRequired()
+	}
+	return out
+}
+
+func (s *Server) handleEVConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.evConfigPayload())
+}
+
+func (s *Server) handleUpdateEVConfig(w http.ResponseWriter, r *http.Request) {
+	if s.ev == nil {
+		writeError(w, http.StatusServiceUnavailable, "ev_unavailable", "No EV service is available.", nil)
+		return
+	}
+	var req struct {
+		Provider       string `json:"provider"`
+		ChargerID      string `json:"charger_id"`
+		InstallationID string `json:"installation_id"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
+	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "ev_config_invalid", err.Error(), nil)
+		return
+	}
+	payload := s.evConfigPayload()
+	payload["provider"] = cfg.Provider
+	payload["charger_id"] = cfg.ChargerID
+	payload["installation_id"] = cfg.InstallationID
+	payload["restart_required"] = true
+	writeJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
+	if s.requestRestart == nil {
+		writeError(w, http.StatusServiceUnavailable, "restart_unavailable",
+			"Restart is not available in this deployment.", nil)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"restarting": true})
+	go func() {
+		time.Sleep(250 * time.Millisecond)
+		s.requestRestart()
+	}()
+}
 
 func (s *Server) evAvailable(w http.ResponseWriter) bool {
 	if s.ev == nil || s.ev.Charger() == nil {
@@ -289,14 +359,30 @@ func (s *Server) handleEVSession(w http.ResponseWriter, r *http.Request) {
 
 // evStatus is the compact dashboard/status payload.
 func (s *Server) evStatus(ctx context.Context) map[string]any {
-	if s.ev == nil || s.ev.Charger() == nil {
-		return map[string]any{"available": false}
+	ev := s.settings.Get().EV
+	provider := ev.Provider
+	if provider == "" {
+		provider = "zaptec"
 	}
+	out := map[string]any{
+		"configured_provider": provider,
+		"restart_required":    s.ev != nil && s.ev.RestartRequired(),
+	}
+	if s.ev == nil || s.ev.Charger() == nil {
+		out["available"] = false
+		return out
+	}
+	out["provider"] = s.ev.ActiveProvider()
 	status, err := s.ev.Status(ctx)
 	if err != nil {
-		return map[string]any{"available": true, "online": false, "error": err.Error()}
+		out["available"] = true
+		out["online"] = false
+		out["error"] = err.Error()
+		return out
 	}
-	out := map[string]any{"available": true, "status": status, "id": s.ev.ID()}
+	out["available"] = true
+	out["status"] = status
+	out["id"] = s.ev.ID()
 	if preview, ok := s.ev.LatestPreview(); ok {
 		out["plan"] = preview
 	}

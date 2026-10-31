@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
-import type { DraftSlot, Plan, PlanApplyResult, PlanSlot, PlanValidation, PlanView, PriceBlock, SettingsDocument } from '../api/types'
+import type { DraftSlot, Plan, PlanApplyResult, PlanSlot, PlanValidation, PlanView, PriceBlock } from '../api/types'
 import { loadMeta, session } from '../session'
 import PlanChart from '../components/PlanChart.vue'
 import PlanTimeline from '../components/PlanTimeline.vue'
-import { addDays, localDateKey, localTimeKey } from '../lib/energy'
+import { addDays, formatPrice, localDateKey, localTimeKey } from '../lib/energy'
 import { basePlanID, baseRevision } from '../lib/plan'
 
 interface EditSlot {
@@ -24,15 +24,6 @@ const error = ref('')
 const message = ref('')
 const clearError = ref('')
 const clearMessage = ref('')
-const strategySaving = ref(false)
-const strategyError = ref('')
-const strategyForm = reactive({
-  strategy: 'minimize_cost',
-  minPriceDifference: 0,
-  maxPurchasePrice: 0,
-  peakShaving: false,
-  peakLimitW: 0,
-})
 const durationOptions = [30, 60, 90, 120, 150, 180, 210, 240]
 const startTimeOptions = Array.from({ length: 48 }, (_, index) => index * 30)
 
@@ -206,46 +197,13 @@ async function loadPrices(): Promise<void> {
   }
 }
 
-async function loadStrategySettings(): Promise<void> {
-  try {
-    const doc = await api.get<SettingsDocument>('/settings')
-    strategyForm.strategy = doc.plan.strategy === 'savings' || !doc.plan.strategy ? 'minimize_cost' : doc.plan.strategy
-    strategyForm.minPriceDifference = doc.plan.min_price_difference ?? 0
-    strategyForm.maxPurchasePrice = doc.plan.max_purchase_price ?? 0
-    strategyForm.peakShaving = doc.plan.peak_shaving_enabled ?? false
-    strategyForm.peakLimitW = doc.plan.peak_shaving_limit_w ?? 0
-  } catch (err) {
-    strategyError.value = err instanceof Error ? err.message : String(err)
-  }
-}
-
-async function saveStrategy(): Promise<void> {
-  strategyError.value = ''
-  if (strategyForm.peakShaving && strategyForm.peakLimitW <= 0) {
-    strategyError.value = t('plan.peakLimitRequired')
-    return
-  }
-  strategySaving.value = true
-  try {
-    await api.patch('/settings', {
-      section: 'plan',
-      values: {
-        strategy: strategyForm.strategy,
-        min_price_difference: Number(strategyForm.minPriceDifference) || 0,
-        max_purchase_price: Number(strategyForm.maxPurchasePrice) || 0,
-        peak_shaving_enabled: strategyForm.peakShaving,
-        peak_shaving_limit_w: Number(strategyForm.peakLimitW) || 0,
-      },
-    })
-    await api.post('/plan/recompute', {})
-    await load(view.value?.date)
-    await loadStrategySettings()
-    message.value = t('plan.strategyApplied')
-  } catch (err) {
-    strategyError.value = err instanceof Error ? err.message : String(err)
-  } finally {
-    strategySaving.value = false
-  }
+function displaySlotPrice(slot: PlanSlot): number {
+  if (session.meta?.site.show_full_price === true) return slot.avg_import_price
+  const at = Date.parse(slot.start)
+  const block = priceBlocks.value.find(
+    (item) => Date.parse(item.start) <= at && Date.parse(item.end) > at,
+  )
+  return block?.price_kwh ?? slot.avg_import_price
 }
 
 async function selectDay(day: string): Promise<void> {
@@ -532,7 +490,6 @@ onMounted(() => {
   void loadMeta()
   void load()
   void loadPrices()
-  void loadStrategySettings()
 })
 
 function fmtMoney(value: number | undefined): string {
@@ -603,69 +560,6 @@ function fmtTime(iso: string): string {
         </div>
       </div>
 
-      <div v-if="!editing" class="plan-strategy-panel">
-        <div class="plan-strategy-main">
-          <div class="plan-strategy-field">
-            <label class="form-label" for="plan-strategy">{{ t('plan.strategy') }}</label>
-            <select id="plan-strategy" v-model="strategyForm.strategy" class="form-select form-select-sm">
-              <option value="minimize_cost">{{ t('plan.strategyMinimizeCost') }}</option>
-              <option value="maximize_profit">{{ t('plan.strategyMaximizeProfit') }}</option>
-            </select>
-          </div>
-          <div class="plan-strategy-field">
-            <label class="form-label" for="plan-min-diff">{{ t('plan.minPriceDifference') }}</label>
-            <div class="input-group input-group-sm">
-              <input
-                id="plan-min-diff"
-                v-model.number="strategyForm.minPriceDifference"
-                class="form-control form-control-sm"
-                type="number"
-                min="0"
-                step="0.01"
-              />
-              <span class="input-group-text">{{ currency || 'SEK' }}/kWh</span>
-            </div>
-          </div>
-          <div class="plan-strategy-field">
-            <label class="form-label" for="plan-max-purchase">{{ t('plan.maxPurchasePrice') }}</label>
-            <div class="input-group input-group-sm">
-              <input
-                id="plan-max-purchase"
-                v-model.number="strategyForm.maxPurchasePrice"
-                class="form-control form-control-sm"
-                type="number"
-                min="0"
-                step="0.01"
-              />
-              <span class="input-group-text">{{ currency || 'SEK' }}/kWh</span>
-            </div>
-          </div>
-          <button class="btn btn-sm btn-primary plan-strategy-apply" type="button" :disabled="strategySaving" @click="saveStrategy">
-            <i v-if="strategySaving" class="bi bi-arrow-clockwise spin" aria-hidden="true"></i>
-            {{ t('plan.applyStrategy') }}
-          </button>
-        </div>
-
-        <div class="plan-peak-shaving">
-          <div class="form-check form-switch">
-            <input id="plan-peak-shaving" v-model="strategyForm.peakShaving" class="form-check-input" type="checkbox" role="switch" />
-            <label class="form-check-label" for="plan-peak-shaving">{{ t('plan.peakShaving') }}</label>
-          </div>
-          <div v-if="strategyForm.peakShaving" class="plan-peak-limit">
-            <label class="form-label" for="plan-peak-limit">{{ t('plan.maxHourlyUsage') }}</label>
-            <input
-              id="plan-peak-limit"
-              v-model.number="strategyForm.peakLimitW"
-              class="form-control form-control-sm"
-              type="number"
-              min="100"
-              step="50"
-            />
-          </div>
-        </div>
-        <p v-if="strategyError" class="text-danger small mb-0" role="alert">{{ strategyError }}</p>
-      </div>
-
       <div class="plan-hero-body">
         <div class="plan-hero-main">
           <span class="hero-kicker">{{ t('plan.savings') }}</span>
@@ -708,6 +602,7 @@ function fmtTime(iso: string): string {
         :locale="locale"
         :now="nowIso"
         :prices="priceBlocks"
+        :full-price="session.meta?.site.show_full_price === true"
         :editable="editing"
         :selected-index="selectedIndex"
         :labels="timelineLabels"
@@ -823,7 +718,7 @@ function fmtTime(iso: string): string {
               </td>
               <td class="text-end d-none d-md-table-cell">{{ Math.round(slot.power_w) }} W</td>
               <td class="text-end">{{ fmtEnergy(slot.energy_kwh) }} kWh</td>
-              <td class="text-end d-none d-md-table-cell">{{ slot.avg_import_price.toFixed(3) }}</td>
+              <td class="text-end d-none d-md-table-cell">{{ formatPrice(displaySlotPrice(slot), locale) }}</td>
               <td class="text-end d-none d-md-table-cell">{{ fmtMoney(slot.expected_saving) }} {{ currency }}</td>
             </tr>
           </tbody>

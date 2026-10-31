@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
-import type { PVStringSettings, SettingsDocument } from '../api/types'
-import { loadSettings, patchSettings, session } from '../session'
+import type { EVConfig, PVStringSettings, SettingsDocument } from '../api/types'
+import { loadMeta, loadSettings, patchSettings, session } from '../session'
 import PageHead from '../components/PageHead.vue'
+import Sheet from '../components/Sheet.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -21,6 +22,128 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const saved = ref('')
+const planHelpOpen = ref(false)
+const evConfig = ref<EVConfig | null>(null)
+const evProviderBusy = ref(false)
+const settingInfoOpen = ref(false)
+const settingInfoTitle = ref('')
+const settingInfoText = ref('')
+
+const settingInfoKeys: Record<string, string> = {
+  name: 'siteName',
+  tz: 'timezone',
+  lat: 'latitude',
+  lon: 'longitude',
+  'max-import': 'maxImport',
+  'grid-owner': 'gridOwner',
+  'facility-id': 'facilityID',
+  'tariff-product': 'tariffProduct',
+  'eltariff-url': 'eltariffURL',
+  'tariff-mode': 'tariffMode',
+  'transfer-fee': 'transferFeeOre',
+  'energy-tax': 'energyTaxOre',
+  'variable-cost': 'variableCostOre',
+  'fixed-markup': 'fixedMarkupOre',
+  'export-benefit': 'exportBenefitOre',
+  'export-extra': 'exportExtraOre',
+  'show-full-price': 'showFullPrice',
+  'inv-host': 'host',
+  'inv-scheme': 'scheme',
+  'inv-port': 'port',
+  'inv-serial': 'serial',
+  'inv-capacity': 'capacity',
+  'inv-interval': 'telemetryInterval',
+  'inv-max-charge': 'maxCharge',
+  'inv-max-discharge': 'maxDischarge',
+  'sign-pv': 'sign',
+  'sign-grid': 'sign',
+  'sign-battery': 'sign',
+  'pv-ac': 'acLimit',
+  'pv-conf': 'confidence',
+  'pv-refresh': 'refresh',
+  'pv-cal': 'calibration',
+  'load-kwh': 'dailyKwh',
+  'load-measured': 'useMeasured',
+  'load-temperature': 'useTemperature',
+  'temperature-reference': 'temperatureReference',
+  'temperature-sensitivity': 'temperatureSensitivity',
+  'plan-slots': 'maxSlots',
+  'plan-min': 'maxSlotMin',
+  'plan-days': 'horizonDays',
+  'plan-saving': 'minDailySaving',
+  'plan-charge': 'chargeW',
+  'plan-discharge': 'dischargeW',
+  'plan-end': 'endSoc',
+  'plan-min-soc': 'minSoc',
+  'plan-max-soc': 'maxSoc',
+  'plan-reserve-soc': 'reserveSoc',
+  'plan-charge-eff': 'chargeEfficiency',
+  'plan-discharge-eff': 'dischargeEfficiency',
+  'plan-preserve': 'preserveSoc',
+  'plan-grid': 'allowGrid',
+  'settings-plan-strategy': 'strategy',
+  'settings-min-diff': 'minPriceDifference',
+  'settings-max-purchase': 'maxPurchasePrice',
+  'settings-peak-shaving': 'peakShaving',
+  'settings-peak-limit': 'peakLimit',
+  'ev-mode': 'evMode',
+  'ev-provider': 'evProvider',
+  'ev-charger-id': 'evChargerID',
+  'ev-installation-id': 'evInstallationID',
+  'ev-min': 'evCurrent',
+  'ev-max': 'evCurrent',
+  'ev-phases': 'evPhases',
+  'ev-voltage': 'evVoltage',
+  'ev-solar': 'evSolarShare',
+  'ev-floor': 'evBatteryFloor',
+  'ev-always': 'evAlwaysCharge',
+  'ev-cost': 'evSmartCost',
+  'ev-feed': 'evFeedIn',
+  'ev-grid': 'evGridAllowed',
+  writes: 'writesArm',
+  ev: 'evArm',
+  watchdog: 'watchdog',
+  horizon: 'horizonLimit',
+}
+
+function settingInfoKey(id: string): string {
+  if (settingInfoKeys[id]) return settingInfoKeys[id]
+  if (/^(kwp|tilt|azimuth|pr|temp|max)-/.test(id)) {
+    const prefix = id.split('-')[0]
+    return { kwp: 'kwp', tilt: 'tilt', azimuth: 'azimuth', pr: 'pr', temp: 'tempCoefficient', max: 'maxW' }[prefix] ?? ''
+  }
+  if (id.startsWith('profile-')) return 'hourlyProfile'
+  return ''
+}
+
+function decorateSettings(): void {
+  document.querySelectorAll('.setting-info-btn').forEach((node) => node.remove())
+  if (!settings.value) return
+  document.querySelectorAll<HTMLLabelElement>('.aipt-card label[for]').forEach((label) => {
+    const key = settingInfoKey(label.htmlFor)
+    if (!key) return
+    const title = (label.textContent ?? '').replace(/\s+/g, ' ').trim()
+    label.classList.add('setting-label-with-info')
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'setting-info-btn'
+    button.setAttribute('aria-label', `${title}: ${t('settings.settingHelp')}`)
+    button.innerHTML = '<i class="bi bi-info-circle" aria-hidden="true"></i>'
+    button.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      settingInfoTitle.value = title || t('settings.settingHelp')
+      settingInfoText.value = t(`settings.info.${key}`)
+      settingInfoOpen.value = true
+    })
+    label.appendChild(button)
+  })
+}
+
+watch(section, async () => {
+  await nextTick()
+  decorateSettings()
+})
 
 const siteForm = reactive({
   name: '',
@@ -28,6 +151,26 @@ const siteForm = reactive({
   latitude: 0,
   longitude: 0,
   maxImport: 0,
+  gridOwner: '',
+  facilityID: '',
+  tariffProduct: '',
+  eltariffURL: '',
+  tariffMode: 'manual',
+  transferFeeOre: 0,
+  energyTaxOre: 0,
+  variableCostOre: 0,
+  fixedMarkupOre: 0,
+  exportBenefitOre: 0,
+  exportExtraOre: 0,
+  showFullPrice: false,
+})
+
+const timezoneOptions = computed(() => {
+  const supported = (
+    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf?.('timeZone') ?? []
+  const values = [...supported, siteForm.timezone, 'UTC'].filter(Boolean)
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b))
 })
 
 const inverterForm = reactive({
@@ -38,12 +181,7 @@ const inverterForm = reactive({
   maxCharge: 6000,
   maxDischarge: 3000,
   capacity: 15.36,
-  minSoc: 15,
-  maxSoc: 100,
-  reserveSoc: 15,
   interval: 30,
-  chargeEfficiency: 0.95,
-  dischargeEfficiency: 0.95,
   signPv: 1,
   signGrid: 1,
   signBattery: 1,
@@ -91,6 +229,9 @@ const pvForm = reactive({
 const loadForm = reactive({
   dailyKwh: 12,
   useMeasured: false,
+  useTemperature: false,
+  temperatureReference: 18,
+  temperatureSensitivity: 2,
   profile: [] as number[],
 })
 
@@ -101,18 +242,31 @@ const planForm = reactive({
   minDailySaving: 1,
   preserveSoc: true,
   endSoc: 50,
+  minSoc: 15,
+  maxSoc: 100,
+  reserveSoc: 15,
+  chargeEfficiency: 0.95,
+  dischargeEfficiency: 0.95,
   chargeW: 6000,
   dischargeW: 3000,
   allowGrid: true,
+  strategy: 'minimize_cost',
+  minPriceDifference: 0,
+  maxPurchasePrice: 0,
+  peakShaving: false,
+  peakLimitW: 0,
 })
 
 const evForm = reactive({
+  provider: 'zaptec',
+  chargerID: '',
+  installationID: '',
   mode: 'off',
   minCurrent: 6,
   maxCurrent: 16,
   phases: 3,
   voltage: 230,
-  solarShare: 1,
+  solarSharePct: 100,
   gridChargeAllowed: false,
   alwaysCharge: 'off',
   batteryFloor: 20,
@@ -132,7 +286,19 @@ async function load(): Promise<void> {
     siteForm.timezone = doc.site.timezone
     siteForm.latitude = doc.site.latitude
     siteForm.longitude = doc.site.longitude
-    siteForm.maxImport = doc.site.max_import_power_w
+    siteForm.maxImport = Math.round(doc.site.max_import_power_w / 1000)
+    siteForm.gridOwner = doc.site.grid_owner ?? ''
+    siteForm.facilityID = doc.site.facility_id ?? ''
+    siteForm.tariffProduct = doc.site.grid_tariff_product ?? ''
+    siteForm.eltariffURL = doc.site.eltariff_url ?? ''
+    siteForm.tariffMode = doc.site.tariff_mode || 'manual'
+    siteForm.transferFeeOre = doc.site.transfer_fee_ore_kwh ?? 0
+    siteForm.energyTaxOre = doc.site.energy_tax_ore_kwh ?? 0
+    siteForm.variableCostOre = doc.site.variable_cost_ore_kwh ?? 0
+    siteForm.fixedMarkupOre = doc.site.fixed_markup_ore_kwh ?? 0
+    siteForm.exportBenefitOre = doc.site.export_benefit_ore_kwh ?? 0
+    siteForm.exportExtraOre = doc.site.export_extra_ore_kwh ?? 0
+    siteForm.showFullPrice = doc.site.show_full_price === true
     inverterForm.host = doc.inverter.host
     inverterForm.scheme = doc.inverter.scheme
     inverterForm.port = doc.inverter.port
@@ -140,12 +306,7 @@ async function load(): Promise<void> {
     inverterForm.maxCharge = doc.inverter.max_charge_w
     inverterForm.maxDischarge = doc.inverter.max_discharge_w
     inverterForm.capacity = doc.inverter.capacity_kwh
-    inverterForm.minSoc = doc.inverter.min_soc
-    inverterForm.maxSoc = doc.inverter.max_soc
-    inverterForm.reserveSoc = doc.inverter.reserve_soc
     inverterForm.interval = doc.inverter.telemetry_interval_s
-    inverterForm.chargeEfficiency = doc.inverter.charge_efficiency
-    inverterForm.dischargeEfficiency = doc.inverter.discharge_efficiency
     inverterForm.signPv = doc.inverter.sign_overrides.pv
     inverterForm.signGrid = doc.inverter.sign_overrides.grid
     inverterForm.signBattery = doc.inverter.sign_overrides.battery
@@ -156,6 +317,9 @@ async function load(): Promise<void> {
     pvForm.calibration = doc.pv.calibration_enabled
     loadForm.dailyKwh = doc.load.daily_kwh
     loadForm.useMeasured = doc.load.use_measured_profile
+    loadForm.useTemperature = doc.load.use_temperature_adjustment
+    loadForm.temperatureReference = doc.load.temperature_reference_c
+    loadForm.temperatureSensitivity = doc.load.temperature_sensitivity_pct_c
     loadForm.profile = [...doc.load.profile]
     planForm.maxSlots = doc.plan.max_slots_per_day
     planForm.maxSlotMin = doc.plan.max_slot_min
@@ -163,15 +327,28 @@ async function load(): Promise<void> {
     planForm.minDailySaving = doc.plan.min_daily_saving
     planForm.preserveSoc = doc.plan.preserve_soc
     planForm.endSoc = doc.plan.end_soc_target
+    planForm.minSoc = doc.inverter.min_soc
+    planForm.maxSoc = doc.inverter.max_soc
+    planForm.reserveSoc = doc.inverter.reserve_soc
+    planForm.chargeEfficiency = doc.inverter.charge_efficiency
+    planForm.dischargeEfficiency = doc.inverter.discharge_efficiency
     planForm.chargeW = doc.plan.charge_w
     planForm.dischargeW = doc.plan.discharge_w
     planForm.allowGrid = doc.plan.allow_discharge_to_grid
+    planForm.strategy = doc.plan.strategy === 'savings' || !doc.plan.strategy ? 'minimize_cost' : doc.plan.strategy
+    planForm.minPriceDifference = doc.plan.min_price_difference ?? 0
+    planForm.maxPurchasePrice = doc.plan.max_purchase_price ?? 0
+    planForm.peakShaving = doc.plan.peak_shaving_enabled ?? false
+    planForm.peakLimitW = doc.plan.peak_shaving_limit_w ?? 0
     evForm.mode = doc.ev.mode
+    evForm.provider = doc.ev.provider || 'zaptec'
+    evForm.chargerID = doc.ev.charger_id || ''
+    evForm.installationID = doc.ev.installation_id || ''
     evForm.minCurrent = doc.ev.min_current_a
     evForm.maxCurrent = doc.ev.max_current_a
     evForm.phases = doc.ev.phases
     evForm.voltage = doc.ev.voltage_v
-    evForm.solarShare = doc.ev.solar_share
+    evForm.solarSharePct = Math.round(doc.ev.solar_share * 100)
     evForm.gridChargeAllowed = doc.ev.grid_charge_allowed
     evForm.alwaysCharge = doc.ev.always_charge
     evForm.batteryFloor = doc.ev.house_battery_floor_soc
@@ -181,11 +358,18 @@ async function load(): Promise<void> {
     safetyForm.ev = doc.safety.ev_control_armed_ui
     safetyForm.watchdog = doc.safety.watchdog_clear_after_s
     safetyForm.horizon = doc.safety.horizon_limit_days
+    try {
+      evConfig.value = await api.get<EVConfig>('/ev/config')
+    } catch {
+      evConfig.value = null
+    }
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('settings.loadFailed')
   } finally {
     loading.value = false
   }
+  await nextTick()
+  decorateSettings()
 }
 
 async function saveSite(): Promise<void> {
@@ -198,10 +382,23 @@ async function saveSite(): Promise<void> {
       timezone: siteForm.timezone,
       latitude: Number(siteForm.latitude),
       longitude: Number(siteForm.longitude),
-      max_import_power_w: Number(siteForm.maxImport),
+      max_import_power_w: Math.round(Number(siteForm.maxImport) * 1000),
+      grid_owner: siteForm.gridOwner.trim(),
+      facility_id: siteForm.facilityID.trim(),
+      grid_tariff_product: siteForm.tariffProduct.trim(),
+      eltariff_url: siteForm.eltariffURL.trim(),
+      tariff_mode: siteForm.tariffMode,
+      transfer_fee_ore_kwh: Number(siteForm.transferFeeOre) || 0,
+      energy_tax_ore_kwh: Number(siteForm.energyTaxOre) || 0,
+      variable_cost_ore_kwh: Number(siteForm.variableCostOre) || 0,
+      fixed_markup_ore_kwh: Number(siteForm.fixedMarkupOre) || 0,
+      export_benefit_ore_kwh: Number(siteForm.exportBenefitOre) || 0,
+      export_extra_ore_kwh: Number(siteForm.exportExtraOre) || 0,
+      show_full_price: siteForm.showFullPrice,
     })
     saved.value = t('settings.siteSaved')
     await load()
+    await loadMeta()
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
   } finally {
@@ -244,12 +441,7 @@ async function saveInverter(): Promise<void> {
       max_charge_w: Math.round(Number(inverterForm.maxCharge)),
       max_discharge_w: Math.round(Number(inverterForm.maxDischarge)),
       capacity_kwh: Number(inverterForm.capacity),
-      min_soc: Number(inverterForm.minSoc),
-      max_soc: Number(inverterForm.maxSoc),
-      reserve_soc: Number(inverterForm.reserveSoc),
       telemetry_interval_s: Number(inverterForm.interval),
-      charge_efficiency: Number(inverterForm.chargeEfficiency),
-      discharge_efficiency: Number(inverterForm.dischargeEfficiency),
       sign_overrides: {
         pv: Number(inverterForm.signPv),
         grid: Number(inverterForm.signGrid),
@@ -344,6 +536,9 @@ async function saveLoad(): Promise<void> {
       daily_kwh: Number(loadForm.dailyKwh),
       profile,
       use_measured_profile: loadForm.useMeasured,
+      use_temperature_adjustment: loadForm.useTemperature,
+      temperature_reference_c: Number(loadForm.temperatureReference),
+      temperature_sensitivity_pct_c: Number(loadForm.temperatureSensitivity),
     })
     saved.value = t('settings.loadSaved')
     await load()
@@ -359,6 +554,16 @@ async function savePlan(): Promise<void> {
   error.value = ''
   saved.value = ''
   try {
+    if (planForm.peakShaving && planForm.peakLimitW <= 0) {
+      throw new Error(t('plan.peakLimitRequired'))
+    }
+    await patchSettings('inverter', {
+      min_soc: Number(planForm.minSoc),
+      max_soc: Number(planForm.maxSoc),
+      reserve_soc: Number(planForm.reserveSoc),
+      charge_efficiency: Number(planForm.chargeEfficiency),
+      discharge_efficiency: Number(planForm.dischargeEfficiency),
+    })
     await patchSettings('plan', {
       max_slots_per_day: Number(planForm.maxSlots),
       max_slot_min: Number(planForm.maxSlotMin),
@@ -369,11 +574,21 @@ async function savePlan(): Promise<void> {
       charge_w: Math.round(Number(planForm.chargeW)),
       discharge_w: Math.round(Number(planForm.dischargeW)),
       allow_discharge_to_grid: planForm.allowGrid,
+      strategy: planForm.strategy,
+      min_price_difference: Number(planForm.minPriceDifference) || 0,
+      max_purchase_price: Number(planForm.maxPurchasePrice) || 0,
+      peak_shaving_enabled: planForm.peakShaving,
+      peak_shaving_limit_w: Number(planForm.peakLimitW) || 0,
     })
+    try {
+      await api.post('/plan/recompute', {})
+    } catch {
+      // The planner will retry on its next five-minute cycle.
+    }
     saved.value = t('settings.planSaved')
     await load()
   } catch (err) {
-    error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
+    error.value = err instanceof ApiError ? err.message : err instanceof Error ? err.message : t('settings.saveFailed')
   } finally {
     saving.value = false
   }
@@ -390,7 +605,7 @@ async function saveEV(): Promise<void> {
       max_current_a: Number(evForm.maxCurrent),
       phases: Number(evForm.phases),
       voltage_v: Number(evForm.voltage),
-      solar_share: Number(evForm.solarShare),
+      solar_share: Number(evForm.solarSharePct) / 100,
       grid_charge_allowed: evForm.gridChargeAllowed,
       always_charge: evForm.alwaysCharge,
       house_battery_floor_soc: Number(evForm.batteryFloor),
@@ -403,6 +618,26 @@ async function saveEV(): Promise<void> {
     error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
   } finally {
     saving.value = false
+  }
+}
+
+async function applyEVProvider(): Promise<void> {
+  if (!window.confirm(t('settings.evProviderRestartConfirm'))) return
+  evProviderBusy.value = true
+  error.value = ''
+  saved.value = ''
+  try {
+    evConfig.value = await api.put<EVConfig>('/ev/config', {
+      provider: evForm.provider,
+      charger_id: evForm.chargerID.trim(),
+      installation_id: evForm.installationID.trim(),
+    })
+    saved.value = t('settings.evProviderReady')
+    await api.post('/system/restart', {})
+  } catch (err) {
+    error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
+  } finally {
+    evProviderBusy.value = false
   }
 }
 
@@ -472,7 +707,9 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <div class="col-12 col-sm-6">
             <label class="form-label" for="tz">{{ t('settings.timezone') }}</label>
-            <input id="tz" v-model="siteForm.timezone" class="form-control" type="text" required />
+            <select id="tz" v-model="siteForm.timezone" class="form-select" required>
+              <option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</option>
+            </select>
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="lat">{{ t('settings.latitude') }}</label>
@@ -490,10 +727,86 @@ async function importSettings(event: Event): Promise<void> {
               class="form-control"
               type="number"
               min="1"
-              step="100"
+              step="1"
             />
           </div>
         </div>
+
+        <h3 class="h6 mt-4">{{ t('settings.gridTariff') }}</h3>
+        <div class="row g-3">
+          <div class="col-12 col-sm-6">
+            <label class="form-label" for="tariff-mode">{{ t('settings.tariffMode') }}</label>
+            <select id="tariff-mode" v-model="siteForm.tariffMode" class="form-select">
+              <option value="manual">{{ t('settings.tariffManual') }}</option>
+              <option value="api">{{ t('settings.tariffApi') }}</option>
+            </select>
+          </div>
+        </div>
+
+        <template v-if="siteForm.tariffMode === 'manual'">
+          <h4 class="h6 mt-4">{{ t('settings.purchaseSettings') }}</h4>
+          <div class="row g-3">
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="transfer-fee">{{ t('settings.transferFeeOre') }}</label>
+              <input id="transfer-fee" v-model.number="siteForm.transferFeeOre" class="form-control" type="number" min="0" step="0.01" />
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="energy-tax">{{ t('settings.energyTaxOre') }}</label>
+              <input id="energy-tax" v-model.number="siteForm.energyTaxOre" class="form-control" type="number" min="0" step="0.01" />
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="variable-cost">{{ t('settings.variableCostOre') }}</label>
+              <input id="variable-cost" v-model.number="siteForm.variableCostOre" class="form-control" type="number" min="0" step="0.01" />
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="fixed-markup">{{ t('settings.fixedMarkupOre') }}</label>
+              <input id="fixed-markup" v-model.number="siteForm.fixedMarkupOre" class="form-control" type="number" min="0" step="0.01" />
+            </div>
+          </div>
+
+          <h4 class="h6 mt-4">{{ t('settings.exportSettings') }}</h4>
+          <div class="row g-3">
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="export-benefit">{{ t('settings.exportBenefitOre') }}</label>
+              <input id="export-benefit" v-model.number="siteForm.exportBenefitOre" class="form-control" type="number" min="0" step="0.01" />
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="export-extra">{{ t('settings.exportExtraOre') }}</label>
+              <input id="export-extra" v-model.number="siteForm.exportExtraOre" class="form-control" type="number" min="0" step="0.01" />
+            </div>
+          </div>
+        </template>
+
+        <div v-if="siteForm.tariffMode === 'api'" class="row g-3 mt-1">
+          <div class="col-12 col-sm-6">
+            <label class="form-label" for="grid-owner">{{ t('settings.gridOwner') }}</label>
+            <input id="grid-owner" v-model="siteForm.gridOwner" class="form-control" type="text" autocomplete="organization" />
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label" for="facility-id">{{ t('settings.facilityID') }}</label>
+            <input id="facility-id" v-model="siteForm.facilityID" class="form-control mono" type="text" />
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label" for="tariff-product">{{ t('settings.tariffProduct') }}</label>
+            <input id="tariff-product" v-model="siteForm.tariffProduct" class="form-control" type="text" />
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label" for="eltariff-url">{{ t('settings.eltariffURL') }}</label>
+            <input
+              id="eltariff-url"
+              v-model="siteForm.eltariffURL"
+              class="form-control mono"
+              type="text"
+              placeholder="https://…/tariffs"
+            />
+          </div>
+        </div>
+
+        <div class="form-check form-switch mt-4">
+          <input id="show-full-price" v-model="siteForm.showFullPrice" class="form-check-input" type="checkbox" role="switch" />
+          <label class="form-check-label" for="show-full-price">{{ t('settings.showFullPrice') }}</label>
+        </div>
+
         <button class="btn btn-primary mt-4" type="submit" :disabled="saving">
           <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ saving ? t('common.saving') : t('settings.saveSite') }}
@@ -540,26 +853,6 @@ async function importSettings(event: Event): Promise<void> {
           <div class="col-6 col-sm-3">
             <label class="form-label" for="inv-max-discharge">{{ t('settings.maxDischarge') }}</label>
             <input id="inv-max-discharge" v-model.number="inverterForm.maxDischarge" class="form-control" type="number" step="100" />
-          </div>
-          <div class="col-4 col-sm-3">
-            <label class="form-label" for="inv-min-soc">{{ t('settings.minSoc') }}</label>
-            <input id="inv-min-soc" v-model.number="inverterForm.minSoc" class="form-control" type="number" min="0" max="100" />
-          </div>
-          <div class="col-4 col-sm-3">
-            <label class="form-label" for="inv-max-soc">{{ t('settings.maxSoc') }}</label>
-            <input id="inv-max-soc" v-model.number="inverterForm.maxSoc" class="form-control" type="number" min="0" max="100" />
-          </div>
-          <div class="col-4 col-sm-3">
-            <label class="form-label" for="inv-reserve-soc">{{ t('settings.reserveSoc') }}</label>
-            <input id="inv-reserve-soc" v-model.number="inverterForm.reserveSoc" class="form-control" type="number" min="0" max="100" />
-          </div>
-          <div class="col-6 col-sm-3">
-            <label class="form-label" for="inv-charge-eff">{{ t('settings.chargeEfficiency') }}</label>
-            <input id="inv-charge-eff" v-model.number="inverterForm.chargeEfficiency" class="form-control" type="number" step="0.01" min="0.5" max="1" />
-          </div>
-          <div class="col-6 col-sm-3">
-            <label class="form-label" for="inv-discharge-eff">{{ t('settings.dischargeEfficiency') }}</label>
-            <input id="inv-discharge-eff" v-model.number="inverterForm.dischargeEfficiency" class="form-control" type="number" step="0.01" min="0.5" max="1" />
           </div>
         </div>
 
@@ -748,6 +1041,48 @@ async function importSettings(event: Event): Promise<void> {
           </div>
         </div>
 
+        <div class="row g-3 mt-1 align-items-end">
+          <div class="col-12 col-sm-6">
+            <div class="form-check form-switch mb-2">
+              <input
+                id="load-temperature"
+                v-model="loadForm.useTemperature"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+              />
+              <label class="form-check-label" for="load-temperature">{{ t('settings.useTemperature') }}</label>
+            </div>
+          </div>
+          <template v-if="loadForm.useTemperature">
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="temperature-reference">{{ t('settings.temperatureReference') }}</label>
+              <input
+                id="temperature-reference"
+                v-model.number="loadForm.temperatureReference"
+                class="form-control"
+                type="number"
+                min="-40"
+                max="50"
+                step="0.5"
+              />
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="temperature-sensitivity">{{ t('settings.temperatureSensitivity') }}</label>
+              <input
+                id="temperature-sensitivity"
+                v-model.number="loadForm.temperatureSensitivity"
+                class="form-control"
+                type="number"
+                min="0"
+                max="20"
+                step="0.1"
+              />
+            </div>
+          </template>
+        </div>
+        <p v-if="loadForm.useTemperature" class="text-muted small mt-2 mb-0">{{ t('settings.temperatureHelp') }}</p>
+
         <details class="mt-4">
           <summary class="fw-semibold">{{ t('settings.hourlyProfile') }}</summary>
           <p class="text-muted small mt-2">{{ t('settings.profileHelp') }}</p>
@@ -774,7 +1109,18 @@ async function importSettings(event: Event): Promise<void> {
     </section>
 
     <section v-else-if="section === 'plan'" class="aipt-card">
-      <h2>{{ t('settings.sections.plan') }}</h2>
+      <div class="d-flex align-items-center gap-2">
+        <h2 class="mb-0 settings-plan-title">{{ t('settings.sections.plan') }}</h2>
+        <button
+          class="btn btn-link plan-info-button p-0"
+          type="button"
+          :aria-label="t('settings.planHelpTitle')"
+          :title="t('settings.planHelpTitle')"
+          @click="planHelpOpen = true"
+        >
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+        </button>
+      </div>
       <p class="text-muted small">{{ t('settings.planIntro') }}</p>
       <form novalidate @submit.prevent="savePlan">
         <div class="row g-3">
@@ -802,32 +1148,164 @@ async function importSettings(event: Event): Promise<void> {
             <label class="form-label" for="plan-discharge">{{ t('settings.planDischargeW') }}</label>
             <input id="plan-discharge" v-model.number="planForm.dischargeW" class="form-control" type="number" min="1" step="1" />
           </div>
-          <div class="col-6 col-sm-3">
-            <label class="form-label" for="plan-end">{{ t('settings.endSoc') }}</label>
-            <input id="plan-end" v-model.number="planForm.endSoc" class="form-control" type="number" min="0" max="100" step="1" />
+          <div class="col-4 col-sm-3">
+            <label class="form-label" for="plan-min-soc">{{ t('settings.minSoc') }}</label>
+            <input id="plan-min-soc" v-model.number="planForm.minSoc" class="form-control" type="number" min="0" max="100" />
           </div>
-          <div class="col-12 col-sm-3 d-flex flex-column justify-content-end">
-            <div class="form-check form-switch mb-2">
+          <div class="col-4 col-sm-3">
+            <label class="form-label" for="plan-max-soc">{{ t('settings.maxSoc') }}</label>
+            <input id="plan-max-soc" v-model.number="planForm.maxSoc" class="form-control" type="number" min="0" max="100" />
+          </div>
+          <div class="col-4 col-sm-3">
+            <label class="form-label" for="plan-reserve-soc">{{ t('settings.reserveSoc') }}</label>
+            <input id="plan-reserve-soc" v-model.number="planForm.reserveSoc" class="form-control" type="number" min="0" max="100" />
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
               <input id="plan-preserve" v-model="planForm.preserveSoc" class="form-check-input" type="checkbox" role="switch" />
               <label class="form-check-label" for="plan-preserve">{{ t('settings.preserveSoc') }}</label>
             </div>
-            <div class="form-check form-switch mb-2">
+          </div>
+          <div v-if="planForm.preserveSoc" class="col-6 col-sm-3">
+            <label class="form-label" for="plan-end">{{ t('settings.endSoc') }}</label>
+            <input id="plan-end" v-model.number="planForm.endSoc" class="form-control" type="number" min="0" max="100" step="1" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-charge-eff">{{ t('settings.chargeEfficiency') }}</label>
+            <input id="plan-charge-eff" v-model.number="planForm.chargeEfficiency" class="form-control" type="number" step="0.01" min="0.5" max="1" />
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label" for="plan-discharge-eff">{{ t('settings.dischargeEfficiency') }}</label>
+            <input id="plan-discharge-eff" v-model.number="planForm.dischargeEfficiency" class="form-control" type="number" step="0.01" min="0.5" max="1" />
+          </div>
+        </div>
+        <div class="row g-3 mt-2">
+          <div class="col-12">
+            <h3 class="h6 mb-0">{{ t('plan.strategy') }}</h3>
+          </div>
+          <div class="col-12 col-sm-4">
+            <label class="form-label" for="settings-plan-strategy">{{ t('settings.selectStrategyType') }}</label>
+            <select id="settings-plan-strategy" v-model="planForm.strategy" class="form-select">
+              <option value="minimize_cost">{{ t('plan.strategyMinimizeCost') }}</option>
+              <option value="maximize_profit">{{ t('plan.strategyMaximizeProfit') }}</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-4">
+            <label class="form-label" for="settings-min-diff">
+              {{ t('plan.minPriceDifference') }} ({{ settings?.price.currency || 'SEK' }}/kWh)
+            </label>
+            <input
+              id="settings-min-diff"
+              v-model.number="planForm.minPriceDifference"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div class="col-6 col-sm-4">
+            <label class="form-label" for="settings-max-purchase">
+              {{ t('plan.maxPurchasePrice') }} ({{ settings?.price.currency || 'SEK' }}/kWh)
+            </label>
+            <input
+              id="settings-max-purchase"
+              v-model.number="planForm.maxPurchasePrice"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
               <input id="plan-grid" v-model="planForm.allowGrid" class="form-check-input" type="checkbox" role="switch" />
               <label class="form-check-label" for="plan-grid">{{ t('settings.allowGridDischarge') }}</label>
             </div>
           </div>
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input
+                id="settings-peak-shaving"
+                v-model="planForm.peakShaving"
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+              />
+              <label class="form-check-label" for="settings-peak-shaving">{{ t('plan.peakShaving') }}</label>
+            </div>
+          </div>
+          <div v-if="planForm.peakShaving" class="col-12 col-sm-4">
+            <label class="form-label" for="settings-peak-limit">{{ t('plan.maxHourlyUsage') }}</label>
+            <input
+              id="settings-peak-limit"
+              v-model.number="planForm.peakLimitW"
+              class="form-control"
+              type="number"
+              min="100"
+              step="50"
+            />
+          </div>
         </div>
+
         <button class="btn btn-primary mt-4" type="submit" :disabled="saving">
           <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ saving ? t('common.saving') : t('settings.savePlan') }}
         </button>
       </form>
+
+      <Sheet
+        v-model:open="planHelpOpen"
+        :title="t('settings.planHelpTitle')"
+        :subtitle="t('settings.planHelpSubtitle')"
+        size="md"
+      >
+        <ol class="plan-help-list">
+          <li v-for="index in 8" :key="index">{{ t(`settings.planHelp${index}`) }}</li>
+        </ol>
+        <template #footer>
+          <button class="btn btn-primary" type="button" @click="planHelpOpen = false">
+            {{ t('common.close') }}
+          </button>
+        </template>
+      </Sheet>
     </section>
 
     <section v-else-if="section === 'ev'" class="aipt-card">
       <h2>{{ t('settings.sections.ev') }}</h2>
       <p class="text-muted small">{{ t('settings.evIntro') }}</p>
       <form novalidate @submit.prevent="saveEV">
+        <h3 class="h6">{{ t('settings.evConnectionTitle') }}</h3>
+        <p class="text-muted small">{{ t('settings.evConnectionIntro') }}</p>
+        <div class="row g-3">
+          <div class="col-12 col-sm-6">
+            <label class="form-label" for="ev-provider">{{ t('settings.evProvider') }}</label>
+            <select id="ev-provider" v-model="evForm.provider" class="form-select">
+              <option value="zaptec">Zaptec</option>
+              <option value="simulator">{{ t('settings.evSimulator') }}</option>
+            </select>
+          </div>
+          <div v-if="evForm.provider !== 'simulator'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-charger-id">{{ t('settings.evChargerID') }}</label>
+            <input id="ev-charger-id" v-model="evForm.chargerID" class="form-control mono" type="text" />
+          </div>
+          <div v-if="evForm.provider === 'zaptec'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-installation-id">{{ t('settings.evInstallationID') }}</label>
+            <input id="ev-installation-id" v-model="evForm.installationID" class="form-control mono" type="text" />
+          </div>
+        </div>
+        <div class="small text-muted mt-2">
+          <div>{{ t('settings.evActiveProvider', { provider: evConfig?.active_provider || '—' }) }}</div>
+          <div>{{ t('settings.evZaptecCredentials') }}: {{ evConfig?.credentials.zaptec ? t('settings.evConfigured') : t('settings.evNotConfigured') }}</div>
+        </div>
+        <div v-if="evConfig?.restart_required" class="alert alert-warning py-2 small mt-3" role="status">
+          {{ t('settings.evRestartRequired') }}
+        </div>
+        <button class="btn btn-outline-primary mt-3" type="button" :disabled="evProviderBusy" @click="applyEVProvider">
+          <span v-if="evProviderBusy" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          {{ t('settings.evApplyProvider') }}
+        </button>
+
+        <h3 class="h6 mt-4">{{ t('settings.evBehaviorTitle') }}</h3>
         <div class="row g-3">
           <div class="col-6 col-sm-3">
             <label class="form-label" for="ev-mode">{{ t('settings.evMode') }}</label>
@@ -855,7 +1333,7 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="ev-solar">{{ t('settings.evSolarShare') }}</label>
-            <input id="ev-solar" v-model.number="evForm.solarShare" class="form-control" type="number" min="0" max="1" step="0.05" />
+            <input id="ev-solar" v-model.number="evForm.solarSharePct" class="form-control" type="number" min="0" max="100" step="1" />
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="ev-floor">{{ t('settings.evBatteryFloor') }}</label>
@@ -991,4 +1469,89 @@ async function importSettings(event: Event): Promise<void> {
       </div>
     </section>
   </template>
+
+  <Sheet
+    v-model:open="settingInfoOpen"
+    :title="settingInfoTitle"
+    :subtitle="t('settings.settingHelp')"
+    size="sm"
+  >
+    <p class="setting-info-text mb-0">{{ settingInfoText }}</p>
+    <template #footer>
+      <button class="btn btn-primary" type="button" @click="settingInfoOpen = false">
+        {{ t('common.close') }}
+      </button>
+    </template>
+  </Sheet>
 </template>
+
+<style scoped>
+section.aipt-card form :deep(.row.g-3) > [class*='col-'] {
+  flex: 0 0 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+section.aipt-card form :deep(.row.g-3) > [class*='col-'] > .form-label {
+  margin-bottom: 0;
+}
+
+section.aipt-card form :deep(.row.g-3) > [class*='col-'] > .form-control,
+section.aipt-card form :deep(.row.g-3) > [class*='col-'] > .form-select {
+  width: 100%;
+}
+
+section.aipt-card form :deep(input[type='number']) {
+  text-align: right;
+}
+
+.settings-plan-title,
+section.aipt-card > h2 {
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+section.aipt-card .form-label,
+section.aipt-card .form-check-label,
+section.aipt-card h2,
+section.aipt-card h3 {
+  color: var(--aipt-text);
+}
+
+section.aipt-card .form-check.form-switch {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: auto;
+  padding-left: 0;
+}
+
+section.aipt-card .form-check.form-switch .form-check-label {
+  order: 1;
+}
+
+section.aipt-card .form-check.form-switch .form-check-input {
+  order: 2;
+  justify-self: end;
+  margin: 0;
+  float: none;
+}
+
+section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> select),
+section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> input[type='text']) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(.form-check) {
+  display: block !important;
+}
+</style>

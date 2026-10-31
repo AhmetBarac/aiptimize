@@ -27,6 +27,57 @@ func testProvider(t *testing.T) (*Provider, *settings.Service, *store.Store) {
 	return New(cfg, st), cfg, st
 }
 
+func TestTemperatureAdjustment(t *testing.T) {
+	provider, cfg, _ := testProvider(t)
+	ctx := context.Background()
+	if _, err := cfg.Patch(ctx, settings.SectionLoad, []byte(`{
+		"use_temperature_adjustment":true,
+		"temperature_reference_c":18,
+		"temperature_sensitivity_pct_c":2
+	}`)); err != nil {
+		t.Fatal(err)
+	}
+	from := time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)
+	temps := map[int64]float64{
+		from.Unix():                       8,
+		from.Add(30 * time.Minute).Unix(): 28,
+	}
+	points, warnings, err := provider.BuildWithTemperature(ctx, from, from.Add(time.Hour), temps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(points) != 2 {
+		t.Fatalf("points = %d", len(points))
+	}
+	values := cfg.Get()
+	base := values.Load.DailyKWh * 1000 * values.Load.Profile[from.In(cfg.Location()).Hour()]
+	if math.Abs(points[0].LoadW-base*1.2) > 0.2 {
+		t.Errorf("cold load = %v, want %v", points[0].LoadW, base*1.2)
+	}
+	if math.Abs(points[1].LoadW-base*0.8) > 0.2 {
+		t.Errorf("warm load = %v, want %v", points[1].LoadW, base*0.8)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %v", warnings)
+	}
+}
+
+func TestTemperatureAdjustmentMissingForecast(t *testing.T) {
+	provider, cfg, _ := testProvider(t)
+	ctx := context.Background()
+	if _, err := cfg.Patch(ctx, settings.SectionLoad, []byte(`{"use_temperature_adjustment":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	from := time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)
+	_, warnings, err := provider.BuildWithTemperature(ctx, from, from.Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) == 0 {
+		t.Fatal("expected a missing-temperature warning")
+	}
+}
+
 func TestConfiguredProfile(t *testing.T) {
 	provider, cfg, _ := testProvider(t)
 	values := cfg.Get()

@@ -2030,8 +2030,67 @@ button.flow-node:hover {
   font-size: 0.8rem;
 }
 
-.power-picker-backdrop {
-  position: fixed;
+.plan-info-button {
+  color: var(--aipt-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.plan-info-button:hover,
+.plan-info-button:focus-visible {
+  color: var(--aipt-blue);
+}
+
+.plan-help-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--aipt-text);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.plan-help-list li::marker {
+  color: var(--aipt-muted);
+  font-weight: 650;
+}
+
+.setting-label-with-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.setting-info-btn {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  color: var(--aipt-muted);
+  font-size: 0.72rem;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+
+.setting-info-btn:hover,
+.setting-info-btn:focus-visible {
+  color: var(--aipt-blue);
+  background: color-mix(in srgb, var(--aipt-blue) 12%, transparent);
+}
+
+.setting-info-text {
+  color: var(--aipt-text);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.power-picker-backdrop {  position: fixed;
   inset: 0;
   z-index: 2000;
   display: flex;

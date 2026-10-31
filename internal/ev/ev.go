@@ -33,6 +33,12 @@ type Charger interface {
 	Close() error
 }
 
+// SessionStopper is implemented by chargers that can explicitly end an active
+// charging session. Provider changes use it before restarting the process.
+type SessionStopper interface {
+	StopSession(ctx context.Context) error
+}
+
 // Slot is one 15-minute planning candidate.
 type Slot struct {
 	Start       time.Time

@@ -143,12 +143,25 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 		}
 	}
 
-	loadPoints, loadWarnings, err := s.loadProvider.Build(ctx, from, to)
+	loadTemps := make(map[int64]float64, len(pvBlocks))
+	for _, block := range pvBlocks {
+		if block.HasTemp {
+			loadTemps[block.Start.Unix()] = block.TempC
+		}
+	}
+	dayLoadTemps := make(map[int64]float64, len(dayBlocks))
+	for _, block := range dayBlocks {
+		if block.HasTemp {
+			dayLoadTemps[block.Start.Unix()] = block.TempC
+		}
+	}
+
+	loadPoints, loadWarnings, err := s.loadProvider.BuildWithTemperature(ctx, from, to, loadTemps)
 	warnings = append(warnings, loadWarnings...)
 	if err != nil {
 		warnings = append(warnings, "load forecast failed: "+err.Error())
 	}
-	dayLoadPoints, _, dayLoadErr := s.loadProvider.Build(ctx, dayStart, dayEnd)
+	dayLoadPoints, _, dayLoadErr := s.loadProvider.BuildWithTemperature(ctx, dayStart, dayEnd, dayLoadTemps)
 	if dayLoadErr != nil {
 		warnings = append(warnings, "day load forecast failed: "+dayLoadErr.Error())
 	}

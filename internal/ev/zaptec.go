@@ -223,6 +223,12 @@ func (z *Zaptec) Resume(ctx context.Context) error {
 	return z.request(ctx, http.MethodPost, "/api/chargers/"+z.cfg.ChargerID+"/sendCommand/507", nil, nil)
 }
 
+// StopSession implements SessionStopper. Zaptec's stop command ends the active
+// charging session; the current limit is left for the next provider to manage.
+func (z *Zaptec) StopSession(ctx context.Context) error {
+	return z.request(ctx, http.MethodPost, "/api/chargers/"+z.cfg.ChargerID+"/sendCommand/506", nil, nil)
+}
+
 // Close implements Charger.
 func (z *Zaptec) Close() error { return nil }
 

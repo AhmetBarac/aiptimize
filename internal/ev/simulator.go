@@ -118,6 +118,15 @@ func (s *Simulator) Resume(context.Context) error {
 	return nil
 }
 
+// StopSession implements SessionStopper.
+func (s *Simulator) StopSession(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.paused = true
+	s.currentA = 0
+	return nil
+}
+
 // Close implements Charger.
 func (s *Simulator) Close() error { return nil }
 

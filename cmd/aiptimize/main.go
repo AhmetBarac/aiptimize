@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -155,37 +156,73 @@ func runServe() int {
 	})
 	solarSvc := service.NewSolarService(settingsSvc, st, forecastSvc)
 	evSvc := service.NewEVService(settingsSvc, st, priceSvc, forecastSvc, logger,
-		cfg.Simulator, cfg.EnableEVControl, time.Now)
-	if !cfg.Simulator && cfg.Zaptec.Username != "" && cfg.Zaptec.ChargerID != "" {
-		charger := ev.NewZaptec(ev.ZaptecConfig{
-			BaseURL: cfg.Zaptec.BaseURL, Username: cfg.Zaptec.Username,
-			Password: cfg.Zaptec.Password, InstallationID: cfg.Zaptec.InstallationID,
-			ChargerID: cfg.Zaptec.ChargerID,
-			UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
-			Now:       time.Now,
-		})
-		evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
-			charger, cfg.EnableEVControl, time.Now)
+		false, cfg.EnableEVControl, time.Now)
+	evSettings := settingsSvc.Get().EV
+	provider := strings.ToLower(strings.TrimSpace(evSettings.Provider))
+	if provider == "" {
+		provider = "zaptec"
+	}
+	switch {
+	case !evSettings.Enabled:
+		logger.Info("EV adapter disabled in settings")
+	case cfg.Simulator || provider == "simulator":
+		evSvc = service.NewEVService(settingsSvc, st, priceSvc, forecastSvc, logger,
+			true, cfg.EnableEVControl, time.Now)
+		logger.Info("EV adapter selected", "provider", "simulator")
+	case provider == "zaptec":
+		chargerID := evSettings.ChargerID
+		if chargerID == "" {
+			chargerID = cfg.Zaptec.ChargerID
+		}
+		installationID := evSettings.InstallationID
+		if installationID == "" {
+			installationID = cfg.Zaptec.InstallationID
+		}
+		if cfg.Zaptec.Username != "" && chargerID != "" {
+			charger := ev.NewZaptec(ev.ZaptecConfig{
+				BaseURL: cfg.Zaptec.BaseURL, Username: cfg.Zaptec.Username,
+				Password: cfg.Zaptec.Password, InstallationID: installationID,
+				ChargerID: chargerID,
+				UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
+				Now:       time.Now,
+			})
+			evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
+				charger, cfg.EnableEVControl, time.Now)
+			logger.Info("EV adapter selected", "provider", "zaptec", "charger_id", chargerID)
+		} else {
+			logger.Warn("Zaptec adapter not configured",
+				"has_username", cfg.Zaptec.Username != "", "has_charger_id", chargerID != "")
+		}
+	default:
+		logger.Warn("unsupported EV provider", "provider", provider)
 	}
 	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
 	plannerSvc.SetEVProvider(evSvc)
 	plannerSvc.SetWriteGate(cfg.EnableWrites)
 	historySvc := service.NewHistoryService(st, settingsSvc, priceSvc, plannerSvc)
 
+	restartCh := make(chan struct{}, 1)
+	requestRestart := func() {
+		select {
+		case restartCh <- struct{}{}:
+		default:
+		}
+	}
 	srv := api.New(api.Deps{
-		Config:    cfg,
-		Store:     st,
-		Settings:  settingsSvc,
-		Prices:    priceSvc,
-		Telemetry: telemetryPoller,
-		Forecast:  forecastSvc,
-		Solar:     solarSvc,
-		Planner:   plannerSvc,
-		EV:        evSvc,
-		History:   historySvc,
-		Broker:    broker,
-		Logger:    logger,
-		WebFS:     webui.FS(),
+		Config:         cfg,
+		Store:          st,
+		Settings:       settingsSvc,
+		Prices:         priceSvc,
+		Telemetry:      telemetryPoller,
+		Forecast:       forecastSvc,
+		Solar:          solarSvc,
+		Planner:        plannerSvc,
+		EV:             evSvc,
+		History:        historySvc,
+		RequestRestart: requestRestart,
+		Broker:         broker,
+		Logger:         logger,
+		WebFS:          webui.FS(),
 	})
 	go srv.RunBackground(ctx)
 	go service.NewPricePoller(priceSvc, settingsSvc, logger, broker).Run(ctx)
@@ -225,6 +262,9 @@ func runServe() int {
 		}
 	case <-ctx.Done():
 		logger.Info("shutdown requested")
+	case <-restartCh:
+		logger.Info("restart requested")
+		stop()
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

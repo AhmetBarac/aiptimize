@@ -11,6 +11,7 @@ import {
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { PricePoint } from '../api/types'
+import { formatPrice, roundPrice } from '../lib/energy'
 
 echarts.use([
   LineChart,
@@ -53,7 +54,7 @@ function formatTime(iso: string): string {
 function render(): void {
   if (!chart || props.points.length === 0) return
   const labels = props.points.map((p) => formatTime(p.delivery_start))
-  const values = props.points.map((p) => Math.round(p.price_kwh * 1000) / 1000)
+  const values = props.points.map((p) => roundPrice(p.price_kwh))
   const text = css('--aipt-muted', '#5b6b82')
   const border = css('--aipt-border', '#e2e8f2')
   const surface = css('--aipt-surface', '#ffffff')
@@ -76,7 +77,7 @@ function render(): void {
     })
     if (best < 60 * 60 * 1000) {
       markLineData = [{ xAxis: labels[index] }]
-      markPointData = [{ coord: [index, values[index]], value: values[index].toFixed(3) }]
+      markPointData = [{ coord: [index, values[index]], value: formatPrice(values[index], props.locale) }]
     }
   }
 
@@ -94,7 +95,7 @@ function render(): void {
           const list = params as Array<{ dataIndex: number }>
           if (!list.length) return ''
           const i = list[0].dataIndex
-          return `${labels[i]}<br/><strong>${values[i].toFixed(3)} ${props.currency}/kWh</strong>`
+          return `${labels[i]}<br/><strong>${formatPrice(values[i], props.locale)} ${props.currency}/kWh</strong>`
         },
       },
       visualMap: {

@@ -34,6 +34,16 @@ func New(cfg *settings.Service, st *store.Store) *Provider {
 // Build returns 30-minute load points for [from, to). It also returns warnings
 // when the measured profile is enabled but not ready.
 func (p *Provider) Build(ctx context.Context, from, to time.Time) ([]Point, []string, error) {
+	return p.build(ctx, from, to, nil)
+}
+
+// BuildWithTemperature applies an optional temperature correction using the
+// forecast temperature at each 30-minute block start.
+func (p *Provider) BuildWithTemperature(ctx context.Context, from, to time.Time, temps map[int64]float64) ([]Point, []string, error) {
+	return p.build(ctx, from, to, temps)
+}
+
+func (p *Provider) build(ctx context.Context, from, to time.Time, temps map[int64]float64) ([]Point, []string, error) {
 	values := p.cfg.Get()
 	loc := p.cfg.Location()
 	var warnings []string
@@ -59,6 +69,7 @@ func (p *Provider) Build(ctx context.Context, from, to time.Time) ([]Point, []st
 		return nil, warnings, nil
 	}
 	points := make([]Point, 0, int(end.Sub(start)/(30*time.Minute)))
+	tempWarning := false
 	for ts := start; ts.Before(end); ts = ts.Add(30 * time.Minute) {
 		local := ts.In(loc)
 		hour := local.Hour()
@@ -72,6 +83,24 @@ func (p *Provider) Build(ctx context.Context, from, to time.Time) ([]Point, []st
 				// at 70% so the configured profile still anchors the forecast.
 				weight := math.Min(0.7, float64(count)/20*0.7)
 				loadW = measured[weekday][hour]*weight + configuredW*(1-weight)
+			}
+		}
+		if values.Load.UseTemperatureAdjustment {
+			temp, ok := temps[ts.Unix()]
+			if !ok {
+				if !tempWarning {
+					warnings = append(warnings, "temperature forecast unavailable; load not temperature-adjusted")
+					tempWarning = true
+				}
+			} else {
+				factor := 1 + (values.Load.TemperatureReferenceC-temp)*values.Load.TemperatureSensitivityPct/100
+				if factor < 0.5 {
+					factor = 0.5
+				}
+				if factor > 2 {
+					factor = 2
+				}
+				loadW *= factor
 			}
 		}
 		points = append(points, Point{Start: ts, End: ts.Add(30 * time.Minute), LoadW: round1(loadW)})

@@ -12,6 +12,7 @@ const props = withDefaults(
     now?: string
     compact?: boolean
     prices?: PriceBlock[]
+  fullPrice?: boolean
     editable?: boolean
     selectedIndex?: number
     labels: {
@@ -162,13 +163,14 @@ const priceBars = computed(() => {
     .filter((block) => Date.parse(block.end) > start.getTime() && Date.parse(block.start) < end.getTime())
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
   if (!blocks.length) return []
-  const values = blocks.map((block) => block.import_price)
+  const value = (block: PriceBlock) => (props.fullPrice === false ? block.price_kwh : block.import_price)
+  const values = blocks.map(value)
   const min = Math.min(...values)
   const max = Math.max(...values)
   return blocks.flatMap((block) => {
     const segment = timelineSegment(block.start, block.end, start, end)
     if (!segment) return []
-    const norm = max > min ? (block.import_price - min) / (max - min) : 0.5
+    const norm = max > min ? (value(block) - min) / (max - min) : 0.5
     return [{
       start: block.start,
       left: segment.left * 100,

@@ -29,6 +29,8 @@ type Block struct {
 	End       time.Time
 	PVW       float64
 	PVStrings []float64
+	TempC     float64
+	HasTemp   bool
 }
 
 // Build computes 30-minute PV blocks from hourly Open-Meteo series.
@@ -47,12 +49,18 @@ func Build(series map[string]Hourly, specs []StringSpec, from, to time.Time, acL
 		mid := ts.Add(15 * time.Minute)
 		stringsW := make([]float64, len(specs))
 		total := 0.0
+		airTemp := 0.0
+		hasTemp := false
 		for i, spec := range specs {
 			h, ok := series[spec.Key()]
 			if !ok {
 				continue
 			}
 			gti, temp := interpolate(h, mid)
+			if !hasTemp && len(h.Temp) > 0 {
+				airTemp = temp
+				hasTemp = true
+			}
 			w := StringPower(spec, gti, temp)
 			stringsW[i] = round1(w)
 			total += w
@@ -71,6 +79,8 @@ func Build(series map[string]Hourly, specs []StringSpec, from, to time.Time, acL
 			End:       ts.Add(30 * time.Minute),
 			PVW:       round1(total),
 			PVStrings: stringsW,
+			TempC:     round1(airTemp),
+			HasTemp:   hasTemp,
 		})
 	}
 	return blocks

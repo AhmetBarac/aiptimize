@@ -2,6 +2,7 @@ package settings
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -102,6 +103,38 @@ func validateSite(v *Site) error {
 	}
 	if v.MaxImportPowerW <= 0 || v.MaxImportPowerW > 100000 {
 		return invalid(SectionSite, "max_import_power_w", "must be between 1 and 100000 W")
+	}
+	v.GridOwner = strings.TrimSpace(v.GridOwner)
+	v.FacilityID = strings.TrimSpace(v.FacilityID)
+	v.GridTariffProduct = strings.TrimSpace(v.GridTariffProduct)
+	v.EltariffURL = strings.TrimSpace(v.EltariffURL)
+	if len(v.GridOwner) > 120 || len(v.FacilityID) > 80 || len(v.GridTariffProduct) > 120 {
+		return invalid(SectionSite, "grid_tariff", "grid owner, facility ID or product is too long")
+	}
+	if v.EltariffURL != "" {
+		u, err := url.Parse(v.EltariffURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return invalid(SectionSite, "eltariff_url", "must be an absolute http(s) URL")
+		}
+	}
+	switch v.TariffMode {
+	case "", "manual":
+		v.TariffMode = "manual"
+	case "api":
+	default:
+		return invalid(SectionSite, "tariff_mode", "must be manual or api")
+	}
+	for name, value := range map[string]float64{
+		"transfer_fee_ore_kwh":   v.TransferFeeOre,
+		"energy_tax_ore_kwh":     v.EnergyTaxOre,
+		"variable_cost_ore_kwh":  v.VariableCostOre,
+		"fixed_markup_ore_kwh":   v.FixedMarkupOre,
+		"export_benefit_ore_kwh": v.ExportBenefitOre,
+		"export_extra_ore_kwh":   v.ExportExtraOre,
+	} {
+		if value < 0 || value > 10000 {
+			return invalid(SectionSite, name, "must be between 0 and 10000 öre/kWh")
+		}
 	}
 	return nil
 }
@@ -287,10 +320,30 @@ func validateLoad(v *Load) error {
 	if sum < 0.9 || sum > 1.1 {
 		return invalid(SectionLoad, "profile", "must sum to approximately 1.0 (got %.3f)", sum)
 	}
+	if v.TemperatureReferenceC < -40 || v.TemperatureReferenceC > 50 {
+		return invalid(SectionLoad, "temperature_reference_c", "must be between -40 and 50 °C")
+	}
+	if v.TemperatureSensitivityPct < 0 || v.TemperatureSensitivityPct > 20 {
+		return invalid(SectionLoad, "temperature_sensitivity_pct_c", "must be between 0 and 20 %%/°C")
+	}
 	return nil
 }
 
 func validateEV(v *EV) error {
+	v.Provider = strings.ToLower(strings.TrimSpace(v.Provider))
+	v.ChargerID = strings.TrimSpace(v.ChargerID)
+	v.InstallationID = strings.TrimSpace(v.InstallationID)
+	if v.Provider == "" {
+		v.Provider = "zaptec"
+	}
+	switch v.Provider {
+	case "zaptec", "simulator":
+	default:
+		return invalid(SectionEV, "provider", "must be zaptec or simulator")
+	}
+	if len(v.ChargerID) > 120 || len(v.InstallationID) > 120 {
+		return invalid(SectionEV, "charger_id", "must be at most 120 characters")
+	}
 	if v.Mode != "off" && v.Mode != "now" && v.Mode != "smart" && v.Mode != "pv" && v.Mode != "minpv" {
 		return invalid(SectionEV, "mode", "must be off, now or smart")
 	}

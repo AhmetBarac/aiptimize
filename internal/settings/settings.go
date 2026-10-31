@@ -40,11 +40,23 @@ type Values struct {
 
 // Site is the physical installation description.
 type Site struct {
-	Name            string  `json:"name"`
-	Timezone        string  `json:"timezone"`
-	Latitude        float64 `json:"latitude"`
-	Longitude       float64 `json:"longitude"`
-	MaxImportPowerW float64 `json:"max_import_power_w"`
+	Name              string  `json:"name"`
+	Timezone          string  `json:"timezone"`
+	Latitude          float64 `json:"latitude"`
+	Longitude         float64 `json:"longitude"`
+	MaxImportPowerW   float64 `json:"max_import_power_w"`
+	GridOwner         string  `json:"grid_owner"`
+	FacilityID        string  `json:"facility_id"`
+	GridTariffProduct string  `json:"grid_tariff_product"`
+	EltariffURL       string  `json:"eltariff_url"`
+	TariffMode        string  `json:"tariff_mode"`
+	TransferFeeOre    float64 `json:"transfer_fee_ore_kwh"`
+	EnergyTaxOre      float64 `json:"energy_tax_ore_kwh"`
+	VariableCostOre   float64 `json:"variable_cost_ore_kwh"`
+	FixedMarkupOre    float64 `json:"fixed_markup_ore_kwh"`
+	ExportBenefitOre  float64 `json:"export_benefit_ore_kwh"`
+	ExportExtraOre    float64 `json:"export_extra_ore_kwh"`
+	ShowFullPrice     bool    `json:"show_full_price"`
 }
 
 // SignOverrides calibrates vendor sign conventions during commissioning.
@@ -127,9 +139,12 @@ type Plan struct {
 
 // Load holds the house-load forecast configuration.
 type Load struct {
-	DailyKWh    float64   `json:"daily_kwh"`
-	Profile     []float64 `json:"profile"`
-	UseMeasured bool      `json:"use_measured_profile"`
+	DailyKWh                  float64   `json:"daily_kwh"`
+	Profile                   []float64 `json:"profile"`
+	UseMeasured               bool      `json:"use_measured_profile"`
+	UseTemperatureAdjustment  bool      `json:"use_temperature_adjustment"`
+	TemperatureReferenceC     float64   `json:"temperature_reference_c"`
+	TemperatureSensitivityPct float64   `json:"temperature_sensitivity_pct_c"`
 }
 
 // EVPlanDefaults are the defaults applied to new EV plans.
@@ -140,6 +155,9 @@ type EVPlanDefaults struct {
 
 // EV holds the site-wide EV charging defaults.
 type EV struct {
+	Provider                string         `json:"provider"`
+	ChargerID               string         `json:"charger_id"`
+	InstallationID          string         `json:"installation_id"`
 	Enabled                 bool           `json:"enabled"`
 	Mode                    string         `json:"mode"`
 	DefaultMode             string         `json:"default_mode"`
@@ -194,6 +212,7 @@ func Default() Values {
 			Latitude:        59.3293,
 			Longitude:       18.0686,
 			MaxImportPowerW: 17250,
+			TariffMode:      "manual",
 		},
 		Inverter: Inverter{
 			Type:                "solplanet_ai_dongle",
@@ -243,11 +262,14 @@ func Default() Values {
 			Strategy:             "minimize_cost",
 		},
 		Load: Load{
-			DailyKWh:    12,
-			Profile:     profile,
-			UseMeasured: false,
+			DailyKWh:                  12,
+			Profile:                   profile,
+			UseMeasured:               false,
+			TemperatureReferenceC:     18,
+			TemperatureSensitivityPct: 2,
 		},
 		EV: EV{
+			Provider:                "zaptec",
 			Enabled:                 true,
 			Mode:                    "off",
 			DefaultMode:             "smart",

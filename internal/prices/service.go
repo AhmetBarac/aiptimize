@@ -105,14 +105,16 @@ func (s *Service) DayInfo(ctx context.Context, day time.Time) (DayInfo, error) {
 // Snapshot returns stored points and derived blocks for [from, to).
 func (s *Service) Snapshot(ctx context.Context, from, to time.Time) (Snapshot, error) {
 	loc := s.cfg.Location()
-	p := s.cfg.Get().Price
+	v := s.cfg.Get()
+	p := v.Price
 	from = from.UTC()
 	to = to.UTC()
 	points, err := s.st.PricesBetween(ctx, p.Area, p.Currency, from, to)
 	if err != nil {
 		return Snapshot{}, err
 	}
-	blocks := Aggregate(points, tariffFrom(p), loc)
+	tariff := tariffFrom(v)
+	blocks := Aggregate(points, tariff, loc)
 	stats, err := s.st.PriceStatsFor(ctx, p.Area, p.Currency, from, to)
 	if err != nil {
 		return Snapshot{}, err
@@ -132,7 +134,7 @@ func (s *Service) Snapshot(ctx context.Context, from, to time.Time) (Snapshot, e
 		To:          to,
 		Points:      points,
 		Blocks:      blocks,
-		Tariff:      tariffFrom(p),
+		Tariff:      tariff,
 		Summary:     Summarize(points, blocks, 120, 3),
 		State:       state,
 		Source:      SourceName,
@@ -154,17 +156,25 @@ func (s *Service) Snapshot(ctx context.Context, from, to time.Time) (Snapshot, e
 
 // Tariff returns the configured tariff.
 func (s *Service) Tariff() domain.Tariff {
-	return tariffFrom(s.cfg.Get().Price)
+	return tariffFrom(s.cfg.Get())
 }
 
-func tariffFrom(p settings.Price) domain.Tariff {
-	return domain.Tariff{
+func tariffFrom(v settings.Values) domain.Tariff {
+	p := v.Price
+	t := domain.Tariff{
 		GridFee:   p.GridFee,
 		EnergyTax: p.EnergyTax,
 		Markup:    p.Markup,
 		VAT:       p.VAT,
 		ExportFee: p.ExportFee,
 	}
+	if v.Site.TariffMode == "manual" {
+		t.GridFee += v.Site.TransferFeeOre / 100
+		t.EnergyTax += v.Site.EnergyTaxOre / 100
+		t.Markup += (v.Site.VariableCostOre + v.Site.FixedMarkupOre) / 100
+		t.ExportFee -= (v.Site.ExportBenefitOre + v.Site.ExportExtraOre) / 100
+	}
+	return t
 }
 
 func localMidnight(t time.Time, loc *time.Location) time.Time {

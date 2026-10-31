@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PriceBlock, PriceWindow } from '../api/types'
-import { formatMoney, localDateKey, priceShade, timelineFraction, zonedDayBounds } from '../lib/energy'
+import { formatPrice, localDateKey, priceShade, timelineFraction, zonedDayBounds } from '../lib/energy'
 
 const props = defineProps<{
   blocks: PriceBlock[]
@@ -10,6 +10,7 @@ const props = defineProps<{
   locale: string
   currency: string
   cheapest?: PriceWindow | null
+  fullPrice?: boolean
 }>()
 
 const day = computed(() => localDateKey(props.now, props.timezone))
@@ -25,13 +26,17 @@ const visible = computed(() =>
   }),
 )
 
-const prices = computed(() => visible.value.map((block) => block.import_price))
+function displayPrice(block: PriceBlock): number {
+  return props.fullPrice === false ? block.price_kwh : block.import_price
+}
+
+const prices = computed(() => visible.value.map(displayPrice))
 const lowPrice = computed(() => Math.min(...prices.value))
 const highPrice = computed(() => Math.max(...prices.value))
 
 function color(block: PriceBlock): string {
   const priceSpan = highPrice.value - lowPrice.value
-  const ratio = priceSpan > 0 ? (block.import_price - lowPrice.value) / priceSpan : 0.5
+  const ratio = priceSpan > 0 ? (displayPrice(block) - lowPrice.value) / priceSpan : 0.5
   return priceShade(ratio)
 }
 
@@ -62,8 +67,8 @@ const current = computed(() => {
 })
 
 const summary = computed(() => {
-  const low = prices.value.length ? formatMoney(Math.min(...prices.value), props.locale, 3) : '—'
-  const high = prices.value.length ? formatMoney(Math.max(...prices.value), props.locale, 3) : '—'
+  const low = prices.value.length ? formatPrice(Math.min(...prices.value), props.locale) : '—'
+  const high = prices.value.length ? formatPrice(Math.max(...prices.value), props.locale) : '—'
   return `24 h ${props.currency}: ${low}–${high}`
 })
 
@@ -81,7 +86,7 @@ const hourTicks = ['00', '06', '12', '18', '24']
         :style="{ left: `${left(block.start)}%`, width: `${width(block)}%`, background: color(block) }"
         aria-hidden="true"
       ></span>
-      <span v-if="current" class="visually-hidden">Now {{ formatMoney(current.import_price, locale, 3) }} {{ currency }}/kWh</span>
+      <span v-if="current" class="visually-hidden">Now {{ formatPrice(displayPrice(current), locale) }} {{ currency }}/kWh</span>
     </div>
     <span class="price-strip-now" :style="{ left: `${Math.max(0, Math.min(100, timelineFraction(now, start, end) * 100))}%` }" aria-hidden="true"></span>
     <div class="price-strip-hours" aria-hidden="true">

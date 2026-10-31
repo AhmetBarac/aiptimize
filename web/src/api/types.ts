@@ -21,6 +21,12 @@ export interface Meta {
     name: string
     currency: string
     area: string
+    show_full_price: boolean
+  }
+  ev?: {
+    provider: string
+    active_provider: string
+    restart_required: boolean
   }
 }
 
@@ -140,6 +146,9 @@ export interface LoadSettings {
   daily_kwh: number
   profile: number[]
   use_measured_profile: boolean
+  use_temperature_adjustment: boolean
+  temperature_reference_c: number
+  temperature_sensitivity_pct_c: number
 }
 
 export interface PlanSettings {
@@ -370,6 +379,9 @@ export interface ChargerCapabilities {
 }
 
 export interface EVSettings {
+  provider: string
+  charger_id: string
+  installation_id: string
   enabled: boolean
   mode: string
   default_mode: string
@@ -388,6 +400,19 @@ export interface EVSettings {
   battery_boost: boolean
   battery_boost_limit_soc: number
   plan_defaults: { strategy: string; precondition_min: number }
+}
+
+export interface EVConfig {
+  provider: string
+  charger_id: string
+  installation_id: string
+  active_provider: string
+  restart_required: boolean
+  credentials: {
+    zaptec: boolean
+    easee: boolean
+    ocpp_token: boolean
+  }
 }
 
 export interface ChargerPayload {
@@ -538,6 +563,18 @@ export interface SiteSettings {
   latitude: number
   longitude: number
   max_import_power_w: number
+  grid_owner: string
+  facility_id: string
+  grid_tariff_product: string
+  eltariff_url: string
+  tariff_mode: string
+  transfer_fee_ore_kwh: number
+  energy_tax_ore_kwh: number
+  variable_cost_ore_kwh: number
+  fixed_markup_ore_kwh: number
+  export_benefit_ore_kwh: number
+  export_extra_ore_kwh: number
+  show_full_price: boolean
 }
 
 export interface SafetySettings {

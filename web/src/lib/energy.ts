@@ -60,13 +60,28 @@ export function formatKwh(value: number | null | undefined, locale: string, digi
   }).format(numeric)
 }
 
-export function formatMoney(value: number | null | undefined, locale: string, digits = 2): string {
+export const PRICE_DECIMALS = 2
+
+export function roundPrice(value: number): number {
+  const factor = 10 ** PRICE_DECIMALS
+  return Math.round(value * factor) / factor
+}
+
+export function formatMoney(
+  value: number | null | undefined,
+  locale: string,
+  digits = PRICE_DECIMALS,
+): string {
   const numeric = finite(value)
   if (numeric === null) return '—'
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(numeric)
+}
+
+export function formatPrice(value: number | null | undefined, locale: string): string {
+  return formatMoney(value, locale, PRICE_DECIMALS)
 }
 
 export function formatPercent(value: number | null | undefined, locale: string, digits = 0): string {

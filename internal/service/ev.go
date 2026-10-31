@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -39,6 +40,10 @@ type EVService struct {
 	mu         sync.Mutex
 	latest     *domain.EVPlanPreview
 	lastSet    time.Time
+
+	provider        string
+	restartRequired bool
+	reconfiguring   bool
 }
 
 // NewEVService builds the EV service. The simulator is used when configured;
@@ -69,8 +74,23 @@ func NewEVServiceWithCharger(cfg *settings.Service, st *store.Store, priceSvc *p
 	if log == nil {
 		log = slog.Default()
 	}
+	provider := ""
+	if charger != nil {
+		provider = providerForType(charger.Type())
+	}
 	return &EVService{cfg: cfg, st: st, prices: priceSvc, forecast: forecast,
-		charger: charger, log: log, now: now, controlEnv: controlEnv}
+		charger: charger, log: log, now: now, controlEnv: controlEnv, provider: provider}
+}
+
+func providerForType(typ string) string {
+	switch typ {
+	case "zaptec_cloud":
+		return "zaptec"
+	case "simulator":
+		return "simulator"
+	default:
+		return typ
+	}
 }
 
 // Charger returns the adapter (nil when no adapter is configured).
@@ -82,6 +102,136 @@ func (s *EVService) ID() string {
 		return "ev-1"
 	}
 	return s.charger.ID()
+}
+
+// ActiveProvider returns the provider of the running adapter.
+func (s *EVService) ActiveProvider() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.provider
+}
+
+// ConfiguredProvider returns the provider persisted in settings.
+func (s *EVService) ConfiguredProvider() string {
+	provider := strings.ToLower(strings.TrimSpace(s.cfg.Get().EV.Provider))
+	if provider == "" {
+		return "zaptec"
+	}
+	return provider
+}
+
+// RestartRequired reports whether a provider change is waiting for the process
+// to restart.
+func (s *EVService) RestartRequired() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.restartRequired
+}
+
+// MarkRestartRequired records that the running adapter no longer matches the
+// persisted provider configuration.
+func (s *EVService) MarkRestartRequired() {
+	s.mu.Lock()
+	s.restartRequired = true
+	s.mu.Unlock()
+}
+
+// StopForReconfigure stops the active charging session before a provider
+// change. It leaves the charger in a safe stopped state.
+func (s *EVService) StopForReconfigure(ctx context.Context) error {
+	s.mu.Lock()
+	if s.reconfiguring {
+		s.mu.Unlock()
+		return fmt.Errorf("EV reconfiguration is already in progress")
+	}
+	s.reconfiguring = true
+	s.mu.Unlock()
+
+	fail := func(err error) error {
+		s.mu.Lock()
+		s.reconfiguring = false
+		s.mu.Unlock()
+		return err
+	}
+	if s.charger == nil {
+		s.mu.Lock()
+		s.reconfiguring = false
+		s.mu.Unlock()
+		return nil
+	}
+	status, err := s.charger.Status(ctx)
+	if err != nil {
+		return fail(fmt.Errorf("read charger status: %w", err))
+	}
+	if !status.Charging {
+		s.mu.Lock()
+		s.reconfiguring = false
+		s.mu.Unlock()
+		return nil
+	}
+	stopper, ok := s.charger.(ev.SessionStopper)
+	if !ok {
+		return fail(fmt.Errorf("charger cannot explicitly stop an active session"))
+	}
+	if err := stopper.StopSession(ctx); err != nil {
+		return fail(fmt.Errorf("stop active EV session: %w", err))
+	}
+	deadline := s.now().Add(20 * time.Second)
+	for {
+		current, err := s.charger.Status(ctx)
+		if err == nil && !current.Charging {
+			_ = s.st.RecordEVCommand(ctx, s.ID(), "stop_session", "{}", "ok", "")
+			return nil
+		}
+		if s.now().After(deadline) {
+			return fail(fmt.Errorf("EV session did not stop within 20 seconds"))
+		}
+		select {
+		case <-ctx.Done():
+			return fail(ctx.Err())
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+// ApplyProviderConfig stops any active session, persists the selected adapter
+// configuration and marks a restart as required.
+func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID string) (settings.EV, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	chargerID = strings.TrimSpace(chargerID)
+	installationID = strings.TrimSpace(installationID)
+	switch provider {
+	case "zaptec", "simulator":
+	default:
+		return settings.EV{}, fmt.Errorf("provider must be zaptec or simulator")
+	}
+	patch, err := json.Marshal(map[string]string{
+		"provider":        provider,
+		"charger_id":      chargerID,
+		"installation_id": installationID,
+	})
+	if err != nil {
+		return settings.EV{}, err
+	}
+	// Validate the new values before stopping the current session.
+	validated := s.cfg.Get().EV
+	if err := json.Unmarshal(patch, &validated); err != nil {
+		return settings.EV{}, err
+	}
+	if err := settings.ValidateSection(settings.SectionEV, &validated); err != nil {
+		return settings.EV{}, err
+	}
+	if err := s.StopForReconfigure(ctx); err != nil {
+		return settings.EV{}, err
+	}
+	if _, err := s.cfg.Patch(ctx, settings.SectionEV, patch); err != nil {
+		s.mu.Lock()
+		s.reconfiguring = false
+		s.mu.Unlock()
+		return settings.EV{}, err
+	}
+	s.MarkRestartRequired()
+	return s.cfg.Get().EV, nil
 }
 
 // Status returns the live charger state with the configured mode.
@@ -493,6 +643,12 @@ func mustDeadline(s *EVService, plan domain.EVPlan) time.Time {
 
 func (s *EVService) tick(ctx context.Context) {
 	if s.charger == nil {
+		return
+	}
+	s.mu.Lock()
+	reconfiguring := s.reconfiguring
+	s.mu.Unlock()
+	if reconfiguring {
 		return
 	}
 	cfg := s.cfg.Get()

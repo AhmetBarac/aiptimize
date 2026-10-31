@@ -5,6 +5,7 @@ import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, MarkAreaComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { Plan } from '../api/types'
+import { formatPrice, roundPrice } from '../lib/energy'
 
 echarts.use([BarChart, LineChart, GridComponent, LegendComponent, MarkAreaComponent, TooltipComponent, CanvasRenderer])
 
@@ -59,7 +60,7 @@ function render(): void {
   if (!chart || (props.plan.curve?.length ?? 0) === 0) return
   const curve = props.plan.curve ?? []
   const labels = curve.map((p) => timeLabel(p.start))
-  const price = curve.map((p) => Math.round(p.price_import * 1000) / 1000)
+  const price = curve.map((p) => roundPrice(p.price_import))
   const pv = curve.map((p) => Math.round((p.pv_w / 1000) * 100) / 100)
   const load = curve.map((p) => Math.round((p.load_w / 1000) * 100) / 100)
   const battery = curve.map((p) => Math.round((p.battery_w / 1000) * 100) / 100)
@@ -110,7 +111,7 @@ function render(): void {
           const i = list[0].dataIndex
           return [
             labels[i],
-            `${props.labels.price}: ${price[i].toFixed(3)}`,
+            `${props.labels.price}: ${formatPrice(price[i], props.locale)}`,
             `${props.labels.pv}: ${pv[i].toFixed(2)} kW`,
             `${props.labels.load}: ${load[i].toFixed(2)} kW`,
             `${props.labels.battery}: ${battery[i].toFixed(2)} kW`,
