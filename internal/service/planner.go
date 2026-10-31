@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
@@ -33,16 +34,21 @@ type EVLoadProvider interface {
 
 // PlannerService builds and stores the automatic battery suggestion.
 type PlannerService struct {
-	st        *store.Store
-	cfg       *settings.Service
-	prices    *prices.Service
-	forecast  *ForecastService
-	telemetry *TelemetryPoller
-	ev        EVLoadProvider
-	log       *slog.Logger
-	now       func() time.Time
-	publish   func(string, any)
-	writesEnv bool
+	st         *store.Store
+	cfg        *settings.Service
+	prices     *prices.Service
+	forecast   *ForecastService
+	telemetry  *TelemetryPoller
+	ev         EVLoadProvider
+	log        *slog.Logger
+	now        func() time.Time
+	publish    func(string, any)
+	writesEnv  bool
+	peakMu     sync.Mutex
+	peakHour   string
+	peakW      float64
+	peakDay    string
+	suppressed map[string]bool
 }
 
 // SetWriteGate records the environment half of the inverter write gate for
@@ -170,6 +176,10 @@ func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []str
 	}
 	chargeW = math.Round(chargeW)
 	dischargeW = math.Round(dischargeW)
+	allowExport := false
+	if planCfg.Strategy == "maximize_profit" {
+		allowExport = true
+	}
 	maxSlotBlocks := planCfg.MaxSlotMin / 30
 	if maxSlotBlocks < 1 {
 		maxSlotBlocks = 1
@@ -192,8 +202,11 @@ func (s *PlannerService) BuildInputs(ctx context.Context) (planner.Inputs, []str
 		MaxSlotsPerDay: planCfg.MaxSlotsPerDay, MaxSlotBlocks: maxSlotBlocks,
 		PreserveSOC: planCfg.PreserveSOC, EndSOCTarget: planCfg.EndSOCTarget,
 		MinDailySaving: planCfg.MinDailySaving, PVConfidence: values.PV.Confidence,
-		AllowDischargeToGrid: planCfg.AllowDischargeToGrid,
-		Currency:             values.Price.Currency, EVWindows: evWindows, Blocks: blocks,
+		AllowDischargeToGrid: allowExport,
+		Strategy:             planCfg.Strategy, MinPriceDifference: planCfg.MinPriceDifference,
+		MaxPurchasePrice:   planCfg.MaxPurchasePrice,
+		PeakShavingEnabled: planCfg.PeakShavingEnabled, PeakShavingLimitW: planCfg.PeakShavingLimitW,
+		Currency: values.Price.Currency, EVWindows: evWindows, Blocks: blocks,
 	}, warnings, nil
 }
 

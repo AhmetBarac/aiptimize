@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { api, ApiError } from '../api/client'
-import type { PriceSnapshot, PriceWindow } from '../api/types'
+import type { PricePoint, PriceSnapshot, PriceWindow } from '../api/types'
 import PageHead from '../components/PageHead.vue'
 import PriceChart from '../components/PriceChart.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
@@ -15,6 +15,7 @@ const error = ref('')
 const message = ref('')
 const refreshing = ref(false)
 const activeDay = ref('')
+const resolution = ref<'15' | '60'>('15')
 const nowIso = ref(new Date().toISOString())
 
 const tz = computed(() => snapshot.value?.timezone ?? 'UTC')
@@ -53,6 +54,38 @@ const blocks = computed(() =>
 const points = computed(() =>
   (snapshot.value?.points ?? []).filter((p) => dayKey(p.delivery_start) === activeDay.value),
 )
+const chartPoints = computed<PricePoint[]>(() => {
+  if (resolution.value === '15' || points.value.length < 2) return points.value
+  const hourly = new Map<string, PricePoint[]>()
+  for (const point of points.value) {
+    const hour = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz.value,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(point.delivery_start))
+    const list = hourly.get(hour) ?? []
+    list.push(point)
+    hourly.set(hour, list)
+  }
+  return [...hourly.values()].map((list) => {
+    const first = list[0]
+    const last = list[list.length - 1]
+    return {
+      delivery_start: first.delivery_start,
+      delivery_end: last.delivery_end,
+      price_mwh: list.reduce((sum, item) => sum + item.price_mwh, 0) / list.length,
+      price_kwh: list.reduce((sum, item) => sum + item.price_kwh, 0) / list.length,
+      state: list.some((item) => item.state === 'Preliminary') ? 'Preliminary' : first.state,
+    }
+  })
+})
+const resolutionOptions = computed(() => [
+  { value: '15', label: t('prices.resolution15') },
+  { value: '60', label: t('prices.resolution60') },
+])
 
 const stats = computed(() => {
   const valid = blocks.value.filter((b) => !b.missing)
@@ -128,13 +161,35 @@ const currentBlock = computed(() => {
   const at = Date.parse(nowIso.value)
   return blocks.value.find((block) => Date.parse(block.start) <= at && Date.parse(block.end) > at) ?? null
 })
+const gauge = computed(() => {
+  const value = currentBlock.value?.import_price ?? stats.value?.avg ?? 0
+  const min = stats.value?.min ?? value
+  const max = stats.value?.max ?? value
+  const pct = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0.5
+  const color = pct >= 0.66 ? 'var(--aipt-orange)' : pct >= 0.33 ? '#e6c84b' : 'var(--aipt-green)'
+  return { value, pct, color, start: currentBlock.value?.start, end: currentBlock.value?.end }
+})
 const nextBlock = computed(() => {
   const at = Date.parse(nowIso.value)
   return blocks.value.find((block) => Date.parse(block.start) > at) ?? null
 })
 const cheapestNow = computed(() => cheapestWindows.value[0] ?? null)
+const todayKey = computed(() => dayKey(nowIso.value))
+const tomorrowKey = computed(() => {
+  const d = new Date(nowIso.value)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return dayKey(d.toISOString())
+})
 const dayOptions = computed(() =>
-  groups.value.map((group) => ({ value: group.key, label: dayShort(group.start) })),
+  groups.value.map((group) => ({
+    value: group.key,
+    label:
+      group.key === todayKey.value
+        ? t('prices.today')
+        : group.key === tomorrowKey.value
+          ? t('prices.tomorrow')
+          : dayShort(group.start),
+  })),
 )
 
 function time(iso: string): string {
@@ -239,8 +294,7 @@ onMounted(() => load())
   <div v-if="loading" class="empty-state">{{ t('common.loading') }}</div>
 
   <template v-else-if="snapshot && snapshot.points.length">
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-      <SegmentedControl v-model="activeDay" :options="dayOptions" :group-label="t('prices.title')" size="sm" />
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <span class="badge-soft" :class="stateClass(dayState)">{{ stateLabel(dayState) }}</span>
       <span v-if="snapshot.stale" class="badge-soft badge-warn">{{ t('prices.stale') }}</span>
       <span class="ms-auto small text-muted">
@@ -248,33 +302,46 @@ onMounted(() => load())
       </span>
     </div>
 
-    <div class="price-hero mb-3">
-      <div>
-        <span>{{ t('prices.now') }}</span>
-        <strong class="tabular">{{ currentBlock ? money(currentBlock.import_price, 3) : '—' }}</strong>
-        <small>{{ currency }}/kWh</small>
+    <section class="price-tibber-hero mb-3">
+      <div
+        class="price-gauge"
+        :style="{ '--gauge-pct': `${Math.max(4, Math.round(gauge.pct * 100))}%`, '--gauge-color': gauge.color }"
+      >
+        <div class="price-gauge-inner">
+          <span>{{ t('prices.now') }}</span>
+          <strong class="tabular">{{ money(gauge.value, 3) }}</strong>
+          <small>{{ currency }}/kWh</small>
+          <em v-if="gauge.start && gauge.end">{{ time(gauge.start) }}–{{ time(gauge.end) }}</em>
+        </div>
       </div>
-      <div>
-        <span>{{ t('prices.next') }}</span>
-        <strong class="tabular">{{ nextBlock ? money(nextBlock.import_price, 3) : '—' }}</strong>
-        <small>{{ nextBlock ? time(nextBlock.start) : '' }}</small>
+      <div class="price-hero-side">
+        <div class="price-side-stat">
+          <span>{{ t('prices.next') }}</span>
+          <strong class="tabular">{{ nextBlock ? money(nextBlock.import_price, 3) : '—' }}</strong>
+          <small>{{ nextBlock ? time(nextBlock.start) : '' }}</small>
+        </div>
+        <div class="price-side-stat">
+          <span>{{ t('prices.cheapestShort') }}</span>
+          <strong class="tabular">{{ cheapestNow ? money(cheapestNow.avg_import_price, 3) : '—' }}</strong>
+          <small>{{ cheapestNow ? `${time(cheapestNow.start)}–${time(cheapestNow.end)}` : '' }}</small>
+        </div>
       </div>
-      <div>
-        <span>{{ t('prices.cheapestShort') }}</span>
-        <strong class="tabular">{{ cheapestNow ? money(cheapestNow.avg_import_price, 3) : '—' }}</strong>
-        <small>{{ cheapestNow ? `${time(cheapestNow.start)}–${time(cheapestNow.end)}` : '' }}</small>
-      </div>
-    </div>
+    </section>
 
     <div class="row g-3">
       <div class="col-12 col-xl-8">
         <section class="aipt-card h-100">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h2 class="mb-0">{{ t('prices.chartTitle') }}</h2>
+          <div class="price-chart-toolbar">
+            <SegmentedControl
+              v-model="resolution"
+              :options="resolutionOptions"
+              :group-label="t('prices.chartTitle')"
+              size="sm"
+            />
             <span class="small text-muted">{{ snapshot.area }} · {{ snapshot.currency }}</span>
           </div>
           <PriceChart
-            :points="points"
+            :points="chartPoints"
             :currency="snapshot.currency"
             :timezone="snapshot.timezone"
             :locale="locale"
@@ -312,6 +379,11 @@ onMounted(() => load())
           <p v-else class="empty-state mb-0">{{ t('prices.min') }} —</p>
         </section>
       </div>
+    </div>
+
+    <div class="price-day-tabs mt-3">
+      <SegmentedControl v-model="activeDay" :options="dayOptions" :group-label="t('prices.title')" size="sm" />
+      <span class="badge-soft" :class="stateClass(dayState)">{{ stateLabel(dayState) }}</span>
     </div>
 
     <section class="aipt-card mt-3">

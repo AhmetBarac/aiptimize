@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts/core'
-import { BarChart } from 'echarts/charts'
-import { GridComponent, MarkLineComponent, TooltipComponent } from 'echarts/components'
+import { LineChart } from 'echarts/charts'
+import {
+  GridComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  TooltipComponent,
+  VisualMapComponent,
+} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { PricePoint } from '../api/types'
 
-echarts.use([BarChart, GridComponent, TooltipComponent, MarkLineComponent, CanvasRenderer])
+echarts.use([
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  VisualMapComponent,
+  CanvasRenderer,
+])
 
 const props = defineProps<{
   points: PricePoint[]
@@ -43,16 +57,12 @@ function render(): void {
   const text = css('--aipt-muted', '#5b6b82')
   const border = css('--aipt-border', '#e2e8f2')
   const surface = css('--aipt-surface', '#ffffff')
-  const blue = css('--aipt-blue', '#2563eb')
   const green = css('--aipt-green', '#16a34a')
   const orange = css('--aipt-orange', '#ea7a1c')
 
-  const data = values.map((v) => ({
-    value: v,
-    itemStyle: { color: v < 0 ? green : blue, borderRadius: [3, 3, 0, 0] },
-  }))
-
+  const data = values
   let markLineData: Array<{ xAxis: string }> = []
+  let markPointData: Array<{ coord: [number, number]; value: string }> = []
   if (props.now) {
     const nowMs = Date.parse(props.now)
     let index = 0
@@ -66,6 +76,7 @@ function render(): void {
     })
     if (best < 60 * 60 * 1000) {
       markLineData = [{ xAxis: labels[index] }]
+      markPointData = [{ coord: [index, values[index]], value: values[index].toFixed(3) }]
     }
   }
 
@@ -75,7 +86,7 @@ function render(): void {
       grid: { left: 4, right: 12, top: 28, bottom: 4, containLabel: true },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'shadow' },
+        axisPointer: { type: 'line', lineStyle: { color: border, type: 'dashed' } },
         backgroundColor: surface,
         borderColor: border,
         textStyle: { color: text, fontSize: 12 },
@@ -86,9 +97,18 @@ function render(): void {
           return `${labels[i]}<br/><strong>${values[i].toFixed(3)} ${props.currency}/kWh</strong>`
         },
       },
+      visualMap: {
+        show: false,
+        dimension: 1,
+        min: Math.min(...values),
+        max: Math.max(...values),
+        inRange: { color: [green, '#e6c84b', orange] },
+        seriesIndex: 0,
+      },
       xAxis: {
         type: 'category',
         data: labels,
+        boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: border } },
         axisLabel: { color: text, fontSize: 10, interval: 'auto', hideOverlap: true },
@@ -102,10 +122,13 @@ function render(): void {
       },
       series: [
         {
-          type: 'bar',
+          type: 'line',
           name: props.currency,
           data,
-          barCategoryGap: '12%',
+          smooth: 0.35,
+          symbol: 'none',
+          lineStyle: { width: 2.2 },
+          areaStyle: { opacity: 0.16 },
           markLine: markLineData.length
             ? {
                 symbol: 'none',
@@ -113,6 +136,15 @@ function render(): void {
                 label: { formatter: props.labelNow, color: text, fontSize: 10 },
                 lineStyle: { color: orange, type: 'dashed', width: 1 },
                 data: markLineData,
+              }
+            : undefined,
+          markPoint: markPointData.length
+            ? {
+                symbol: 'circle',
+                symbolSize: 9,
+                itemStyle: { color: orange, borderColor: surface, borderWidth: 2 },
+                label: { show: false },
+                data: markPointData,
               }
             : undefined,
         },

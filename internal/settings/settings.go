@@ -118,6 +118,11 @@ type Plan struct {
 	ChargeW              float64 `json:"charge_w"`
 	DischargeW           float64 `json:"discharge_w"`
 	AllowDischargeToGrid bool    `json:"allow_discharge_to_grid"`
+	Strategy             string  `json:"strategy"`
+	MinPriceDifference   float64 `json:"min_price_difference"`
+	MaxPurchasePrice     float64 `json:"max_purchase_price"`
+	PeakShavingEnabled   bool    `json:"peak_shaving_enabled"`
+	PeakShavingLimitW    float64 `json:"peak_shaving_limit_w"`
 }
 
 // Load holds the house-load forecast configuration.
@@ -228,13 +233,14 @@ func Default() Values {
 			MaxSlotsPerDay:       4,
 			MaxSlotMin:           240,
 			HorizonDays:          2,
-			MinDailySaving:       1.0,
+			MinDailySaving:       0,
 			PreserveSOC:          true,
 			EndSOCTarget:         50,
 			SOCStepPct:           0.5,
 			ChargeW:              6000,
 			DischargeW:           3000,
 			AllowDischargeToGrid: true,
+			Strategy:             "minimize_cost",
 		},
 		Load: Load{
 			DailyKWh:    12,

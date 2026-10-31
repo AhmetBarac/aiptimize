@@ -153,6 +153,11 @@ export interface PlanSettings {
   charge_w: number
   discharge_w: number
   allow_discharge_to_grid: boolean
+  strategy: string
+  min_price_difference: number
+  max_purchase_price: number
+  peak_shaving_enabled: boolean
+  peak_shaving_limit_w: number
 }
 
 export interface PlanSummary {

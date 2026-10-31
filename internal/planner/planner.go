@@ -36,6 +36,11 @@ type Inputs struct {
 	MinDailySaving       float64   `json:"min_daily_saving"`
 	PVConfidence         float64   `json:"pv_confidence"`
 	AllowDischargeToGrid bool      `json:"allow_discharge_to_grid"`
+	Strategy             string    `json:"strategy"`
+	MinPriceDifference   float64   `json:"min_price_difference"`
+	MaxPurchasePrice     float64   `json:"max_purchase_price"`
+	PeakShavingEnabled   bool      `json:"peak_shaving_enabled"`
+	PeakShavingLimitW    float64   `json:"peak_shaving_limit_w"`
 	Currency             string    `json:"currency"`
 	EVWindows            []bool    `json:"ev_windows,omitempty"`
 	Blocks               []Block   `json:"blocks"`
@@ -90,9 +95,11 @@ type optimizer struct {
 	pv    []float64
 	day   []int
 	// memo indexed [i][soc][used]
-	cost   []float64
-	choice []action
-	seen   []bool
+	cost          []float64
+	choice        []action
+	seen          []bool
+	charge        []bool
+	terminalPrice float64
 }
 
 // Optimize computes the minimum-cost schedule.
@@ -115,7 +122,18 @@ func Optimize(in Inputs) (Result, error) {
 		return Result{}, ErrInfeasible
 	}
 	result := o.reconstruct(startIdx)
-	if result.Summary.Savings < in.MinDailySaving {
+	if in.Strategy == "minimize_cost" {
+		chargeOnly := result.Slots[:0]
+		for _, slot := range result.Slots {
+			if slot.Direction == domain.DirectionCharge {
+				chargeOnly = append(chargeOnly, slot)
+			}
+		}
+		result.Slots = chargeOnly
+		result.Summary.SlotCount = len(chargeOnly)
+		result = creditStoredEnergy(in, result)
+	}
+	if result.Summary.Savings < in.MinDailySaving && in.Strategy != "minimize_cost" {
 		return emptyPlan(in), nil
 	}
 	return result, nil
@@ -139,10 +157,40 @@ func newOptimizer(in Inputs) *optimizer {
 	o.cost = make([]float64, (o.n+1)*o.steps*o.used)
 	o.choice = make([]action, len(o.cost))
 	o.seen = make([]bool, len(o.cost))
+	o.charge = make([]bool, o.n)
 	for i := range o.cost {
 		o.cost[i] = math.Inf(1)
 	}
+	for i, b := range in.Blocks {
+		o.charge[i] = o.canCharge(i, b)
+		if in.Strategy == "minimize_cost" && b.ImportPrice > o.terminalPrice {
+			o.terminalPrice = b.ImportPrice
+		}
+	}
 	return o
+}
+
+func (o *optimizer) canCharge(i int, b Block) bool {
+	if o.in.Strategy == "" {
+		return true
+	}
+	if o.in.MaxPurchasePrice >= 0 && b.ImportPrice > o.in.MaxPurchasePrice+1e-9 {
+		return false
+	}
+	if o.in.MinPriceDifference <= 0 {
+		return true
+	}
+	price := b.ImportPrice
+	for j := i + 1; j < len(o.in.Blocks); j++ {
+		future := o.in.Blocks[j].ImportPrice
+		if o.in.Strategy == "maximize_profit" {
+			future = o.in.Blocks[j].ExportPrice
+		}
+		if future >= price+o.in.MinPriceDifference-1e-9 {
+			return true
+		}
+	}
+	return false
 }
 
 func validate(in Inputs) error {
@@ -196,6 +244,10 @@ func (o *optimizer) solve(i, soc, used int) (float64, error) {
 				return math.Inf(1), nil
 			}
 		}
+		if o.in.Strategy == "minimize_cost" {
+			stored := math.Max(0, o.socValue(soc)-o.in.StartSOC)
+			return -stored / 100 * o.in.CapacityKWh * o.terminalPrice, nil
+		}
 		return 0, nil
 	}
 	if i > 0 && o.day[i] != o.day[i-1] {
@@ -218,40 +270,44 @@ func (o *optimizer) solve(i, soc, used int) (float64, error) {
 
 	if used < o.in.MaxSlotsPerDay {
 		maxD := o.maxDuration(i)
-		power := math.Min(o.in.ChargeW, o.in.MaxChargeW)
-		for d := 1; d <= maxD; d++ {
-			if clamp := o.chargePower(i, d, power); clamp < power {
-				power = clamp
-			}
-			if power < 1 {
-				break
-			}
-			value, newSOC, ok := o.simulate(i, d, soc, power)
-			if !ok {
-				continue
-			}
-			value += 1e-6 + o.mustSolve(i+d, newSOC, used+1)
-			if value < best-1e-12 {
-				best = value
-				bestAction = action{kind: 1, dur: int8(d)}
+		if o.charge[i] {
+			power := math.Min(o.in.ChargeW, o.in.MaxChargeW)
+			for d := 1; d <= maxD; d++ {
+				if clamp := o.chargePower(i, d, power); clamp < power {
+					power = clamp
+				}
+				if power < 1 {
+					break
+				}
+				value, newSOC, ok := o.simulate(i, d, soc, power)
+				if !ok {
+					continue
+				}
+				value += 1e-6 + o.mustSolve(i+d, newSOC, used+1)
+				if value < best-1e-12 {
+					best = value
+					bestAction = action{kind: 1, dur: int8(d)}
+				}
 			}
 		}
-		power = math.Min(o.in.DischargeW, o.in.MaxDischargeW)
-		for d := 1; d <= maxD; d++ {
-			if clamp := o.dischargePower(i, d, power); clamp < power {
-				power = clamp
-			}
-			if power < 1 {
-				break
-			}
-			value, newSOC, ok := o.simulate(i, d, soc, -power)
-			if !ok {
-				continue
-			}
-			value += 1e-6 + o.mustSolve(i+d, newSOC, used+1)
-			if value < best-1e-12 {
-				best = value
-				bestAction = action{kind: 2, dur: int8(d)}
+		if o.in.Strategy != "minimize_cost" {
+			power := math.Min(o.in.DischargeW, o.in.MaxDischargeW)
+			for d := 1; d <= maxD; d++ {
+				if clamp := o.dischargePower(i, d, power); clamp < power {
+					power = clamp
+				}
+				if power < 1 {
+					break
+				}
+				value, newSOC, ok := o.simulate(i, d, soc, -power)
+				if !ok {
+					continue
+				}
+				value += 1e-6 + o.mustSolve(i+d, newSOC, used+1)
+				if value < best-1e-12 {
+					best = value
+					bestAction = action{kind: 2, dur: int8(d)}
+				}
 			}
 		}
 	}
@@ -294,6 +350,11 @@ func (o *optimizer) chargePower(i, d int, power float64) float64 {
 			return 0
 		}
 		headroom := o.in.SiteImportW - (b.LoadW + b.EVW - o.pv[j])
+		if o.in.PeakShavingEnabled && o.in.PeakShavingLimitW > 0 {
+			if peak := o.in.PeakShavingLimitW - (b.LoadW + b.EVW - o.pv[j]); peak < headroom {
+				headroom = peak
+			}
+		}
 		if headroom < power {
 			power = headroom
 		}
@@ -514,6 +575,31 @@ func (o *optimizer) baselineBlockCost(i int) float64 {
 		return net * 0.5 / 1000 * b.ImportPrice
 	}
 	return net * 0.5 / 1000 * b.ExportPrice
+}
+
+func creditStoredEnergy(in Inputs, result Result) Result {
+	total := 0.0
+	for i := range result.Slots {
+		slot := &result.Slots[i]
+		sum, count := 0.0, 0
+		for _, block := range in.Blocks {
+			if block.Start.Before(slot.End) {
+				continue
+			}
+			sum += block.ImportPrice
+			count++
+		}
+		future := slot.AvgImportPrice
+		if count > 0 {
+			future = sum / float64(count)
+		}
+		saving := slot.EnergyKWh * in.ChargeEfficiency * (future - slot.AvgImportPrice)
+		slot.ExpectedSaving = round2(saving)
+		total += saving
+	}
+	result.Summary.Savings = round2(total)
+	result.Summary.Cost = round2(result.Summary.BaselineCost - total)
+	return result
 }
 
 func emptyPlan(in Inputs) Result {

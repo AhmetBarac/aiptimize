@@ -248,6 +248,25 @@ func validatePlan(v *Plan) error {
 	if v.DischargeW <= 0 || v.DischargeW > 50000 {
 		return invalid(SectionPlan, "discharge_w", "must be between 1 and 50000 W")
 	}
+	switch v.Strategy {
+	case "", "savings":
+		v.Strategy = "minimize_cost"
+	case "minimize_cost", "maximize_profit":
+	default:
+		return invalid(SectionPlan, "strategy", "must be minimize_cost or maximize_profit")
+	}
+	if v.MinPriceDifference < 0 {
+		return invalid(SectionPlan, "min_price_difference", "must not be negative")
+	}
+	if v.MaxPurchasePrice < 0 {
+		return invalid(SectionPlan, "max_purchase_price", "must not be negative")
+	}
+	if v.PeakShavingLimitW < 0 {
+		return invalid(SectionPlan, "peak_shaving_limit_w", "must not be negative")
+	}
+	if v.PeakShavingEnabled && v.PeakShavingLimitW <= 0 {
+		return invalid(SectionPlan, "peak_shaving_limit_w", "must be positive when peak shaving is enabled")
+	}
 	return nil
 }
 

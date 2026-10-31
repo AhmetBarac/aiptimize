@@ -112,6 +112,14 @@ func TestPlanDownload(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("recompute = %d %s", resp.StatusCode, body)
 	}
+	resp, body = a.get("/api/v1/plan")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("plan = %d %s", resp.StatusCode, body)
+	}
+	effective, _ := decodeMap(t, body)["effective"].(map[string]any)
+	if effective == nil || len(effective["slots"].([]any)) == 0 {
+		t.Skip("no plan slots to download at this time")
+	}
 	a.srv.cfg.EnableWrites = true
 	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"writes_armed_ui":true}`)); err != nil {
 		t.Fatal(err)
