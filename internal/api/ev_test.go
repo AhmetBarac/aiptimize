@@ -79,3 +79,39 @@ func TestEVControlDisarmed(t *testing.T) {
 		t.Fatalf("disarmed mode = %d %s", resp.StatusCode, body)
 	}
 }
+
+func TestEVConfigAndRestartState(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	resp, body := a.get("/api/v1/ev/config")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("config = %d %s", resp.StatusCode, body)
+	}
+	cfg := decodeMap(t, body)
+	if cfg["provider"] != "zaptec" {
+		t.Errorf("provider = %v", cfg["provider"])
+	}
+	if cfg["active_provider"] != "simulator" {
+		t.Errorf("active provider = %v", cfg["active_provider"])
+	}
+
+	resp, body = a.do(http.MethodPut, "/api/v1/ev/config", map[string]any{
+		"provider": "simulator", "charger_id": "sim-ev-1",
+	}, a.csrf())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("apply config = %d %s", resp.StatusCode, body)
+	}
+	cfg = decodeMap(t, body)
+	if cfg["restart_required"] != true {
+		t.Errorf("restart_required = %v", cfg["restart_required"])
+	}
+	ev := a.settings.Get().EV
+	if ev.Provider != "simulator" || ev.ChargerID != "sim-ev-1" {
+		t.Errorf("saved EV = %+v", ev)
+	}
+
+	resp, body = a.post("/api/v1/system/restart", map[string]any{})
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("restart without callback = %d %s", resp.StatusCode, body)
+	}
+}
