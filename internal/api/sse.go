@@ -11,8 +11,9 @@ import (
 // Broker fans SSE events out to connected clients. Slow clients drop events
 // rather than blocking the producers.
 type Broker struct {
-	mu   sync.Mutex
-	subs map[chan []byte]struct{}
+	mu     sync.Mutex
+	subs   map[chan []byte]struct{}
+	closed bool
 }
 
 // NewBroker creates an empty broker.
@@ -24,6 +25,11 @@ func NewBroker() *Broker {
 func (b *Broker) Subscribe() (<-chan []byte, func()) {
 	ch := make(chan []byte, 32)
 	b.mu.Lock()
+	if b.closed {
+		close(ch)
+		b.mu.Unlock()
+		return ch, func() {}
+	}
 	b.subs[ch] = struct{}{}
 	b.mu.Unlock()
 	cancel := func() {
@@ -51,6 +57,20 @@ func (b *Broker) Publish(event string, payload any) {
 		case ch <- []byte(frame):
 		default:
 		}
+	}
+}
+
+// Close ends all active streams so HTTP shutdown is not blocked by SSE.
+func (b *Broker) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return
+	}
+	b.closed = true
+	for ch := range b.subs {
+		delete(b.subs, ch)
+		close(ch)
 	}
 }
 

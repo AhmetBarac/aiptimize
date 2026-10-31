@@ -16,11 +16,13 @@ func (s *Server) evConfigPayload() map[string]any {
 		provider = "zaptec"
 	}
 	out := map[string]any{
-		"provider":        provider,
-		"charger_id":      ev.ChargerID,
-		"installation_id": ev.InstallationID,
+		"provider":            provider,
+		"charger_id":          ev.ChargerID,
+		"installation_id":     ev.InstallationID,
+		"zaptec_username":     ev.ZaptecUsername,
+		"zaptec_password_set": ev.ZaptecPassword != "" || s.cfg.Zaptec.Password != "",
 		"credentials": map[string]bool{
-			"zaptec":     s.cfg.Zaptec.Username != "",
+			"zaptec":     (ev.ZaptecUsername != "" || s.cfg.Zaptec.Username != "") && (ev.ZaptecPassword != "" || s.cfg.Zaptec.Password != ""),
 			"easee":      false,
 			"ocpp_token": false,
 		},
@@ -47,12 +49,14 @@ func (s *Server) handleUpdateEVConfig(w http.ResponseWriter, r *http.Request) {
 		Provider       string `json:"provider"`
 		ChargerID      string `json:"charger_id"`
 		InstallationID string `json:"installation_id"`
+		ZaptecUsername string `json:"zaptec_username"`
+		ZaptecPassword string `json:"zaptec_password"`
 	}
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
-	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID)
+	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID, req.ZaptecUsername, req.ZaptecPassword)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "ev_config_invalid", err.Error(), nil)
 		return
@@ -61,7 +65,8 @@ func (s *Server) handleUpdateEVConfig(w http.ResponseWriter, r *http.Request) {
 	payload["provider"] = cfg.Provider
 	payload["charger_id"] = cfg.ChargerID
 	payload["installation_id"] = cfg.InstallationID
-	payload["restart_required"] = true
+	payload["zaptec_username"] = cfg.ZaptecUsername
+	payload["zaptec_password_set"] = cfg.ZaptecPassword != ""
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -102,10 +107,12 @@ func (s *Server) evPayload(ctx context.Context) (map[string]any, error) {
 		return nil, err
 	}
 	preview, _ := s.ev.LatestPreview()
+	config := s.ev.Config()
+	config.ZaptecPassword = ""
 	return map[string]any{
 		"id": s.ev.ID(), "type": s.ev.Charger().Type(),
 		"capabilities": s.ev.Charger().Capabilities(), "status": status,
-		"config": s.ev.Config(), "preview": preview,
+		"config": config, "preview": preview,
 	}, nil
 }
 

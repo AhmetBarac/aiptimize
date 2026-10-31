@@ -71,6 +71,33 @@ func TestEVChargerAndPlan(t *testing.T) {
 	}
 }
 
+func TestEVZaptecCredentialsStoredAndHidden(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	resp, body := a.do(http.MethodPut, "/api/v1/ev/config", map[string]any{
+		"provider": "zaptec", "charger_id": "ch-1", "installation_id": "inst-1",
+		"zaptec_username": "user@example.com", "zaptec_password": "secret-password",
+	}, a.csrf())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("apply credentials = %d %s", resp.StatusCode, body)
+	}
+	cfg := decodeMap(t, body)
+	creds := cfg["credentials"].(map[string]any)
+	if creds["zaptec"] != true {
+		t.Errorf("zaptec credentials = %v", creds)
+	}
+	if a.settings.Get().EV.ZaptecPassword != "secret-password" {
+		t.Errorf("password was not stored")
+	}
+	resp, body = a.get("/api/v1/settings")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("settings = %d %s", resp.StatusCode, body)
+	}
+	if strings.Contains(string(body), "secret-password") {
+		t.Fatal("settings API exposed the Zaptec password")
+	}
+}
+
 func TestEVControlDisarmed(t *testing.T) {
 	a := newTestAPI(t, nil)
 	a.setup()
@@ -113,5 +140,17 @@ func TestEVConfigAndRestartState(t *testing.T) {
 	resp, body = a.post("/api/v1/system/restart", map[string]any{})
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("restart without callback = %d %s", resp.StatusCode, body)
+	}
+
+	called := make(chan struct{}, 1)
+	a.srv.requestRestart = func() { called <- struct{}{} }
+	resp, body = a.post("/api/v1/system/restart", map[string]any{})
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("restart = %d %s", resp.StatusCode, body)
+	}
+	select {
+	case <-called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("restart callback was not called")
 	}
 }

@@ -158,6 +158,8 @@ type EV struct {
 	Provider                string         `json:"provider"`
 	ChargerID               string         `json:"charger_id"`
 	InstallationID          string         `json:"installation_id"`
+	ZaptecUsername          string         `json:"zaptec_username"`
+	ZaptecPassword          string         `json:"zaptec_password,omitempty"`
 	Enabled                 bool           `json:"enabled"`
 	Mode                    string         `json:"mode"`
 	DefaultMode             string         `json:"default_mode"`

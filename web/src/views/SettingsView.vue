@@ -25,6 +25,11 @@ const saved = ref('')
 const planHelpOpen = ref(false)
 const evConfig = ref<EVConfig | null>(null)
 const evProviderBusy = ref(false)
+const evCredentialsReady = computed(
+  () =>
+    evConfig.value?.credentials.zaptec === true ||
+    (evForm.zaptecUsername.trim() !== '' && evForm.zaptecPassword !== ''),
+)
 const settingInfoOpen = ref(false)
 const settingInfoTitle = ref('')
 const settingInfoText = ref('')
@@ -90,6 +95,8 @@ const settingInfoKeys: Record<string, string> = {
   'ev-provider': 'evProvider',
   'ev-charger-id': 'evChargerID',
   'ev-installation-id': 'evInstallationID',
+  'ev-zaptec-username': 'evZaptecUsername',
+  'ev-zaptec-password': 'evZaptecPassword',
   'ev-min': 'evCurrent',
   'ev-max': 'evCurrent',
   'ev-phases': 'evPhases',
@@ -261,6 +268,8 @@ const evForm = reactive({
   provider: 'zaptec',
   chargerID: '',
   installationID: '',
+  zaptecUsername: '',
+  zaptecPassword: '',
   mode: 'off',
   minCurrent: 6,
   maxCurrent: 16,
@@ -344,6 +353,8 @@ async function load(): Promise<void> {
     evForm.provider = doc.ev.provider || 'zaptec'
     evForm.chargerID = doc.ev.charger_id || ''
     evForm.installationID = doc.ev.installation_id || ''
+    evForm.zaptecUsername = doc.ev.zaptec_username || ''
+    evForm.zaptecPassword = ''
     evForm.minCurrent = doc.ev.min_current_a
     evForm.maxCurrent = doc.ev.max_current_a
     evForm.phases = doc.ev.phases
@@ -622,6 +633,13 @@ async function saveEV(): Promise<void> {
 }
 
 async function applyEVProvider(): Promise<void> {
+  const hasCredentials =
+    evConfig.value?.credentials.zaptec === true ||
+    (evForm.zaptecUsername.trim() !== '' && evForm.zaptecPassword !== '')
+  if (evForm.provider === 'zaptec' && !hasCredentials) {
+    error.value = t('settings.evCredentialsMissing')
+    return
+  }
   if (!window.confirm(t('settings.evProviderRestartConfirm'))) return
   evProviderBusy.value = true
   error.value = ''
@@ -631,9 +649,16 @@ async function applyEVProvider(): Promise<void> {
       provider: evForm.provider,
       charger_id: evForm.chargerID.trim(),
       installation_id: evForm.installationID.trim(),
+      zaptec_username: evForm.zaptecUsername.trim(),
+      zaptec_password: evForm.zaptecPassword,
     })
     saved.value = t('settings.evProviderReady')
-    await api.post('/system/restart', {})
+    if (evConfig.value?.restart_required) {
+      await api.post('/system/restart', {})
+    } else {
+      saved.value = t('settings.evCredentialsSaved')
+      await load()
+    }
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
   } finally {
@@ -1292,15 +1317,50 @@ async function importSettings(event: Event): Promise<void> {
             <label class="form-label" for="ev-installation-id">{{ t('settings.evInstallationID') }}</label>
             <input id="ev-installation-id" v-model="evForm.installationID" class="form-control mono" type="text" />
           </div>
+          <div v-if="evForm.provider === 'zaptec'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-zaptec-username">{{ t('settings.evZaptecUsername') }}</label>
+            <input id="ev-zaptec-username" v-model="evForm.zaptecUsername" class="form-control" type="text" autocomplete="username" />
+          </div>
+          <div v-if="evForm.provider === 'zaptec'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-zaptec-password">{{ t('settings.evZaptecPassword') }}</label>
+            <input
+              id="ev-zaptec-password"
+              v-model="evForm.zaptecPassword"
+              class="form-control"
+              type="password"
+              autocomplete="current-password"
+              :placeholder="evConfig?.zaptec_password_set ? t('settings.evPasswordKeep') : ''"
+            />
+            <div class="form-text">{{ t('settings.evPasswordKeepHint') }}</div>
+          </div>
         </div>
         <div class="small text-muted mt-2">
           <div>{{ t('settings.evActiveProvider', { provider: evConfig?.active_provider || '—' }) }}</div>
           <div>{{ t('settings.evZaptecCredentials') }}: {{ evConfig?.credentials.zaptec ? t('settings.evConfigured') : t('settings.evNotConfigured') }}</div>
         </div>
+        <div
+          v-if="evForm.provider === 'zaptec' && !evCredentialsReady"
+          class="alert alert-warning py-2 small mt-3"
+          role="alert"
+        >
+          {{ t('settings.evCredentialsMissing') }}
+        </div>
+        <div
+          v-else-if="evConfig && !evConfig.active_provider"
+          class="alert alert-warning py-2 small mt-3"
+          role="status"
+        >
+          {{ t('settings.evNoActiveProvider') }}
+        </div>
         <div v-if="evConfig?.restart_required" class="alert alert-warning py-2 small mt-3" role="status">
           {{ t('settings.evRestartRequired') }}
         </div>
-        <button class="btn btn-outline-primary mt-3" type="button" :disabled="evProviderBusy" @click="applyEVProvider">
+        <button
+          class="btn btn-outline-primary mt-3"
+          type="button"
+          :disabled="evProviderBusy || Boolean(evForm.provider === 'zaptec' && !evCredentialsReady)"
+          @click="applyEVProvider"
+        >
           <span v-if="evProviderBusy" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ t('settings.evApplyProvider') }}
         </button>

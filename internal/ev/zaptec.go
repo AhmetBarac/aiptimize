@@ -34,6 +34,7 @@ type Zaptec struct {
 	token       string
 	expires     time.Time
 	lastCurrent time.Time
+	resolvedID  string
 }
 
 // NewZaptec builds the adapter.
@@ -53,8 +54,101 @@ func NewZaptec(cfg ZaptecConfig) *Zaptec {
 	return &Zaptec{cfg: cfg}
 }
 
-func (z *Zaptec) ID() string   { return z.cfg.ChargerID }
+func (z *Zaptec) ID() string {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	if z.resolvedID != "" {
+		return z.resolvedID
+	}
+	return z.cfg.ChargerID
+}
 func (z *Zaptec) Type() string { return "zaptec_cloud" }
+
+// UpdateConfig applies charger credentials and IDs without rebuilding the
+// adapter. The cached OAuth token is invalidated because credentials changed.
+func (z *Zaptec) UpdateConfig(chargerID, installationID, username, password string) {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	z.cfg.ChargerID = chargerID
+	z.cfg.InstallationID = installationID
+	if username != "" {
+		z.cfg.Username = username
+	}
+	if password != "" {
+		z.cfg.Password = password
+	}
+	z.token = ""
+	z.expires = time.Time{}
+	z.lastCurrent = time.Time{}
+	z.resolvedID = ""
+}
+
+type zaptecCharger struct {
+	ID             string `json:"Id"`
+	MID            string `json:"MID"`
+	DeviceID       string `json:"DeviceId"`
+	SerialNo       string `json:"SerialNo"`
+	Name           string `json:"Name"`
+	InstallationID string `json:"InstallationId"`
+	IsOnline       bool   `json:"IsOnline"`
+}
+
+type zaptecChargerList struct {
+	Data []zaptecCharger `json:"Data"`
+}
+
+// resolveChargerID maps a serial/MID/name to the GUID used by the Zaptec API.
+// If the configured value does not match and the installation has exactly one
+// charger, that charger is used.
+func (z *Zaptec) resolveChargerID(ctx context.Context, force bool) (string, error) {
+	z.mu.Lock()
+	if z.resolvedID != "" && !force {
+		id := z.resolvedID
+		z.mu.Unlock()
+		return id, nil
+	}
+	configured := strings.TrimSpace(z.cfg.ChargerID)
+	z.mu.Unlock()
+
+	var list zaptecChargerList
+	if err := z.request(ctx, http.MethodGet, "/api/chargers", nil, &list); err != nil {
+		return "", err
+	}
+	needle := strings.ToLower(configured)
+	var exact *zaptecCharger
+	var installationMatches []zaptecCharger
+	for i := range list.Data {
+		c := &list.Data[i]
+		if needle != "" && (strings.ToLower(c.ID) == needle ||
+			strings.ToLower(c.MID) == needle ||
+			strings.ToLower(c.DeviceID) == needle ||
+			strings.ToLower(c.SerialNo) == needle ||
+			strings.ToLower(c.Name) == needle) {
+			exact = c
+			break
+		}
+		if z.cfg.InstallationID != "" && c.InstallationID == z.cfg.InstallationID {
+			installationMatches = append(installationMatches, *c)
+		}
+	}
+	if exact == nil && len(installationMatches) == 1 {
+		exact = &installationMatches[0]
+	}
+	if exact == nil {
+		if configured == "" {
+			return "", fmt.Errorf("zaptec charger id is missing")
+		}
+		return "", fmt.Errorf("zaptec charger %q was not found", configured)
+	}
+	z.mu.Lock()
+	z.resolvedID = exact.ID
+	z.mu.Unlock()
+	return exact.ID, nil
+}
+
+func (z *Zaptec) chargerID(ctx context.Context) (string, error) {
+	return z.resolveChargerID(ctx, false)
+}
 
 // Capabilities implements Charger.
 func (z *Zaptec) Capabilities() Capabilities {
@@ -159,15 +253,40 @@ func (z *Zaptec) request(ctx context.Context, method, path string, payload any, 
 
 // Status implements Charger.
 func (z *Zaptec) Status(ctx context.Context) (domain.ChargerStatus, error) {
-	var raw map[string]any
-	if err := z.request(ctx, http.MethodGet, "/api/chargers/"+z.cfg.ChargerID+"/state", nil, &raw); err != nil {
+	id, err := z.chargerID(ctx)
+	if err != nil {
 		return domain.ChargerStatus{}, err
 	}
+	var raw json.RawMessage
+	err = z.request(ctx, http.MethodGet, "/api/chargers/"+id+"/state", nil, &raw)
+	if err != nil && strings.Contains(err.Error(), "status 404") {
+		if id, resolveErr := z.resolveChargerID(ctx, true); resolveErr == nil {
+			err = z.request(ctx, http.MethodGet, "/api/chargers/"+id+"/state", nil, &raw)
+		}
+	}
+	if err != nil {
+		return domain.ChargerStatus{}, err
+	}
+	state := map[string]any{}
+	var observations []struct {
+		StateID int             `json:"StateId"`
+		Value   json.RawMessage `json:"ValueAsString"`
+	}
+	if err := json.Unmarshal(raw, &observations); err == nil && len(observations) > 0 {
+		for _, obs := range observations {
+			state[fmt.Sprintf("%d", obs.StateID)] = decodeStateValue(obs.Value)
+		}
+	} else {
+		_ = json.Unmarshal(raw, &state)
+		if nested, ok := state["Observations"].(map[string]any); ok {
+			state = nested
+		}
+	}
 	lookup := func(key string) float64 {
-		if v, ok := raw[key]; ok {
+		if v, ok := state[key]; ok {
 			return number(v)
 		}
-		for _, value := range raw {
+		for _, value := range state {
 			if obj, ok := value.(map[string]any); ok {
 				if v, ok := obj[key]; ok {
 					return number(v)
@@ -180,16 +299,30 @@ func (z *Zaptec) Status(ctx context.Context) (domain.ChargerStatus, error) {
 	power := lookup("513")
 	current := lookup("708")
 	phases := int(lookup("519"))
-	if phases <= 0 {
+	if phases < 1 || phases > 3 {
 		phases = 3
 	}
 	finalStop := lookup("718") == 1
 	return domain.ChargerStatus{
-		ID: z.cfg.ChargerID, Type: "zaptec_cloud", Online: true,
+		ID: z.ID(), Type: "zaptec_cloud", Online: true,
 		Connected: power > 0 || session > 0, Charging: power > 0 && !finalStop,
 		PowerW: power, CurrentA: current, Phases: phases, SessionKWh: session,
 		Paused: finalStop, UpdatedAt: z.cfg.Now().UTC(),
 	}, nil
+}
+
+func decodeStateValue(raw json.RawMessage) any {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		var numberValue float64
+		if _, err := fmt.Sscanf(text, "%f", &numberValue); err == nil {
+			return numberValue
+		}
+		return text
+	}
+	var value any
+	_ = json.Unmarshal(raw, &value)
+	return value
 }
 
 // SetCurrent implements Charger. The installation-wide update is rate-limited.
@@ -215,18 +348,30 @@ func (z *Zaptec) SetCurrent(ctx context.Context, amps float64) error {
 
 // Pause implements Charger.
 func (z *Zaptec) Pause(ctx context.Context) error {
-	return z.request(ctx, http.MethodPost, "/api/chargers/"+z.cfg.ChargerID+"/sendCommand/506", nil, nil)
+	id, err := z.chargerID(ctx)
+	if err != nil {
+		return err
+	}
+	return z.request(ctx, http.MethodPost, "/api/chargers/"+id+"/sendCommand/506", nil, nil)
 }
 
 // Resume implements Charger.
 func (z *Zaptec) Resume(ctx context.Context) error {
-	return z.request(ctx, http.MethodPost, "/api/chargers/"+z.cfg.ChargerID+"/sendCommand/507", nil, nil)
+	id, err := z.chargerID(ctx)
+	if err != nil {
+		return err
+	}
+	return z.request(ctx, http.MethodPost, "/api/chargers/"+id+"/sendCommand/507", nil, nil)
 }
 
 // StopSession implements SessionStopper. Zaptec's stop command ends the active
 // charging session; the current limit is left for the next provider to manage.
 func (z *Zaptec) StopSession(ctx context.Context) error {
-	return z.request(ctx, http.MethodPost, "/api/chargers/"+z.cfg.ChargerID+"/sendCommand/506", nil, nil)
+	id, err := z.chargerID(ctx)
+	if err != nil {
+		return err
+	}
+	return z.request(ctx, http.MethodPost, "/api/chargers/"+id+"/sendCommand/506", nil, nil)
 }
 
 // Close implements Charger.

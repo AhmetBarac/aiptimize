@@ -178,21 +178,25 @@ func runServe() int {
 		if installationID == "" {
 			installationID = cfg.Zaptec.InstallationID
 		}
-		if cfg.Zaptec.Username != "" && chargerID != "" {
-			charger := ev.NewZaptec(ev.ZaptecConfig{
-				BaseURL: cfg.Zaptec.BaseURL, Username: cfg.Zaptec.Username,
-				Password: cfg.Zaptec.Password, InstallationID: installationID,
-				ChargerID: chargerID,
-				UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
-				Now:       time.Now,
-			})
-			evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
-				charger, cfg.EnableEVControl, time.Now)
-			logger.Info("EV adapter selected", "provider", "zaptec", "charger_id", chargerID)
-		} else {
-			logger.Warn("Zaptec adapter not configured",
-				"has_username", cfg.Zaptec.Username != "", "has_charger_id", chargerID != "")
+		username := evSettings.ZaptecUsername
+		if username == "" {
+			username = cfg.Zaptec.Username
 		}
+		password := evSettings.ZaptecPassword
+		if password == "" {
+			password = cfg.Zaptec.Password
+		}
+		charger := ev.NewZaptec(ev.ZaptecConfig{
+			BaseURL: cfg.Zaptec.BaseURL, Username: username,
+			Password: password, InstallationID: installationID,
+			ChargerID: chargerID,
+			UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
+			Now:       time.Now,
+		})
+		evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
+			charger, cfg.EnableEVControl, time.Now)
+		logger.Info("EV adapter selected", "provider", "zaptec", "charger_id", chargerID,
+			"has_credentials", username != "" && password != "")
 	default:
 		logger.Warn("unsupported EV provider", "provider", provider)
 	}
@@ -269,6 +273,7 @@ func runServe() int {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	broker.Close()
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		logger.Warn("graceful shutdown incomplete", "err", err)
 	}

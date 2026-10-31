@@ -161,7 +161,13 @@ func (s *EVService) StopForReconfigure(ctx context.Context) error {
 	}
 	status, err := s.charger.Status(ctx)
 	if err != nil {
-		return fail(fmt.Errorf("read charger status: %w", err))
+		// A newly configured adapter may not authenticate yet. Allow the
+		// credential update to proceed; the control loop stays stopped until
+		// the adapter is refreshed below.
+		s.mu.Lock()
+		s.reconfiguring = false
+		s.mu.Unlock()
+		return nil
 	}
 	if !status.Charging {
 		s.mu.Lock()
@@ -196,20 +202,26 @@ func (s *EVService) StopForReconfigure(ctx context.Context) error {
 
 // ApplyProviderConfig stops any active session, persists the selected adapter
 // configuration and marks a restart as required.
-func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID string) (settings.EV, error) {
+func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID, zaptecUsername, zaptecPassword string) (settings.EV, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	chargerID = strings.TrimSpace(chargerID)
 	installationID = strings.TrimSpace(installationID)
+	zaptecUsername = strings.TrimSpace(zaptecUsername)
 	switch provider {
 	case "zaptec", "simulator":
 	default:
 		return settings.EV{}, fmt.Errorf("provider must be zaptec or simulator")
 	}
-	patch, err := json.Marshal(map[string]string{
+	values := map[string]string{
 		"provider":        provider,
 		"charger_id":      chargerID,
 		"installation_id": installationID,
-	})
+		"zaptec_username": zaptecUsername,
+	}
+	if zaptecPassword != "" {
+		values["zaptec_password"] = zaptecPassword
+	}
+	patch, err := json.Marshal(values)
 	if err != nil {
 		return settings.EV{}, err
 	}
@@ -229,6 +241,18 @@ func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID
 		s.reconfiguring = false
 		s.mu.Unlock()
 		return settings.EV{}, err
+	}
+	if provider == "zaptec" {
+		if z, ok := s.charger.(*ev.Zaptec); ok {
+			updated := s.cfg.Get().EV
+			z.UpdateConfig(chargerID, installationID, updated.ZaptecUsername, updated.ZaptecPassword)
+			s.mu.Lock()
+			s.provider = "zaptec"
+			s.restartRequired = false
+			s.reconfiguring = false
+			s.mu.Unlock()
+			return s.cfg.Get().EV, nil
+		}
 	}
 	s.MarkRestartRequired()
 	return s.cfg.Get().EV, nil

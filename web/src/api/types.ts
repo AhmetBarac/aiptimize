@@ -382,6 +382,8 @@ export interface EVSettings {
   provider: string
   charger_id: string
   installation_id: string
+  zaptec_username: string
+  zaptec_password?: string
   enabled: boolean
   mode: string
   default_mode: string
@@ -406,6 +408,8 @@ export interface EVConfig {
   provider: string
   charger_id: string
   installation_id: string
+  zaptec_username: string
+  zaptec_password_set: boolean
   active_provider: string
   restart_required: boolean
   credentials: {

@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { api } from '../api/client'
-import type { ChargerPayload, ChargerPlanPayload, ChargerStatus, EVPlan, EVPreview } from '../api/types'
+import { api, ApiError } from '../api/client'
+import type { ChargerPayload, ChargerPlanPayload, ChargerStatus, EVConfig, EVPlan, EVPreview } from '../api/types'
 import { session } from '../session'
 import MetricCard from '../components/MetricCard.vue'
 import PageHead from '../components/PageHead.vue'
 
 const { t, locale } = useI18n()
 const charger = ref<ChargerPayload | null>(null)
+const evConfig = ref<EVConfig | null>(null)
 const plans = ref<EVPlan[]>([])
 const preview = ref<EVPreview | null>(null)
 const loading = ref(true)
@@ -25,6 +26,13 @@ let timer: ReturnType<typeof setInterval> | undefined
 const canControl = computed(() => Boolean(session.meta?.gates?.ev_control_armed))
 const evRestartRequired = computed(() => session.meta?.ev?.restart_required === true)
 const evProvider = computed(() => session.meta?.ev?.active_provider || session.meta?.ev?.provider || '')
+const configuredProvider = computed(
+  () => evConfig.value?.provider || session.meta?.ev?.provider || 'zaptec',
+)
+const activeProvider = computed(
+  () => evConfig.value?.active_provider || session.meta?.ev?.active_provider || '',
+)
+const hasZaptecCredentials = computed(() => evConfig.value?.credentials.zaptec === true)
 const status = computed(() => charger.value?.status ?? null)
 const mode = computed(() => status.value?.mode ?? 'off')
 
@@ -38,6 +46,7 @@ function defaultDeadline(): string {
 
 async function load(): Promise<void> {
   try {
+    evConfig.value = await api.get<EVConfig>('/ev/config').catch(() => null)
     const list = await api.get<{ chargers: ChargerPayload[] }>('/chargers')
     charger.value = list.chargers[0] ?? null
     if (charger.value) {
@@ -48,7 +57,12 @@ async function load(): Promise<void> {
     }
     error.value = ''
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
+    if (!hasZaptecCredentials.value || (err instanceof ApiError && err.status === 503)) {
+      charger.value = null
+      error.value = ''
+    } else {
+      error.value = err instanceof Error ? err.message : String(err)
+    }
   } finally {
     loading.value = false
   }
@@ -292,6 +306,20 @@ onBeforeUnmount(() => {
   </template>
 
   <section v-else class="aipt-card">
-    <div class="empty-state">{{ t('car.unavailable') }}</div>
+    <h2>{{ t('car.evSetupTitle') }}</h2>
+    <p class="text-muted small">{{ !hasZaptecCredentials ? t('car.evSetupHint') : t('car.unavailable') }}</p>
+    <div class="key-value">
+      <dt>{{ t('settings.evProvider') }}</dt>
+      <dd>{{ configuredProvider }}</dd>
+    </div>
+    <div class="key-value">
+      <dt>{{ t('car.activeProvider') }}</dt>
+      <dd>{{ activeProvider || t('car.notActive') }}</dd>
+    </div>
+    <div class="key-value">
+      <dt>{{ t('settings.evZaptecCredentials') }}</dt>
+      <dd>{{ hasZaptecCredentials ? t('settings.evConfigured') : t('settings.evNotConfigured') }}</dd>
+    </div>
+    <RouterLink class="btn btn-primary mt-3" to="/settings/ev">{{ t('car.configureEV') }}</RouterLink>
   </section>
 </template>

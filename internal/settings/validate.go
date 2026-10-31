@@ -333,6 +333,7 @@ func validateEV(v *EV) error {
 	v.Provider = strings.ToLower(strings.TrimSpace(v.Provider))
 	v.ChargerID = strings.TrimSpace(v.ChargerID)
 	v.InstallationID = strings.TrimSpace(v.InstallationID)
+	v.ZaptecUsername = strings.TrimSpace(v.ZaptecUsername)
 	if v.Provider == "" {
 		v.Provider = "zaptec"
 	}
@@ -343,6 +344,9 @@ func validateEV(v *EV) error {
 	}
 	if len(v.ChargerID) > 120 || len(v.InstallationID) > 120 {
 		return invalid(SectionEV, "charger_id", "must be at most 120 characters")
+	}
+	if len(v.ZaptecUsername) > 200 || len(v.ZaptecPassword) > 500 {
+		return invalid(SectionEV, "zaptec_credentials", "credentials are too long")
 	}
 	if v.Mode != "off" && v.Mode != "now" && v.Mode != "smart" && v.Mode != "pv" && v.Mode != "minpv" {
 		return invalid(SectionEV, "mode", "must be off, now or smart")

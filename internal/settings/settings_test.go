@@ -123,6 +123,7 @@ func TestPatchRejectsInvalid(t *testing.T) {
 		{"bad profile", SectionLoad, `{"profile":[1,1]}`},
 		{"bad ev current", SectionEV, `{"min_current_a":5}`},
 		{"bad ev mode", SectionEV, `{"mode":"turbo"}`},
+		{"bad ev provider", SectionEV, `{"provider":"ocpp"}`},
 		{"bad watchdog", SectionSafety, `{"watchdog_clear_after_s":10}`},
 		{"null patch", SectionSite, `null`},
 	}

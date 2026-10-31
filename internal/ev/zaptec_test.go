@@ -19,6 +19,13 @@ func TestZaptecAdapter(t *testing.T) {
 		switch r.URL.Path {
 		case "/oauth/token":
 			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "tok", "expires_in": 3600})
+		case "/api/chargers":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"Data": []map[string]any{{
+					"Id": "ch1", "MID": "ch1", "DeviceId": "ch1",
+					"InstallationId": "inst1", "IsOnline": true,
+				}},
+			})
 		case "/api/chargers/ch1/state":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"Observations": map[string]any{"553": 12.5, "513": 4140, "708": 6, "519": 3, "718": 0},

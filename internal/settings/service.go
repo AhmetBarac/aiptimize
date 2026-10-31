@@ -73,7 +73,7 @@ func (s *Service) JSON() (map[string]json.RawMessage, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[name] = raw
+		out[name] = publicSectionJSON(name, raw)
 	}
 	return out, nil
 }
@@ -88,7 +88,11 @@ func (s *Service) Section(name string) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(ptr)
+	raw, err := json.Marshal(ptr)
+	if err != nil {
+		return nil, err
+	}
+	return publicSectionJSON(name, raw), nil
 }
 
 // Patch applies a partial JSON object to one section, validates the merged
@@ -144,7 +148,24 @@ func (s *Service) Patch(ctx context.Context, name string, patch json.RawMessage)
 		return nil, fmt.Errorf("persist settings %q: %w", name, err)
 	}
 	s.values = next
-	return newRaw, nil
+	return publicSectionJSON(name, newRaw), nil
+}
+
+// publicSectionJSON removes write-only secrets from API-facing settings.
+func publicSectionJSON(name string, raw []byte) json.RawMessage {
+	if name != SectionEV {
+		return raw
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return raw
+	}
+	delete(fields, "zaptec_password")
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 // Reset restores one section to its default.
