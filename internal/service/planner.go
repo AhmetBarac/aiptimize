@@ -34,26 +34,29 @@ type EVLoadProvider interface {
 
 // PlannerService builds and stores the automatic battery suggestion.
 type PlannerService struct {
-	st           *store.Store
-	cfg          *settings.Service
-	prices       *prices.Service
-	forecast     *ForecastService
-	telemetry    *TelemetryPoller
-	ev           EVLoadProvider
-	log          *slog.Logger
-	now          func() time.Time
-	publish      func(string, any)
-	writesEnv    bool
-	peakMu       sync.Mutex
-	peakHour     string
-	peakW        float64
-	peakDay      string
-	suppressed   map[string]bool
-	evHoldMu     sync.Mutex
-	evHeld       bool
-	evHoldMode   int
-	evHoldMax    float64
-	evHoldOldMax float64
+	st             *store.Store
+	cfg            *settings.Service
+	prices         *prices.Service
+	forecast       *ForecastService
+	telemetry      *TelemetryPoller
+	ev             EVLoadProvider
+	log            *slog.Logger
+	now            func() time.Time
+	publish        func(string, any)
+	writesEnv      bool
+	peakMu         sync.Mutex
+	peakHour       string
+	peakW          float64
+	peakDay        string
+	suppressed     map[string]bool
+	evHoldMu       sync.Mutex
+	evHeld         bool
+	evHoldMode     int
+	evHoldMax      float64
+	evHoldOldMax   float64
+	evRestoreMode  int
+	evRestoreMax   float64
+	evRestoreUntil time.Time
 }
 
 // SetWriteGate records the environment half of the inverter write gate for
@@ -114,6 +117,44 @@ func (s *PlannerService) setChargeMaxVerified(ctx context.Context, target float6
 	return fmt.Errorf("inverter did not accept charge maximum %.1f", target)
 }
 
+// verifyEVHoldRestore catches an inverter that accepts the restore and then
+// reverts to reserve mode shortly afterwards.
+func (s *PlannerService) verifyEVHoldRestore(ctx context.Context, values settings.Values) {
+	if s.evRestoreUntil.IsZero() || s.now().After(s.evRestoreUntil) {
+		s.evRestoreUntil = time.Time{}
+		return
+	}
+	if !s.writesEnv || !values.Safety.WritesArmedUI {
+		return
+	}
+	mode, maxSOC, err := s.telemetry.BatteryConfig(ctx)
+	if err != nil {
+		return
+	}
+	if mode == 3 {
+		target := s.evRestoreMode
+		if target == 0 || target == 3 {
+			target = 2
+		}
+		if err := s.setWorkModeVerified(ctx, target); err != nil {
+			s.log.Warn("EV battery mode drifted back to reserve", "err", err)
+			return
+		}
+		s.log.Warn("EV battery mode drifted back to reserve; restored", "mode", target)
+		mode = target
+	}
+	if s.evRestoreMax > 0 && maxSOC != s.evRestoreMax {
+		if err := s.setChargeMaxVerified(ctx, s.evRestoreMax); err != nil {
+			s.log.Warn("EV charge maximum restore retry failed", "err", err)
+			return
+		}
+		maxSOC = s.evRestoreMax
+	}
+	if mode != 3 && (s.evRestoreMax == 0 || maxSOC == s.evRestoreMax) {
+		s.evRestoreUntil = time.Time{}
+	}
+}
+
 // SetEVCharging holds the house battery in reserve mode while the EV is
 // charging, unless EV charging from the home battery is explicitly allowed.
 // The charge ceiling is limited to max(current SOC, 50%) and the previous work
@@ -134,6 +175,7 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 	values := s.cfg.Get()
 	if !charging || values.EV.AllowEVBatteryCharging {
 		if !s.evHeld {
+			s.verifyEVHoldRestore(ctx, values)
 			return nil
 		}
 		if !s.writesEnv || !values.Safety.WritesArmedUI {
@@ -162,6 +204,9 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 		if err := s.saveEVHoldState(ctx, evHoldState{}); err != nil {
 			return err
 		}
+		s.evRestoreMode = s.evHoldMode
+		s.evRestoreMax = s.evHoldOldMax
+		s.evRestoreUntil = s.now().Add(15 * time.Minute)
 		s.evHeld = false
 		s.evHoldMode = 0
 		s.evHoldMax = 0
@@ -171,6 +216,7 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 	if !s.writesEnv || !values.Safety.WritesArmedUI {
 		return nil
 	}
+	s.evRestoreUntil = time.Time{}
 	limit := 50.0
 	if sample, _, ok := s.telemetry.Latest(); ok && sample.SOC > limit {
 		limit = math.Min(100, sample.SOC)
