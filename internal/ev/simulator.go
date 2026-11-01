@@ -127,6 +127,9 @@ func (s *Simulator) StopSession(context.Context) error {
 	return nil
 }
 
+// SetWorkMode implements the demo battery work-mode control as a no-op.
+func (s *Simulator) SetWorkMode(context.Context, int) error { return nil }
+
 // Close implements Charger.
 func (s *Simulator) Close() error { return nil }
 

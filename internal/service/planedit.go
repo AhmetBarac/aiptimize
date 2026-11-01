@@ -604,6 +604,48 @@ func (s *PlannerService) ClearSchedule(ctx context.Context) (ApplyResult, error)
 	return s.writeSchedule(ctx, empty, nil, 0, "clear", true)
 }
 
+// ForcedSchedule writes a single immediate charge or discharge window and
+// selects Custom mode.
+func (s *PlannerService) ForcedSchedule(ctx context.Context, direction string, powerW float64, durationMin int) (ApplyResult, error) {
+	if direction != "charge" && direction != "discharge" {
+		return ApplyResult{}, fmt.Errorf("direction must be charge or discharge")
+	}
+	if powerW <= 0 {
+		return ApplyResult{}, fmt.Errorf("power must be positive")
+	}
+	if durationMin < 30 || durationMin > 240 || durationMin%30 != 0 {
+		return ApplyResult{}, fmt.Errorf("duration must be 30-240 minutes in 30-minute steps")
+	}
+	loc := s.cfg.Location()
+	now := s.now().In(loc)
+	start := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, loc)
+	if now.Minute() >= 30 {
+		start = start.Add(30 * time.Minute)
+	}
+	if !start.After(now) {
+		start = start.Add(30 * time.Minute)
+	}
+	end := start.Add(time.Duration(durationMin) * time.Minute)
+	if end.Day() != start.Day() {
+		return ApplyResult{}, fmt.Errorf("the forced window must end before midnight")
+	}
+	schedule := domain.Schedule{Days: map[string][]domain.ScheduleSlot{}, PinW: 0, PoutW: 0}
+	for _, day := range scheduleDayKeys {
+		schedule.Days[day] = []domain.ScheduleSlot{}
+	}
+	if direction == "charge" {
+		schedule.PinW = math.Round(powerW)
+	} else {
+		schedule.PoutW = math.Round(powerW)
+	}
+	key := scheduleDayKey(start)
+	schedule.Days[key] = []domain.ScheduleSlot{{
+		Hour: start.Hour(), Minute: start.Minute(), DurationMin: durationMin,
+		Discharge: direction == "discharge",
+	}}
+	return s.writeSchedule(ctx, schedule, nil, 0, "forced", true)
+}
+
 // TakeControl replaces a foreign schedule with the effective plan.
 func (s *PlannerService) TakeControl(ctx context.Context, day, actor string) (ApplyResult, error) {
 	loc := s.cfg.Location()

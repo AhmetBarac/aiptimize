@@ -308,6 +308,13 @@ export interface Schedule {
   pout_w: number
 }
 
+export interface SchedulePayload {
+  schedule: Schedule
+  matches?: boolean | null
+  diff?: string[]
+  foreign_schedule?: boolean
+}
+
 export interface PlanApplyResult {
   plan: Plan
   schedule: Schedule

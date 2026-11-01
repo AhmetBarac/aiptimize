@@ -41,6 +41,12 @@ export const router = createRouter({
       meta: { titleKey: 'system.title' },
     },
     {
+      path: '/battery',
+      name: 'battery',
+      component: () => import('./views/BatteryView.vue'),
+      meta: { titleKey: 'battery.title' },
+    },
+    {
       path: '/car',
       name: 'car',
       component: () => import('./views/CarView.vue'),

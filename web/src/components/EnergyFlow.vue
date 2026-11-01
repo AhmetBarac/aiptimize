@@ -182,7 +182,7 @@ const carValue = computed(() => value(props.evPowerW))
       </button>
 
       <RouterLink
-        to="/plan"
+        to="/battery"
         class="flow-node flow-battery"
         :aria-label="`${labels.battery}: ${batteryValue.value} ${batteryValue.unit}, ${batteryHint}${soc !== null ? `, ${Math.round(soc)} %` : ''}`"
       >

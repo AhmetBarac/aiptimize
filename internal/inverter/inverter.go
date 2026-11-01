@@ -52,6 +52,11 @@ type ScheduleWriter interface {
 	WriteSchedule(ctx context.Context, schedule domain.Schedule) (domain.Schedule, error)
 }
 
+// WorkModeWriter selects a battery work mode after the arm gate.
+type WorkModeWriter interface {
+	SetWorkMode(ctx context.Context, mode int) error
+}
+
 // Reader is the read-only inverter contract.
 type Reader interface {
 	Identity(ctx context.Context) (Identity, error)

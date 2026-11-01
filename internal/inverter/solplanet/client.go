@@ -369,6 +369,39 @@ func (c *Client) Schedule(ctx context.Context) (domain.Schedule, error) {
 	return schedule, nil
 }
 
+// SetWorkMode selects the inverter battery work mode via setbattery. The
+// caller must enforce the write gate. Supported modes are 1 (off-grid),
+// 2 (self-consumption), 3 (reserve power) and 4 (custom schedule).
+func (c *Client) SetWorkMode(ctx context.Context, mode int) error {
+	batteryType := 1
+	switch mode {
+	case 1:
+		batteryType = 2
+	case 2, 3, 4:
+	default:
+		return fmt.Errorf("solplanet: unsupported battery work mode %d", mode)
+	}
+	if c.serial == "" {
+		if _, err := c.Identity(ctx); err != nil {
+			return err
+		}
+	}
+	payload := map[string]any{
+		"device": 4,
+		"action": "setbattery",
+		"value":  map[string]any{"sn": c.serial, "mod_r": mode, "type": batteryType},
+	}
+	_, err := c.postJSON(ctx, "/setting.cgi", payload)
+	if err == nil {
+		c.mu.Lock()
+		if c.identity != nil {
+			c.identity.WorkMode = mode
+		}
+		c.mu.Unlock()
+	}
+	return err
+}
+
 // WriteSchedule selects Custom mode, writes the full seven-day setdefine value
 // and returns the readback. The caller must enforce the arm gate first.
 func (c *Client) WriteSchedule(ctx context.Context, schedule domain.Schedule) (domain.Schedule, error) {

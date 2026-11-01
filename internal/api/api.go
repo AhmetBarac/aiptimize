@@ -127,6 +127,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/schedule", s.requireAuth(s.handleSchedule))
 	s.mux.HandleFunc("POST /api/v1/schedule/clear", s.requireAuth(s.handleScheduleClear))
 	s.mux.HandleFunc("POST /api/v1/schedule/takeover", s.requireAuth(s.handleScheduleTakeover))
+	s.mux.HandleFunc("POST /api/v1/battery/mode", s.requireAuth(s.handleBatteryMode))
+	s.mux.HandleFunc("POST /api/v1/battery/force", s.requireAuth(s.handleBatteryForce))
 	s.mux.HandleFunc("GET /api/v1/chargers", s.requireAuth(s.handleChargers))
 	s.mux.HandleFunc("GET /api/v1/ev/config", s.requireAuth(s.handleEVConfig))
 	s.mux.HandleFunc("PUT /api/v1/ev/config", s.requireAuth(s.handleUpdateEVConfig))

@@ -84,6 +84,19 @@ func (p *TelemetryPoller) ReadSchedule(ctx context.Context) (domain.Schedule, er
 	return reader.Schedule(ctx)
 }
 
+// SetWorkMode selects a battery work mode when the reader supports writes.
+func (p *TelemetryPoller) SetWorkMode(ctx context.Context, mode int) error {
+	reader, err := p.readerFor(p.cfg.Get())
+	if err != nil {
+		return err
+	}
+	writer, ok := reader.(inverter.WorkModeWriter)
+	if !ok {
+		return errors.New("inverter does not support work-mode writes")
+	}
+	return writer.SetWorkMode(ctx, mode)
+}
+
 // ApplySchedule writes a schedule when the reader supports writes, returning
 // the readback and whether a write was needed. The caller enforces the gates.
 func (p *TelemetryPoller) ApplySchedule(ctx context.Context, desired domain.Schedule) (domain.Schedule, bool, error) {
