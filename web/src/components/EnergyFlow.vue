@@ -90,24 +90,24 @@ function line(key: string, d: string, watts: number | null, color: string, rever
 }
 
 const lines = computed<FlowLine[]>(() => [
-  line('solar', 'M18,21 C30,26 34,38 43,47', solarW.value, 'var(--aipt-solar-warm)'),
+  line('solar', 'M18,21 L38.2,21 Q43,21 43,25.8 L43,47', solarW.value, 'var(--aipt-solar-warm)'),
   line(
     'grid',
-    'M82,21 C70,26 66,38 57,47',
+    'M82,21 L61.8,21 Q57,21 57,25.8 L57,47',
     gridW.value,
     (gridW.value ?? 0) >= 0 ? 'var(--aipt-grid-import)' : 'var(--aipt-green)',
     (gridW.value ?? 0) < 0,
   ),
   line(
     'battery',
-    'M18,79 C34.5,79.5 41,70.5 43,58',
+    'M18,79 L38.2,79 Q43,79 43,74.2 L43,58',
     batteryW.value,
     (batteryW.value ?? 0) >= 0 ? 'var(--aipt-green)' : 'var(--aipt-blue)',
     (batteryW.value ?? 0) > 0,
   ),
   line(
     'car',
-    'M82,79 C70,76 66,66 57,58',
+    'M82,79 L61.8,79 Q57,79 57,74.2 L57,58',
     props.evAvailable ? props.evPowerW : null,
     'var(--aipt-purple)',
     props.evCharging,
@@ -173,6 +173,18 @@ const carValue = computed(() => value(props.evPowerW))
         :aria-label="`${labels.house}: ${houseValue.value} ${houseValue.unit}, ${labels.inspectHouse}`"
         @click="emit('open-house')"
       >
+        <svg class="flow-house-shape" viewBox="0 0 100 75" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="flow-house-shading" x1="0" y1="0" x2="0.6" y2="1">
+              <stop offset="0%" stop-color="var(--aipt-surface-2)" />
+              <stop offset="100%" stop-color="var(--aipt-surface)" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M46.46 13.54 Q50 10 53.54 13.54 L71.46 31.46 Q75 35 75 40 L75 65 Q75 70 70 70 L30 70 Q25 70 25 65 L25 40 Q25 35 28.54 31.46 Z"
+            fill="url(#flow-house-shading)"
+          />
+        </svg>
         <span class="flow-house-icon" aria-hidden="true"><i class="bi bi-house-door-fill"></i></span>
         <span class="flow-node-label">{{ labels.house }}</span>
         <strong class="flow-value tabular">
