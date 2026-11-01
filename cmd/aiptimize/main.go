@@ -203,6 +203,9 @@ func runServe() int {
 	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
 	plannerSvc.SetEVProvider(evSvc)
 	plannerSvc.SetWriteGate(cfg.EnableWrites)
+	if evSvc != nil {
+		evSvc.SetBatteryHold(plannerSvc)
+	}
 	historySvc := service.NewHistoryService(st, settingsSvc, priceSvc, plannerSvc)
 
 	restartCh := make(chan struct{}, 1)

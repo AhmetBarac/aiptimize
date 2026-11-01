@@ -405,6 +405,7 @@ export interface EVSettings {
   always_charge: string
   house_battery_floor_soc: number
   battery_discharge_control: boolean
+  allow_ev_battery_charging: boolean
   grid_charge_allowed: boolean
   battery_boost: boolean
   battery_boost_limit_soc: number

@@ -36,7 +36,7 @@ func TestDefaults(t *testing.T) {
 	if v.Plan.MaxSlotsPerDay != 4 || v.Plan.MaxSlotMin != 240 || v.Plan.HorizonDays != 2 {
 		t.Errorf("plan defaults: %+v", v.Plan)
 	}
-	if v.EV.MinCurrentA != 6 || v.EV.MaxCurrentA != 16 || v.EV.GridChargeAllowed {
+	if v.EV.MinCurrentA != 6 || v.EV.MaxCurrentA != 16 || v.EV.GridChargeAllowed || v.EV.AllowEVBatteryCharging {
 		t.Errorf("ev defaults: %+v", v.EV)
 	}
 	if v.Safety.WritesArmedUI || v.Safety.WatchdogClearAfterS != 1800 || v.Safety.AutoScheduleWrite != "off" {

@@ -35,6 +35,9 @@ func (s *PlannerService) SyncSlotPower(ctx context.Context) error {
 	if !s.writesEnv || !s.cfg.Get().Safety.WritesArmedUI {
 		return nil
 	}
+	if s.evHoldActive() {
+		return nil
+	}
 	loc := s.cfg.Location()
 	now := s.now().In(loc)
 	day := now.Format("2006-01-02")

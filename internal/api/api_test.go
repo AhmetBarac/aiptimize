@@ -162,6 +162,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	plannerSvc := service.NewPlannerService(st, svc, priceSvc, forecastSvc, telemetrySvc, logger, nil)
 	evSvc := service.NewEVService(svc, st, priceSvc, forecastSvc, logger, true, true, time.Now)
 	plannerSvc.SetEVProvider(evSvc)
+	evSvc.SetBatteryHold(plannerSvc)
 	historySvc := service.NewHistoryService(st, svc, priceSvc, plannerSvc)
 	srv := New(Deps{
 		Config: cfg, Store: st, Settings: svc, Prices: priceSvc,

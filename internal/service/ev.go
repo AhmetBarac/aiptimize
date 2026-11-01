@@ -26,15 +26,21 @@ var (
 	ErrEVPlanNotFound = errors.New("ev: no charging plan")
 )
 
+// EVBatteryHold coordinates the house battery while an EV is charging.
+type EVBatteryHold interface {
+	SetEVCharging(ctx context.Context, charging bool) error
+}
+
 // EVService owns the charger adapter, EV plans and the smart-charging loop.
 type EVService struct {
-	cfg      *settings.Service
-	st       *store.Store
-	prices   *prices.Service
-	forecast *ForecastService
-	charger  ev.Charger
-	log      *slog.Logger
-	now      func() time.Time
+	cfg         *settings.Service
+	st          *store.Store
+	prices      *prices.Service
+	forecast    *ForecastService
+	charger     ev.Charger
+	batteryHold EVBatteryHold
+	log         *slog.Logger
+	now         func() time.Time
 
 	controlEnv bool
 	mu         sync.Mutex
@@ -95,6 +101,9 @@ func providerForType(typ string) string {
 
 // Charger returns the adapter (nil when no adapter is configured).
 func (s *EVService) Charger() ev.Charger { return s.charger }
+
+// SetBatteryHold wires the battery interlock used during EV charging.
+func (s *EVService) SetBatteryHold(hold EVBatteryHold) { s.batteryHold = hold }
 
 // ID returns the configured charger id.
 func (s *EVService) ID() string {
@@ -675,13 +684,18 @@ func (s *EVService) tick(ctx context.Context) {
 	if reconfiguring {
 		return
 	}
-	cfg := s.cfg.Get()
-	if !s.controlEnv || !cfg.Safety.EVControlArmedUI {
-		return
-	}
 	status, err := s.charger.Status(ctx)
 	if err != nil {
 		s.log.Warn("EV status failed", "err", err)
+		return
+	}
+	if s.batteryHold != nil {
+		if err := s.batteryHold.SetEVCharging(ctx, status.Charging); err != nil {
+			s.log.Warn("EV battery hold failed", "err", err)
+		}
+	}
+	cfg := s.cfg.Get()
+	if !s.controlEnv || !cfg.Safety.EVControlArmedUI {
 		return
 	}
 	now := s.now()

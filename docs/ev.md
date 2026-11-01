@@ -41,6 +41,12 @@ enforces 6–32 A, min ≤ max, 1–3 phases, 100–300 V and 0–1 solar share.
 `pv`/`minpv` are normalized to `smart`. Grid charging is disabled by default;
 enabling it is an explicit acknowledgment that the house battery may be drained.
 
+`allow_ev_battery_charging` controls whether the EV may draw from the house
+battery. When it is off, the EV controller switches the inverter to reserve
+mode while the charger reports `charging`, and restores the previous work mode
+when charging stops. This interlock requires both inverter write gates to be
+armed; it is skipped for an off-grid work mode.
+
 ## Plans
 
 A plan is either static (`deadline_local`, target kWh) or repeating

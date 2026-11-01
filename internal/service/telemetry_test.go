@@ -23,10 +23,11 @@ type fakeInverter struct {
 	calls    int
 	closed   int
 	schedule domain.Schedule
+	workMode int
 }
 
 func (f *fakeInverter) Identity(context.Context) (inverter.Identity, error) {
-	return inverter.Identity{Serial: "FAKE-1", Model: "fake", CapacityKWh: 15}, nil
+	return inverter.Identity{Serial: "FAKE-1", Model: "fake", CapacityKWh: 15, WorkMode: f.workMode}, nil
 }
 
 func (f *fakeInverter) Read(context.Context) (inverter.Reading, error) {
@@ -53,6 +54,13 @@ func (f *fakeInverter) WriteSchedule(_ context.Context, schedule domain.Schedule
 	defer f.mu.Unlock()
 	f.schedule = schedule
 	return schedule, nil
+}
+
+func (f *fakeInverter) SetWorkMode(_ context.Context, mode int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.workMode = mode
+	return nil
 }
 
 func (f *fakeInverter) Close() error {

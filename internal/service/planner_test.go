@@ -99,6 +99,53 @@ func TestAutoApplyWritesOnlyChangedSchedule(t *testing.T) {
 	}
 }
 
+func TestEVChargingBatteryHold(t *testing.T) {
+	ctx := context.Background()
+	poller, fake, cfg, st, _ := newTelemetryTest(t)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	plannerSvc := NewPlannerService(st, cfg, nil, nil, poller, log, nil)
+	plannerSvc.SetWriteGate(true)
+	if _, err := cfg.Patch(ctx, settings.SectionSafety, []byte(`{"writes_armed_ui":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	fake.workMode = 4
+	fake.mu.Unlock()
+	if err := plannerSvc.SetEVCharging(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	held := fake.workMode
+	fake.mu.Unlock()
+	if held != 3 {
+		t.Fatalf("EV charging hold mode = %d, want reserve (3)", held)
+	}
+	if err := plannerSvc.SetEVCharging(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	restored := fake.workMode
+	fake.mu.Unlock()
+	if restored != 4 {
+		t.Fatalf("restored mode = %d, want custom (4)", restored)
+	}
+	if _, err := cfg.Patch(ctx, settings.SectionEV, []byte(`{"allow_ev_battery_charging":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	fake.workMode = 4
+	fake.mu.Unlock()
+	if err := plannerSvc.SetEVCharging(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	allowed := fake.workMode
+	fake.mu.Unlock()
+	if allowed != 4 {
+		t.Fatalf("mode = %d with battery charging allowed, want 4", allowed)
+	}
+}
+
 func TestPlannerLatestUnavailable(t *testing.T) {
 	ctx := context.Background()
 	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "planner-empty.db"))

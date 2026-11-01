@@ -174,6 +174,7 @@ type EV struct {
 	AlwaysCharge            string         `json:"always_charge"`
 	HouseBatteryFloorSOC    float64        `json:"house_battery_floor_soc"`
 	BatteryDischargeControl bool           `json:"battery_discharge_control"`
+	AllowEVBatteryCharging  bool           `json:"allow_ev_battery_charging"`
 	GridChargeAllowed       bool           `json:"grid_charge_allowed"`
 	BatteryBoost            bool           `json:"battery_boost"`
 	BatteryBoostLimitSOC    float64        `json:"battery_boost_limit_soc"`
@@ -285,6 +286,7 @@ func Default() Values {
 			AlwaysCharge:            "off",
 			HouseBatteryFloorSOC:    20,
 			BatteryDischargeControl: true,
+			AllowEVBatteryCharging:  false,
 			GridChargeAllowed:       false,
 			BatteryBoost:            false,
 			BatteryBoostLimitSOC:    100,

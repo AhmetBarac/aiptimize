@@ -49,11 +49,94 @@ type PlannerService struct {
 	peakW      float64
 	peakDay    string
 	suppressed map[string]bool
+	evHoldMu   sync.Mutex
+	evHeld     bool
+	evHoldMode int
 }
 
 // SetWriteGate records the environment half of the inverter write gate for
 // background slot-power updates.
 func (s *PlannerService) SetWriteGate(enabled bool) { s.writesEnv = enabled }
+
+// SetEVCharging holds the house battery in reserve mode while the EV is
+// charging, unless EV charging from the home battery is explicitly allowed.
+// The previous work mode is restored when charging stops.
+func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error {
+	s.evHoldMu.Lock()
+	defer s.evHoldMu.Unlock()
+	values := s.cfg.Get()
+	if !charging || values.EV.AllowEVBatteryCharging {
+		if !s.evHeld {
+			return nil
+		}
+		if !s.writesEnv || !values.Safety.WritesArmedUI {
+			return nil
+		}
+		identity, err := s.telemetry.Identity(ctx)
+		if err != nil {
+			return err
+		}
+		if identity.WorkMode != 3 {
+			// The user changed mode while EV charging was active; do not fight it.
+			s.evHeld = false
+			return nil
+		}
+		target := s.evHoldMode
+		if target == 0 || target == 3 {
+			target = 2
+		}
+		if err := s.telemetry.SetWorkMode(ctx, target); err != nil {
+			return err
+		}
+		s.evHeld = false
+		s.evHoldMode = 0
+		s.log.Info("EV charging stopped; restored battery mode", "mode", target)
+		return nil
+	}
+	if !s.writesEnv || !values.Safety.WritesArmedUI {
+		return nil
+	}
+	if s.evHeld {
+		// Another writer may have selected custom mode since the last check.
+		identity, err := s.telemetry.Identity(ctx)
+		if err != nil {
+			return err
+		}
+		if identity.WorkMode == 3 {
+			return nil
+		}
+		if err := s.telemetry.SetWorkMode(ctx, 3); err != nil {
+			return err
+		}
+		s.log.Warn("EV charging hold re-applied after mode change")
+		return nil
+	}
+	identity, err := s.telemetry.Identity(ctx)
+	if err != nil {
+		return err
+	}
+	if identity.WorkMode == 1 {
+		// Never pull a genuinely off-grid system into grid-tied reserve mode.
+		return nil
+	}
+	if identity.WorkMode == 3 {
+		return nil
+	}
+	if err := s.telemetry.SetWorkMode(ctx, 3); err != nil {
+		return err
+	}
+	s.evHeld = true
+	s.evHoldMode = identity.WorkMode
+	s.log.Info("EV charging started; battery held in reserve mode", "previous_mode", identity.WorkMode)
+	return nil
+}
+
+// evHoldActive reports whether the EV charging battery hold is currently set.
+func (s *PlannerService) evHoldActive() bool {
+	s.evHoldMu.Lock()
+	defer s.evHoldMu.Unlock()
+	return s.evHeld
+}
 
 // SetEVProvider wires the EV planner into the battery planner.
 func (s *PlannerService) SetEVProvider(provider EVLoadProvider) { s.ev = provider }
@@ -257,6 +340,9 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 // setting is enabled and the inverter is not already running it. Manual locks
 // and foreign schedules are never overwritten implicitly.
 func (s *PlannerService) autoApplyIfChanged(ctx context.Context, plan domain.Plan) {
+	if s.evHoldActive() {
+		return
+	}
 	values := s.cfg.Get()
 	if values.Safety.AutoScheduleWrite != "when_changed" {
 		return

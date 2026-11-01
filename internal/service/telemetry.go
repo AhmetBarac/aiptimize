@@ -84,6 +84,15 @@ func (p *TelemetryPoller) ReadSchedule(ctx context.Context) (domain.Schedule, er
 	return reader.Schedule(ctx)
 }
 
+// Identity reads the inverter identity, including the current work mode.
+func (p *TelemetryPoller) Identity(ctx context.Context) (inverter.Identity, error) {
+	reader, err := p.readerFor(p.cfg.Get())
+	if err != nil {
+		return inverter.Identity{}, err
+	}
+	return reader.Identity(ctx)
+}
+
 // SetWorkMode selects a battery work mode when the reader supports writes.
 func (p *TelemetryPoller) SetWorkMode(ctx context.Context, mode int) error {
 	reader, err := p.readerFor(p.cfg.Get())

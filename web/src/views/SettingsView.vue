@@ -107,6 +107,7 @@ const settingInfoKeys: Record<string, string> = {
   'ev-cost': 'evSmartCost',
   'ev-feed': 'evFeedIn',
   'ev-grid': 'evSolarOnly',
+  'ev-battery': 'evAllowBatteryCharging',
   writes: 'writesArm',
   ev: 'evArm',
   watchdog: 'watchdog',
@@ -279,6 +280,7 @@ const evForm = reactive({
   voltage: 230,
   solarSharePct: 100,
   solarOnly: true,
+  allowBatteryCharging: false,
   alwaysCharge: 'off',
   batteryFloor: 20,
   smartCostLimit: '' as number | '',
@@ -363,6 +365,7 @@ async function load(): Promise<void> {
     evForm.voltage = doc.ev.voltage_v
     evForm.solarSharePct = Math.round(doc.ev.solar_share * 100)
     evForm.solarOnly = !doc.ev.grid_charge_allowed
+    evForm.allowBatteryCharging = doc.ev.allow_ev_battery_charging ?? false
     evForm.alwaysCharge = doc.ev.always_charge
     evForm.batteryFloor = doc.ev.house_battery_floor_soc
     evForm.smartCostLimit = doc.ev.smart_cost_limit_sek_kwh ?? ''
@@ -622,6 +625,7 @@ async function saveEV(): Promise<void> {
       voltage_v: Number(evForm.voltage),
       solar_share: Number(evForm.solarSharePct) / 100,
       grid_charge_allowed: !evForm.solarOnly,
+      allow_ev_battery_charging: evForm.allowBatteryCharging,
       always_charge: evForm.alwaysCharge,
       house_battery_floor_soc: Number(evForm.batteryFloor),
       smart_cost_limit_sek_kwh: evForm.smartCostLimit === '' ? null : Number(evForm.smartCostLimit),
@@ -1425,8 +1429,15 @@ async function importSettings(event: Event): Promise<void> {
               <label class="form-check-label" for="ev-grid">{{ t('settings.evSolarOnly') }}</label>
             </div>
           </div>
+          <div class="col-12 col-sm-6 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+              <input id="ev-battery" v-model="evForm.allowBatteryCharging" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="ev-battery">{{ t('settings.evAllowBatteryCharging') }}</label>
+            </div>
+          </div>
         </div>
         <p class="small text-muted mt-3">{{ t('settings.evGridWarning') }}</p>
+        <p class="small text-muted mb-0">{{ t('settings.evBatteryChargingHint') }}</p>
         <button class="btn btn-primary mt-2" type="submit" :disabled="saving">
           <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ saving ? t('common.saving') : t('settings.saveEV') }}
