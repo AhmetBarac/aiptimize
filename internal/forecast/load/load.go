@@ -126,7 +126,7 @@ func (p *Provider) loadMeasured(
 	days := make(map[string]struct{})
 	for _, sample := range samples {
 		local := sample.TS.In(loc)
-		value := sample.LoadW - sample.EVW
+		value := sample.LoadW
 		if value < 0 {
 			value = 0
 		}

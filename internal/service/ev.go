@@ -46,6 +46,7 @@ type EVService struct {
 	mu         sync.Mutex
 	latest     *domain.EVPlanPreview
 	lastSet    time.Time
+	powerW     float64
 
 	provider        string
 	restartRequired bool
@@ -104,6 +105,19 @@ func (s *EVService) Charger() ev.Charger { return s.charger }
 
 // SetBatteryHold wires the battery interlock used during EV charging.
 func (s *EVService) SetBatteryHold(hold EVBatteryHold) { s.batteryHold = hold }
+
+// PowerW returns the latest observed EV charging power.
+func (s *EVService) PowerW() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.powerW
+}
+
+func (s *EVService) rememberPower(powerW float64) {
+	s.mu.Lock()
+	s.powerW = math.Max(0, powerW)
+	s.mu.Unlock()
+}
 
 // ID returns the configured charger id.
 func (s *EVService) ID() string {
@@ -277,6 +291,7 @@ func (s *EVService) Status(ctx context.Context) (domain.ChargerStatus, error) {
 		return domain.ChargerStatus{}, err
 	}
 	status.Mode = s.cfg.Get().EV.Mode
+	s.rememberPower(status.PowerW)
 	return status, nil
 }
 
@@ -689,6 +704,7 @@ func (s *EVService) tick(ctx context.Context) {
 		s.log.Warn("EV status failed", "err", err)
 		return
 	}
+	s.rememberPower(status.PowerW)
 	if s.batteryHold != nil {
 		if err := s.batteryHold.SetEVCharging(ctx, status.Charging); err != nil {
 			s.log.Warn("EV battery hold failed", "err", err)

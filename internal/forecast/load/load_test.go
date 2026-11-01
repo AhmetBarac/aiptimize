@@ -104,7 +104,7 @@ func TestMeasuredProfileBlend(t *testing.T) {
 	provider.now = func() time.Time { return now }
 	ctx := context.Background()
 
-	// 14 days of 30-minute samples at 800 W, with 400 W EV load excluded.
+	// 14 days of 30-minute samples at 800 W house load; EV load is separate.
 	for day := 0; day < 14; day++ {
 		for slot := 0; slot < 48; slot++ {
 			ts := now.AddDate(0, 0, -day).Truncate(24 * time.Hour).Add(time.Duration(slot) * 30 * time.Minute)
@@ -112,7 +112,7 @@ func TestMeasuredProfileBlend(t *testing.T) {
 				continue
 			}
 			if err := st.InsertTelemetry(ctx, domain.Telemetry{
-				TS: ts, SOC: 50, LoadW: 1200, EVW: 400,
+				TS: ts, SOC: 50, LoadW: 800, EVW: 400,
 			}); err != nil {
 				t.Fatal(err)
 			}

@@ -30,7 +30,7 @@ const currency = computed(() => snapshot.value?.currency ?? session.meta?.site.c
 const selfPowered = computed(() => selfPoweredPct(totals.value))
 const consumption = computed(() => {
   if (!totals.value) return null
-  return totals.value.load_kwh + totals.value.ev_kwh
+  return totals.value.load_kwh
 })
 const hasData = computed(() => {
   const value = totals.value
@@ -110,7 +110,7 @@ watch(range, () => {
         :unit="consumption === null ? '' : 'kWh'"
         icon="bi-house-door"
         tone="neutral"
-        :points="snapshot.buckets.map((bucket) => bucket.load_kwh + bucket.ev_kwh)"
+        :points="snapshot.buckets.map((bucket) => bucket.load_kwh)"
         :hint="t('home.soFar')"
       />
       <MetricCard
@@ -184,7 +184,7 @@ watch(range, () => {
             <tr v-for="bucket in snapshot.buckets" :key="bucket.label">
               <td>{{ bucket.label }}</td>
               <td class="text-end">{{ kwh(bucket.pv_kwh) }}</td>
-              <td class="text-end">{{ kwh(bucket.load_kwh + bucket.ev_kwh) }}</td>
+              <td class="text-end">{{ kwh(bucket.load_kwh) }}</td>
               <td class="text-end d-none d-md-table-cell">{{ kwh(bucket.grid_import_kwh) }}</td>
               <td class="text-end d-none d-md-table-cell">{{ kwh(bucket.grid_export_kwh) }}</td>
               <td class="text-end">{{ money(bucket.cost) }}</td>

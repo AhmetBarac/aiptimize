@@ -205,6 +205,7 @@ func runServe() int {
 	plannerSvc.SetWriteGate(cfg.EnableWrites)
 	if evSvc != nil {
 		evSvc.SetBatteryHold(plannerSvc)
+		telemetryPoller.SetEVPowerProvider(evSvc.PowerW)
 	}
 	historySvc := service.NewHistoryService(st, settingsSvc, priceSvc, plannerSvc)
 

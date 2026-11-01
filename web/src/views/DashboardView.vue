@@ -114,7 +114,7 @@ const todayHasData = computed(() => {
 const selfPowered = computed(() => (todayHasData.value ? selfPoweredPct(todayBucket.value) : null))
 const consumptionToday = computed(() => {
   if (!todayBucket.value || !todayHasData.value) return null
-  return todayBucket.value.load_kwh + todayBucket.value.ev_kwh
+  return todayBucket.value.load_kwh
 })
 
 const plan = computed<Plan | null>(() => planView.value?.inverter_plan ?? null)

@@ -115,6 +115,28 @@ func newTelemetryTest(t *testing.T) (*TelemetryPoller, *fakeInverter, *settings.
 	return poller, fake, cfg, st, pub
 }
 
+func TestTelemetryExcludesEVLoad(t *testing.T) {
+	poller, fake, _, st, _ := newTelemetryTest(t)
+	fake.mu.Lock()
+	fake.reading.LoadW = 5358
+	fake.mu.Unlock()
+	poller.SetEVPowerProvider(func() float64 { return 4000 })
+	sample, err := poller.PollOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sample.LoadW != 1358 || sample.EVW != 4000 {
+		t.Fatalf("sample load/EV = %v/%v, want 1358/4000", sample.LoadW, sample.EVW)
+	}
+	stored, err := st.LatestTelemetry(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.LoadW != 1358 || stored.EVW != 4000 {
+		t.Fatalf("stored load/EV = %v/%v, want 1358/4000", stored.LoadW, stored.EVW)
+	}
+}
+
 func TestTelemetryPollerStoresAndPublishes(t *testing.T) {
 	poller, _, _, st, pub := newTelemetryTest(t)
 	sample, err := poller.PollOnce(context.Background())

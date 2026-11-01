@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"time"
 
@@ -62,6 +63,10 @@ func (s *Server) handleTestInverter(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	evW := s.telemetry.EVPowerW()
+	if evW > reading.LoadW {
+		evW = math.Max(0, reading.LoadW)
+	}
 	sample := domain.Telemetry{
 		TS:           reading.At.UTC(),
 		SOC:          reading.SOC,
@@ -69,7 +74,8 @@ func (s *Server) handleTestInverter(w http.ResponseWriter, r *http.Request) {
 		PVStrings:    reading.PVStrings,
 		GridW:        reading.GridW,
 		BatteryW:     reading.BatteryW,
-		LoadW:        reading.LoadW,
+		LoadW:        math.Max(0, reading.LoadW-evW),
+		EVW:          evW,
 		InverterMode: reading.Mode,
 		Extra:        reading.Extra,
 	}

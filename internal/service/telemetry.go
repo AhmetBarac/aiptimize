@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,8 @@ type TelemetryPoller struct {
 	opts TelemetryOptions
 	now  func() time.Time
 
+	evPower func() float64
+
 	mu        sync.Mutex
 	reader    inverter.Reader
 	signature string
@@ -50,6 +53,20 @@ func NewTelemetryPoller(cfg *settings.Service, st *store.Store, log *slog.Logger
 		log = slog.Default()
 	}
 	return &TelemetryPoller{cfg: cfg, st: st, log: log, pub: pub, opts: opts, now: time.Now}
+}
+
+// SetEVPowerProvider supplies the current EV charger power so telemetry can
+// report house load separately from EV load.
+func (p *TelemetryPoller) SetEVPowerProvider(provider func() float64) {
+	p.evPower = provider
+}
+
+// EVPowerW returns the cached EV power used for the latest telemetry sample.
+func (p *TelemetryPoller) EVPowerW() float64 {
+	if p.evPower == nil {
+		return 0
+	}
+	return math.Max(0, p.evPower())
 }
 
 // Run polls until ctx is cancelled.
@@ -189,6 +206,10 @@ func (p *TelemetryPoller) PollOnce(ctx context.Context) (domain.Telemetry, error
 		p.fail(err, "read")
 		return domain.Telemetry{}, err
 	}
+	evW := p.EVPowerW()
+	if evW > reading.LoadW {
+		evW = math.Max(0, reading.LoadW)
+	}
 	sample := domain.Telemetry{
 		TS:           reading.At.UTC(),
 		SOC:          reading.SOC,
@@ -196,7 +217,8 @@ func (p *TelemetryPoller) PollOnce(ctx context.Context) (domain.Telemetry, error
 		PVStrings:    reading.PVStrings,
 		GridW:        reading.GridW,
 		BatteryW:     reading.BatteryW,
-		LoadW:        reading.LoadW,
+		LoadW:        math.Max(0, reading.LoadW-evW),
+		EVW:          evW,
 		InverterMode: reading.Mode,
 		Extra:        reading.Extra,
 	}
@@ -230,6 +252,7 @@ func (p *TelemetryPoller) PollOnce(ctx context.Context) (domain.Telemetry, error
 			"grid_w":    sample.GridW,
 			"battery_w": sample.BatteryW,
 			"load_w":    sample.LoadW,
+			"ev_w":      sample.EVW,
 			"ts":        sample.TS,
 		})
 	}
