@@ -106,6 +106,19 @@ func (p *TelemetryPoller) SetWorkMode(ctx context.Context, mode int) error {
 	return writer.SetWorkMode(ctx, mode)
 }
 
+// SetChargeMax updates the battery charge ceiling when supported.
+func (p *TelemetryPoller) SetChargeMax(ctx context.Context, percent float64) error {
+	reader, err := p.readerFor(p.cfg.Get())
+	if err != nil {
+		return err
+	}
+	writer, ok := reader.(inverter.ChargeMaxWriter)
+	if !ok {
+		return errors.New("inverter does not support charge-maximum writes")
+	}
+	return writer.SetChargeMax(ctx, percent)
+}
+
 // ApplySchedule writes a schedule when the reader supports writes, returning
 // the readback and whether a write was needed. The caller enforces the gates.
 func (p *TelemetryPoller) ApplySchedule(ctx context.Context, desired domain.Schedule) (domain.Schedule, bool, error) {

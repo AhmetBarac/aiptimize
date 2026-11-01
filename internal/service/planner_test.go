@@ -110,24 +110,33 @@ func TestEVChargingBatteryHold(t *testing.T) {
 	}
 	fake.mu.Lock()
 	fake.workMode = 4
+	fake.maxSOC = 98
 	fake.mu.Unlock()
 	if err := plannerSvc.SetEVCharging(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 	fake.mu.Lock()
 	held := fake.workMode
+	heldMax := fake.maxSOC
 	fake.mu.Unlock()
 	if held != 3 {
 		t.Fatalf("EV charging hold mode = %d, want reserve (3)", held)
+	}
+	if heldMax != 50 {
+		t.Fatalf("EV charging charge max = %v, want 50", heldMax)
 	}
 	if err := plannerSvc.SetEVCharging(ctx, false); err != nil {
 		t.Fatal(err)
 	}
 	fake.mu.Lock()
 	restored := fake.workMode
+	restoredMax := fake.maxSOC
 	fake.mu.Unlock()
 	if restored != 4 {
 		t.Fatalf("restored mode = %d, want custom (4)", restored)
+	}
+	if restoredMax != 98 {
+		t.Fatalf("restored charge max = %v, want 98", restoredMax)
 	}
 	if _, err := cfg.Patch(ctx, settings.SectionEV, []byte(`{"allow_ev_battery_charging":true}`)); err != nil {
 		t.Fatal(err)

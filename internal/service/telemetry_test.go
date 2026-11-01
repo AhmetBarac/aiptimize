@@ -24,10 +24,11 @@ type fakeInverter struct {
 	closed   int
 	schedule domain.Schedule
 	workMode int
+	maxSOC   float64
 }
 
 func (f *fakeInverter) Identity(context.Context) (inverter.Identity, error) {
-	return inverter.Identity{Serial: "FAKE-1", Model: "fake", CapacityKWh: 15, WorkMode: f.workMode}, nil
+	return inverter.Identity{Serial: "FAKE-1", Model: "fake", CapacityKWh: 15, WorkMode: f.workMode, MaxSOC: f.maxSOC}, nil
 }
 
 func (f *fakeInverter) Read(context.Context) (inverter.Reading, error) {
@@ -60,6 +61,13 @@ func (f *fakeInverter) SetWorkMode(_ context.Context, mode int) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.workMode = mode
+	return nil
+}
+
+func (f *fakeInverter) SetChargeMax(_ context.Context, percent float64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.maxSOC = percent
 	return nil
 }
 

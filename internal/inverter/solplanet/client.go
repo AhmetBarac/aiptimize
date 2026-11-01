@@ -402,6 +402,30 @@ func (c *Client) SetWorkMode(ctx context.Context, mode int) error {
 	return err
 }
 
+// SetChargeMax updates the battery charge ceiling via setbattery. The caller
+// must enforce the write gate first.
+func (c *Client) SetChargeMax(ctx context.Context, percent float64) error {
+	if c.serial == "" {
+		if _, err := c.Identity(ctx); err != nil {
+			return err
+		}
+	}
+	payload := map[string]any{
+		"device": 4,
+		"action": "setbattery",
+		"value":  map[string]any{"sn": c.serial, "charge_max": math.Round(percent)},
+	}
+	_, err := c.postJSON(ctx, "/setting.cgi", payload)
+	if err == nil {
+		c.mu.Lock()
+		if c.identity != nil {
+			c.identity.MaxSOC = math.Round(percent)
+		}
+		c.mu.Unlock()
+	}
+	return err
+}
+
 // WriteSchedule selects Custom mode, writes the full seven-day setdefine value
 // and returns the readback. The caller must enforce the arm gate first.
 func (c *Client) WriteSchedule(ctx context.Context, schedule domain.Schedule) (domain.Schedule, error) {

@@ -57,6 +57,11 @@ type WorkModeWriter interface {
 	SetWorkMode(ctx context.Context, mode int) error
 }
 
+// ChargeMaxWriter updates the battery charge ceiling after the arm gate.
+type ChargeMaxWriter interface {
+	SetChargeMax(ctx context.Context, percent float64) error
+}
+
 // Reader is the read-only inverter contract.
 type Reader interface {
 	Identity(ctx context.Context) (Identity, error)

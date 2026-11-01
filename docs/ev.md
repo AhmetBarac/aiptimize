@@ -43,9 +43,10 @@ enabling it is an explicit acknowledgment that the house battery may be drained.
 
 `allow_ev_battery_charging` controls whether the EV may draw from the house
 battery. When it is off, the EV controller switches the inverter to reserve
-mode while the charger reports `charging`, and restores the previous work mode
-when charging stops. This interlock requires both inverter write gates to be
-armed; it is skipped for an off-grid work mode.
+mode while the charger reports `charging`, limits the battery charge ceiling to
+`max(current SOC, 50%)`, and restores both the previous work mode and charge
+ceiling when charging stops. This interlock requires both inverter write gates
+to be armed; it is skipped for an off-grid work mode.
 
 ## Plans
 
