@@ -507,7 +507,7 @@
     "planSaved": "Charging plan saved.",
     "delete": "Delete",
     "confirmDelete": "Delete this charging plan?",
-    "limitation": "The Zaptec Go cloud API exposes session energy, not vehicle SOC; plans target energy. Grid charging is disabled unless explicitly acknowledged.",
+    "limitation": "The Zaptec Go cloud API exposes session energy, not vehicle SOC; plans target energy. Solar-only charging is enabled unless the user explicitly allows grid charging.",
     "unavailable": "No EV charger is configured."
   },
   "settings": {
@@ -629,7 +629,7 @@
       "evAlwaysCharge": "Keep charging regardless of price or solar surplus.",
       "evSmartCost": "Highest import price at which smart charging is allowed.",
       "evFeedIn": "Feed-in price above which battery discharge is prioritised.",
-      "evGridAllowed": "Allow the EV to charge from the grid, not only from PV surplus.",
+      "evSolarOnly": "Charge the EV only from PV surplus; charging stops when there is no surplus.",
       "writesArm": "Arm schedule writes to the inverter. The environment gate must also be enabled.",
       "evArm": "Arm actual EV charger control. The environment gate must also be enabled.",
       "watchdog": "Clear a stale schedule after this many seconds without a successful update.",
@@ -690,8 +690,8 @@
     "evAlwaysCharge": "Always charge",
     "evSmartCost": "Smart cost limit",
     "evFeedIn": "Feed-in priority limit",
-    "evGridAllowed": "Allow grid charging (acknowledged)",
-    "evGridWarning": "Grid charging can drain the house battery. Leave disabled for PV-only charging until HIL approval.",
+    "evSolarOnly": "Use only solar energy for charging",
+    "evGridWarning": "When solar-only is off, the charger may use grid energy and can drain the house battery.",
     "saveEV": "Save EV settings",
     "evSaved": "EV settings saved.",
     "export": "Export settings",

@@ -106,7 +106,7 @@ const settingInfoKeys: Record<string, string> = {
   'ev-always': 'evAlwaysCharge',
   'ev-cost': 'evSmartCost',
   'ev-feed': 'evFeedIn',
-  'ev-grid': 'evGridAllowed',
+  'ev-grid': 'evSolarOnly',
   writes: 'writesArm',
   ev: 'evArm',
   watchdog: 'watchdog',
@@ -278,7 +278,7 @@ const evForm = reactive({
   phases: 3,
   voltage: 230,
   solarSharePct: 100,
-  gridChargeAllowed: false,
+  solarOnly: true,
   alwaysCharge: 'off',
   batteryFloor: 20,
   smartCostLimit: '' as number | '',
@@ -362,7 +362,7 @@ async function load(): Promise<void> {
     evForm.phases = doc.ev.phases
     evForm.voltage = doc.ev.voltage_v
     evForm.solarSharePct = Math.round(doc.ev.solar_share * 100)
-    evForm.gridChargeAllowed = doc.ev.grid_charge_allowed
+    evForm.solarOnly = !doc.ev.grid_charge_allowed
     evForm.alwaysCharge = doc.ev.always_charge
     evForm.batteryFloor = doc.ev.house_battery_floor_soc
     evForm.smartCostLimit = doc.ev.smart_cost_limit_sek_kwh ?? ''
@@ -621,7 +621,7 @@ async function saveEV(): Promise<void> {
       phases: Number(evForm.phases),
       voltage_v: Number(evForm.voltage),
       solar_share: Number(evForm.solarSharePct) / 100,
-      grid_charge_allowed: evForm.gridChargeAllowed,
+      grid_charge_allowed: !evForm.solarOnly,
       always_charge: evForm.alwaysCharge,
       house_battery_floor_soc: Number(evForm.batteryFloor),
       smart_cost_limit_sek_kwh: evForm.smartCostLimit === '' ? null : Number(evForm.smartCostLimit),
@@ -1421,8 +1421,8 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <div class="col-12 col-sm-6 d-flex align-items-end">
             <div class="form-check form-switch mb-2">
-              <input id="ev-grid" v-model="evForm.gridChargeAllowed" class="form-check-input" type="checkbox" role="switch" />
-              <label class="form-check-label" for="ev-grid">{{ t('settings.evGridAllowed') }}</label>
+              <input id="ev-grid" v-model="evForm.solarOnly" class="form-check-input" type="checkbox" role="switch" />
+              <label class="form-check-label" for="ev-grid">{{ t('settings.evSolarOnly') }}</label>
             </div>
           </div>
         </div>
