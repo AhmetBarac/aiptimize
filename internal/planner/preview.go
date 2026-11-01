@@ -118,7 +118,10 @@ func Preview(in Inputs, slots []domain.Slot) (Result, Validation, error) {
 		}
 	}
 	for i, block := range in.Blocks {
-		batteryW := 0.0
+		batteryW := idleBatteryPower(in, math.Max(0, block.PVW*in.PVConfidence), block, soc)
+		if batteryW < 0 && i < len(in.EVWindows) && in.EVWindows[i] {
+			batteryW = 0
+		}
 		if slot, ok := slotForBlock[i]; ok {
 			if slot.Direction == domain.DirectionCharge {
 				batteryW = slot.PowerW

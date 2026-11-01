@@ -116,7 +116,8 @@ func TestSiteImportClamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, point := range result.Curve {
-		if point.BatteryW > 500.1 {
+		headroom := in.SiteImportW - (point.LoadW + point.EVW - point.PVPlanW)
+		if point.BatteryW > headroom+0.1 {
 			t.Errorf("charge above site headroom: %+v", point)
 		}
 	}
@@ -222,7 +223,11 @@ func bruteForce(o *optimizer, in Inputs, i, soc, used int) float64 {
 	if i > 0 && o.day[i] != o.day[i-1] {
 		used = 0
 	}
-	best := o.blockCost(i, 0) + bruteForce(o, in, i+1, soc, used)
+	best := math.Inf(1)
+	idlePower, idleSOC := o.idleSOC(i, soc)
+	if idleCost := o.blockCost(i, idlePower); !math.IsInf(idleCost, 1) {
+		best = idleCost + bruteForce(o, in, i+1, idleSOC, used)
+	}
 	if used >= in.MaxSlotsPerDay {
 		return best
 	}

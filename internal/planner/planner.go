@@ -82,8 +82,9 @@ type stateKey struct {
 }
 
 type action struct {
-	kind int8 // 0 idle, 1 charge, 2 discharge
-	dur  int8
+	kind  int8 // 0 idle, 1 charge, 2 discharge
+	dur   int8
+	power float64
 }
 
 type optimizer struct {
@@ -232,6 +233,71 @@ func (o *optimizer) socValue(idx int) float64 {
 	return o.in.MinSOC + float64(idx)*socStepPct
 }
 
+// idleBatteryPower returns the passive self-consumption power for a block:
+// discharge to cover house/EV load, or charge from PV surplus.
+func idleBatteryPower(in Inputs, pv float64, block Block, soc float64) float64 {
+	if block.Missing || in.CapacityKWh <= 0 {
+		return 0
+	}
+	net := block.LoadW + block.EVW - pv
+	if net > 0 {
+		available := math.Max(0, soc-math.Max(in.ReserveSOC, in.MinSOC)) / 100 * in.CapacityKWh * in.DischargeEfficiency
+		maxPower := available * 2 * 1000
+		power := math.Min(net, in.MaxDischargeW)
+		power = math.Min(power, maxPower)
+		if power < 1 {
+			return 0
+		}
+		return -power
+	}
+	if net < 0 {
+		headroom := math.Max(0, in.MaxSOC-soc) / 100 * in.CapacityKWh / in.ChargeEfficiency
+		maxPower := headroom * 2 * 1000
+		power := math.Min(-net, in.MaxChargeW)
+		power = math.Min(power, maxPower)
+		if power < 1 {
+			return 0
+		}
+		return power
+	}
+	return 0
+}
+
+// idleSOC applies passive battery power to a discretized SOC index.
+func (o *optimizer) idleSOC(i, soc int) (float64, int) {
+	power := idleBatteryPower(o.in, o.pv[i], o.in.Blocks[i], o.socValue(soc))
+	if power < 0 && i < len(o.in.EVWindows) && o.in.EVWindows[i] {
+		power = 0
+	}
+	if power == 0 {
+		return 0, soc
+	}
+	energy := math.Abs(power) * 0.5 / 1000
+	if power > 0 {
+		energy *= o.in.ChargeEfficiency
+		delta := int(math.Round(energy / o.in.CapacityKWh * 100 / socStepPct))
+		if delta < 1 {
+			delta = 1
+		}
+		soc += delta
+		if soc >= o.steps {
+			soc = o.steps - 1
+		}
+		return power, soc
+	}
+	energy /= o.in.DischargeEfficiency
+	delta := int(math.Round(energy / o.in.CapacityKWh * 100 / socStepPct))
+	if delta < 1 {
+		delta = 1
+	}
+	soc -= delta
+	reserveIdx := int(math.Ceil((math.Max(o.in.ReserveSOC, o.in.MinSOC) - o.in.MinSOC) / socStepPct))
+	if soc < reserveIdx {
+		soc = reserveIdx
+	}
+	return power, soc
+}
+
 func (o *optimizer) index(i, soc, used int) int {
 	return (i*o.steps+soc)*o.used + used
 }
@@ -261,9 +327,10 @@ func (o *optimizer) solve(i, soc, used int) (float64, error) {
 	best := math.Inf(1)
 	var bestAction action
 
-	idle := o.blockCost(i, 0)
+	idlePower, idleSOC := o.idleSOC(i, soc)
+	idle := o.blockCost(i, idlePower)
 	if idle < math.Inf(1) {
-		value := idle + o.mustSolve(i+1, soc, used)
+		value := idle + o.mustSolve(i+1, idleSOC, used)
 		best = value
 		bestAction = action{kind: 0}
 	}
@@ -286,7 +353,7 @@ func (o *optimizer) solve(i, soc, used int) (float64, error) {
 				value += 1e-6 + o.mustSolve(i+d, newSOC, used+1)
 				if value < best-1e-12 {
 					best = value
-					bestAction = action{kind: 1, dur: int8(d)}
+					bestAction = action{kind: 1, dur: int8(d), power: power}
 				}
 			}
 		}
@@ -306,7 +373,7 @@ func (o *optimizer) solve(i, soc, used int) (float64, error) {
 				value += 1e-6 + o.mustSolve(i+d, newSOC, used+1)
 				if value < best-1e-12 {
 					best = value
-					bestAction = action{kind: 2, dur: int8(d)}
+					bestAction = action{kind: 2, dur: int8(d), power: power}
 				}
 			}
 		}
@@ -472,18 +539,23 @@ func (o *optimizer) reconstruct(startSOC int) Result {
 		act := o.choice[idx]
 		if act.kind == 0 || act.dur == 0 {
 			base := o.baselineBlockCost(i)
-			cost := o.blockCost(i, 0)
+			idlePower, idleSOC := o.idleSOC(i, soc)
+			cost := o.blockCost(i, idlePower)
 			baseline += base
 			total += cost
-			curve = append(curve, o.curvePoint(i, 0, soc, cost))
+			if idlePower > 0 {
+				chargeKWh += idlePower * 0.5 / 1000 * o.in.ChargeEfficiency
+			} else if idlePower < 0 {
+				dischargeKWh += -idlePower * 0.5 / 1000 / o.in.DischargeEfficiency
+			}
+			curve = append(curve, o.curvePoint(i, idlePower, idleSOC, cost))
+			soc = idleSOC
 			i++
 			continue
 		}
-		power := math.Min(o.in.ChargeW, o.in.MaxChargeW)
+		power := act.power
 		if act.kind == 2 {
-			power = -o.dischargePower(i, int(act.dur), math.Min(o.in.DischargeW, o.in.MaxDischargeW))
-		} else {
-			power = o.chargePower(i, int(act.dur), power)
+			power = -power
 		}
 		slotStart := o.in.Blocks[i].Start
 		slotEnd := o.in.Blocks[i+int(act.dur)-1].End
@@ -605,34 +677,57 @@ func creditStoredEnergy(in Inputs, result Result) Result {
 func emptyPlan(in Inputs) Result {
 	curve := make([]CurvePoint, 0, len(in.Blocks))
 	baseline := 0.0
-	for i, b := range in.Blocks {
+	total := 0.0
+	soc := in.StartSOC
+	for _, b := range in.Blocks {
 		pv := math.Max(0, b.PVW*in.PVConfidence)
-		net := b.LoadW + b.EVW - pv
+		batteryW := idleBatteryPower(in, pv, b, soc)
+		net := b.LoadW + b.EVW + batteryW - pv
 		cost := 0.0
 		if net >= 0 {
 			cost = net * 0.5 / 1000 * b.ImportPrice
 		} else {
 			cost = net * 0.5 / 1000 * b.ExportPrice
 		}
-		baseline += cost
+		baseline += baselineBlockCostPublic(in, b, pv)
+		total += cost
+		if batteryW > 0 {
+			soc += batteryW * 0.5 / 1000 * in.ChargeEfficiency / in.CapacityKWh * 100
+			if soc > in.MaxSOC {
+				soc = in.MaxSOC
+			}
+		} else if batteryW < 0 {
+			soc -= -batteryW * 0.5 / 1000 / in.DischargeEfficiency / in.CapacityKWh * 100
+			reserve := math.Max(in.ReserveSOC, in.MinSOC)
+			if soc < reserve {
+				soc = reserve
+			}
+		}
 		curve = append(curve, CurvePoint{
 			Start: b.Start.UTC(), End: b.End.UTC(),
 			PriceImport: b.ImportPrice, PriceExport: b.ExportPrice,
 			PVW: b.PVW, PVPlanW: round1(pv), LoadW: b.LoadW, EVW: b.EVW,
-			SOC: round2(in.StartSOC), Cost: round2(cost), Missing: b.Missing,
+			BatteryW: round1(batteryW), SOC: round2(soc), Cost: round2(cost), Missing: b.Missing,
 		})
-		_ = i
 	}
 	return Result{
 		Slots: []domain.Slot{},
 		Curve: curve,
 		Summary: domain.PlanSummary{
-			Cost: round2(baseline), BaselineCost: round2(baseline),
+			Cost: round2(total), BaselineCost: round2(baseline),
 			Savings: 0, SlotCount: 0, Currency: in.Currency,
 		},
 		Warnings:     []string{"Savings below the configured threshold; self-consumption plan."},
 		NoPlanReason: "savings below threshold",
 	}
+}
+
+func baselineBlockCostPublic(in Inputs, b Block, pv float64) float64 {
+	net := b.LoadW + b.EVW - pv
+	if net >= 0 {
+		return net * 0.5 / 1000 * b.ImportPrice
+	}
+	return net * 0.5 / 1000 * b.ExportPrice
 }
 
 func mustLoc(name string) *time.Location {

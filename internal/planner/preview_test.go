@@ -7,8 +7,24 @@ import (
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 )
 
+func TestPreviewIdleSelfConsumption(t *testing.T) {
+	in := baseInputs()
+	in.EndSOCTarget = 15
+	result, _, err := Preview(in, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Curve) == 0 || result.Curve[0].BatteryW >= 0 {
+		t.Fatalf("expected idle discharge, curve = %+v", result.Curve)
+	}
+	if result.Curve[0].SOC >= in.StartSOC {
+		t.Fatalf("expected SOC to fall, curve = %+v", result.Curve[0])
+	}
+}
+
 func TestPreviewFixedSlot(t *testing.T) {
 	in := baseInputs()
+	in.EndSOCTarget = 15
 	start := in.Blocks[0].Start
 	slots := []domain.Slot{{
 		DayLocal: start.In(testLoc).Format("2006-01-02"),
