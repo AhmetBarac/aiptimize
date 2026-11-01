@@ -496,7 +496,7 @@
     "window": "Window",
     "source": "Source",
     "energy": "Energy",
-    "noPlan": "No active charging plan.",
+    "noPlan": "No active Aiptimize charging plan. Zaptec app schedules are not imported.",
     "newPlan": "New static plan",
     "deadline": "Deadline",
     "strategy": "Strategy",

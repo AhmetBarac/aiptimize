@@ -497,7 +497,7 @@
     "window": "Fönster",
     "source": "Källa",
     "energy": "Energi",
-    "noPlan": "Ingen aktiv laddplan.",
+    "noPlan": "Ingen aktiv Aiptimize-laddplan. Zaptec-appens scheman importeras inte.",
     "newPlan": "Ny statisk plan",
     "deadline": "Deadline",
     "strategy": "Strategi",
