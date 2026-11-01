@@ -318,7 +318,7 @@
     "notReady": "Ingen plan har beräknats ännu. Den automatiska planeraren kör med några minuters intervall, eller beräkna om nu.",
     "open": "Öppna plan",
     "openTimeline": "Öppna planeringsvyn",
-    "nextSlot": "Nästa fönster idag",
+    "nextSlot": "Dagens nästa fönster",
     "noUpcoming": "Inget kommande fönster",
     "edit": "Redigera",
     "statusAuto": "Automatiskt förslag",
