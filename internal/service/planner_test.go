@@ -153,6 +153,28 @@ func TestEVChargingBatteryHold(t *testing.T) {
 	if allowed != 4 {
 		t.Fatalf("mode = %d with battery charging allowed, want 4", allowed)
 	}
+	if _, err := cfg.Patch(ctx, settings.SectionEV, []byte(`{"allow_ev_battery_charging":false}`)); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	fake.workMode = 4
+	fake.maxSOC = 98
+	fake.mu.Unlock()
+	if err := plannerSvc.SetEVCharging(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	restarted := NewPlannerService(st, cfg, nil, nil, poller, log, nil)
+	restarted.SetWriteGate(true)
+	if err := restarted.SetEVCharging(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	recoveredMode := fake.workMode
+	recoveredMax := fake.maxSOC
+	fake.mu.Unlock()
+	if recoveredMode != 4 || recoveredMax != 98 {
+		t.Fatalf("restart restore = mode %d max %v, want 4/98", recoveredMode, recoveredMax)
+	}
 }
 
 func TestPlannerLatestUnavailable(t *testing.T) {

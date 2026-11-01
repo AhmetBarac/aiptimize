@@ -60,6 +60,34 @@ type PlannerService struct {
 // background slot-power updates.
 func (s *PlannerService) SetWriteGate(enabled bool) { s.writesEnv = enabled }
 
+const evHoldStateKey = "runtime_ev_hold"
+
+type evHoldState struct {
+	Active       bool    `json:"active"`
+	PreviousMode int     `json:"previous_mode"`
+	OldChargeMax float64 `json:"old_charge_max"`
+}
+
+func (s *PlannerService) loadEVHoldState(ctx context.Context) (evHoldState, error) {
+	raw, err := s.st.GetSetting(ctx, evHoldStateKey)
+	if err != nil {
+		return evHoldState{}, err
+	}
+	var state evHoldState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return evHoldState{}, err
+	}
+	return state, nil
+}
+
+func (s *PlannerService) saveEVHoldState(ctx context.Context, state evHoldState) error {
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return s.st.SetSetting(ctx, evHoldStateKey, raw)
+}
+
 // SetEVCharging holds the house battery in reserve mode while the EV is
 // charging, unless EV charging from the home battery is explicitly allowed.
 // The charge ceiling is limited to max(current SOC, 50%) and the previous work
@@ -67,6 +95,16 @@ func (s *PlannerService) SetWriteGate(enabled bool) { s.writesEnv = enabled }
 func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error {
 	s.evHoldMu.Lock()
 	defer s.evHoldMu.Unlock()
+	if !s.evHeld {
+		if state, err := s.loadEVHoldState(ctx); err == nil && state.Active {
+			s.evHeld = true
+			s.evHoldMode = state.PreviousMode
+			s.evHoldOldMax = state.OldChargeMax
+			s.log.Info("resumed EV charging battery hold", "previous_mode", state.PreviousMode)
+		} else if err != nil && !errors.Is(err, store.ErrNotFound) {
+			s.log.Warn("could not load EV charging hold state", "err", err)
+		}
+	}
 	values := s.cfg.Get()
 	if !charging || values.EV.AllowEVBatteryCharging {
 		if !s.evHeld {
@@ -95,6 +133,9 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 		}
 		s.log.Info("EV charging stopped; restored battery mode",
 			"mode", s.evHoldMode, "charge_max", s.evHoldOldMax)
+		if err := s.saveEVHoldState(ctx, evHoldState{}); err != nil {
+			return err
+		}
 		s.evHeld = false
 		s.evHoldMode = 0
 		s.evHoldMax = 0
@@ -153,6 +194,11 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 	s.evHoldMode = identity.WorkMode
 	s.evHoldMax = limit
 	s.evHoldOldMax = identity.MaxSOC
+	if err := s.saveEVHoldState(ctx, evHoldState{
+		Active: true, PreviousMode: identity.WorkMode, OldChargeMax: identity.MaxSOC,
+	}); err != nil {
+		s.log.Warn("could not persist EV charging hold state", "err", err)
+	}
 	s.log.Info("EV charging started; battery held in reserve mode",
 		"previous_mode", identity.WorkMode, "charge_max", limit)
 	return nil
