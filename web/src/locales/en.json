@@ -318,7 +318,7 @@
     "notReady": "No plan has been computed yet. The automatic planner runs every few minutes, or recompute now.",
     "open": "Open plan",
     "openTimeline": "Open planning view",
-    "nextSlot": "Next slot",
+    "nextSlot": "Next slot today",
     "noUpcoming": "No upcoming slot",
     "edit": "Edit",
     "statusAuto": "Automatic suggestion",
