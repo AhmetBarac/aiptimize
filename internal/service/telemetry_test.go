@@ -71,6 +71,12 @@ func (f *fakeInverter) SetChargeMax(_ context.Context, percent float64) error {
 	return nil
 }
 
+func (f *fakeInverter) BatteryConfig(context.Context) (int, float64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.workMode, f.maxSOC, nil
+}
+
 func (f *fakeInverter) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

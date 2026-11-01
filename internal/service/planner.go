@@ -88,6 +88,32 @@ func (s *PlannerService) saveEVHoldState(ctx context.Context, state evHoldState)
 	return s.st.SetSetting(ctx, evHoldStateKey, raw)
 }
 
+func (s *PlannerService) setWorkModeVerified(ctx context.Context, target int) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := s.telemetry.SetWorkMode(ctx, target); err != nil {
+			return err
+		}
+		mode, _, err := s.telemetry.BatteryConfig(ctx)
+		if err == nil && mode == target {
+			return nil
+		}
+	}
+	return fmt.Errorf("inverter did not accept work mode %d", target)
+}
+
+func (s *PlannerService) setChargeMaxVerified(ctx context.Context, target float64) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := s.telemetry.SetChargeMax(ctx, target); err != nil {
+			return err
+		}
+		_, maxSOC, err := s.telemetry.BatteryConfig(ctx)
+		if err == nil && maxSOC == target {
+			return nil
+		}
+	}
+	return fmt.Errorf("inverter did not accept charge maximum %.1f", target)
+}
+
 // SetEVCharging holds the house battery in reserve mode while the EV is
 // charging, unless EV charging from the home battery is explicitly allowed.
 // The charge ceiling is limited to max(current SOC, 50%) and the previous work
@@ -113,21 +139,21 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 		if !s.writesEnv || !values.Safety.WritesArmedUI {
 			return nil
 		}
-		identity, err := s.telemetry.Identity(ctx)
+		mode, maxSOC, err := s.telemetry.BatteryConfig(ctx)
 		if err != nil {
 			return err
 		}
-		if s.evHoldOldMax > 0 && identity.MaxSOC != s.evHoldOldMax {
-			if err := s.telemetry.SetChargeMax(ctx, s.evHoldOldMax); err != nil {
+		if s.evHoldOldMax > 0 && maxSOC != s.evHoldOldMax {
+			if err := s.setChargeMaxVerified(ctx, s.evHoldOldMax); err != nil {
 				return err
 			}
 		}
-		if identity.WorkMode == 3 {
+		if mode == 3 {
 			target := s.evHoldMode
 			if target == 0 || target == 3 {
 				target = 2
 			}
-			if err := s.telemetry.SetWorkMode(ctx, target); err != nil {
+			if err := s.setWorkModeVerified(ctx, target); err != nil {
 				return err
 			}
 		}
@@ -149,20 +175,20 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 	if sample, _, ok := s.telemetry.Latest(); ok && sample.SOC > limit {
 		limit = math.Min(100, sample.SOC)
 	}
+	mode, maxSOC, err := s.telemetry.BatteryConfig(ctx)
+	if err != nil {
+		return err
+	}
 	if s.evHeld {
 		// Another writer may have changed the battery configuration.
-		identity, err := s.telemetry.Identity(ctx)
-		if err != nil {
-			return err
-		}
-		if identity.WorkMode != 3 {
-			if err := s.telemetry.SetWorkMode(ctx, 3); err != nil {
+		if mode != 3 {
+			if err := s.setWorkModeVerified(ctx, 3); err != nil {
 				return err
 			}
 			s.log.Warn("EV charging hold re-applied after mode change")
 		}
-		if identity.MaxSOC != limit {
-			if err := s.telemetry.SetChargeMax(ctx, limit); err != nil {
+		if maxSOC != limit {
+			if err := s.setChargeMaxVerified(ctx, limit); err != nil {
 				return err
 			}
 			s.evHoldMax = limit
@@ -170,37 +196,33 @@ func (s *PlannerService) SetEVCharging(ctx context.Context, charging bool) error
 		}
 		return nil
 	}
-	identity, err := s.telemetry.Identity(ctx)
-	if err != nil {
-		return err
-	}
-	if identity.WorkMode == 1 {
+	if mode == 1 {
 		// Never pull a genuinely off-grid system into grid-tied reserve mode.
 		return nil
 	}
-	if identity.WorkMode == 3 {
+	if mode == 3 {
 		return nil
 	}
-	if err := s.telemetry.SetWorkMode(ctx, 3); err != nil {
+	if err := s.setWorkModeVerified(ctx, 3); err != nil {
 		return err
 	}
-	if identity.MaxSOC > 0 {
-		if err := s.telemetry.SetChargeMax(ctx, limit); err != nil {
-			_ = s.telemetry.SetWorkMode(ctx, identity.WorkMode)
+	if maxSOC > 0 {
+		if err := s.setChargeMaxVerified(ctx, limit); err != nil {
+			_ = s.setWorkModeVerified(ctx, mode)
 			return err
 		}
 	}
 	s.evHeld = true
-	s.evHoldMode = identity.WorkMode
+	s.evHoldMode = mode
 	s.evHoldMax = limit
-	s.evHoldOldMax = identity.MaxSOC
+	s.evHoldOldMax = maxSOC
 	if err := s.saveEVHoldState(ctx, evHoldState{
-		Active: true, PreviousMode: identity.WorkMode, OldChargeMax: identity.MaxSOC,
+		Active: true, PreviousMode: mode, OldChargeMax: maxSOC,
 	}); err != nil {
 		s.log.Warn("could not persist EV charging hold state", "err", err)
 	}
 	s.log.Info("EV charging started; battery held in reserve mode",
-		"previous_mode", identity.WorkMode, "charge_max", limit)
+		"previous_mode", mode, "charge_max", limit)
 	return nil
 }
 

@@ -110,6 +110,22 @@ func (p *TelemetryPoller) Identity(ctx context.Context) (inverter.Identity, erro
 	return reader.Identity(ctx)
 }
 
+// BatteryConfig reads the live battery work mode and charge ceiling.
+func (p *TelemetryPoller) BatteryConfig(ctx context.Context) (int, float64, error) {
+	reader, err := p.readerFor(p.cfg.Get())
+	if err != nil {
+		return 0, 0, err
+	}
+	if fresh, ok := reader.(inverter.BatteryConfigReader); ok {
+		return fresh.BatteryConfig(ctx)
+	}
+	identity, err := reader.Identity(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	return identity.WorkMode, identity.MaxSOC, nil
+}
+
 // SetWorkMode selects a battery work mode when the reader supports writes.
 func (p *TelemetryPoller) SetWorkMode(ctx context.Context, mode int) error {
 	reader, err := p.readerFor(p.cfg.Get())

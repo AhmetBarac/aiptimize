@@ -62,6 +62,11 @@ type ChargeMaxWriter interface {
 	SetChargeMax(ctx context.Context, percent float64) error
 }
 
+// BatteryConfigReader reads the live work mode and charge ceiling.
+type BatteryConfigReader interface {
+	BatteryConfig(ctx context.Context) (mode int, maxSOC float64, err error)
+}
+
 // Reader is the read-only inverter contract.
 type Reader interface {
 	Identity(ctx context.Context) (Identity, error)

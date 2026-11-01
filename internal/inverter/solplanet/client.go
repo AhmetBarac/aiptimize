@@ -426,6 +426,29 @@ func (c *Client) SetChargeMax(ctx context.Context, percent float64) error {
 	return err
 }
 
+// BatteryConfig reads the live work mode and charge ceiling, bypassing the
+// long-lived identity cache so external mode changes are visible.
+func (c *Client) BatteryConfig(ctx context.Context) (int, float64, error) {
+	if c.serial == "" {
+		if _, err := c.Identity(ctx); err != nil {
+			return 0, 0, err
+		}
+	}
+	bc, err := c.getMap(ctx, "/getdev.cgi", url.Values{"device": {"4"}, "sn": {c.serial}})
+	if err != nil {
+		return 0, 0, err
+	}
+	mode, _ := intValue(bc, "mod_r")
+	maxSOC, _ := floatValue(bc, "charge_max")
+	c.mu.Lock()
+	if c.identity != nil {
+		c.identity.WorkMode = mode
+		c.identity.MaxSOC = maxSOC
+	}
+	c.mu.Unlock()
+	return mode, maxSOC, nil
+}
+
 // WriteSchedule selects Custom mode, writes the full seven-day setdefine value
 // and returns the readback. The caller must enforce the arm gate first.
 func (c *Client) WriteSchedule(ctx context.Context, schedule domain.Schedule) (domain.Schedule, error) {
