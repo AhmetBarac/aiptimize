@@ -117,7 +117,9 @@ const consumptionToday = computed(() => {
   return todayBucket.value.load_kwh
 })
 
-const plan = computed<Plan | null>(() => planView.value?.inverter_plan ?? null)
+const plan = computed<Plan | null>(
+  () => planView.value?.effective ?? planView.value?.auto ?? planView.value?.inverter_plan ?? null,
+)
 const planSlots = computed<PlanSlot[]>(() =>
   (plan.value?.slots ?? []).filter(
     (slot) => (slot.day_local || localDateKey(slot.start, timezone.value)) === today.value,
