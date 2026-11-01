@@ -39,7 +39,7 @@ func TestDefaults(t *testing.T) {
 	if v.EV.MinCurrentA != 6 || v.EV.MaxCurrentA != 16 || v.EV.GridChargeAllowed {
 		t.Errorf("ev defaults: %+v", v.EV)
 	}
-	if v.Safety.WritesArmedUI || v.Safety.WatchdogClearAfterS != 1800 {
+	if v.Safety.WritesArmedUI || v.Safety.WatchdogClearAfterS != 1800 || v.Safety.AutoScheduleWrite != "off" {
 		t.Errorf("safety defaults: %+v", v.Safety)
 	}
 	var sum float64
@@ -125,6 +125,7 @@ func TestPatchRejectsInvalid(t *testing.T) {
 		{"bad ev mode", SectionEV, `{"mode":"turbo"}`},
 		{"bad ev provider", SectionEV, `{"provider":"ocpp"}`},
 		{"bad watchdog", SectionSafety, `{"watchdog_clear_after_s":10}`},
+		{"bad auto schedule write", SectionSafety, `{"auto_schedule_write":"always"}`},
 		{"null patch", SectionSite, `null`},
 	}
 	for _, tc := range cases {

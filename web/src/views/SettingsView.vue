@@ -111,6 +111,7 @@ const settingInfoKeys: Record<string, string> = {
   ev: 'evArm',
   watchdog: 'watchdog',
   horizon: 'horizonLimit',
+  'auto-write': 'autoScheduleWrite',
 }
 
 function settingInfoKey(id: string): string {
@@ -223,6 +224,7 @@ const safetyForm = reactive({
   ev: false,
   watchdog: 1800,
   horizon: 2,
+  autoWrite: 'off' as 'off' | 'when_changed',
 })
 
 const pvForm = reactive({
@@ -369,6 +371,7 @@ async function load(): Promise<void> {
     safetyForm.ev = doc.safety.ev_control_armed_ui
     safetyForm.watchdog = doc.safety.watchdog_clear_after_s
     safetyForm.horizon = doc.safety.horizon_limit_days
+    safetyForm.autoWrite = doc.safety.auto_schedule_write === 'when_changed' ? 'when_changed' : 'off'
     try {
       evConfig.value = await api.get<EVConfig>('/ev/config')
     } catch {
@@ -427,6 +430,7 @@ async function saveSafety(): Promise<void> {
       ev_control_armed_ui: safetyForm.ev,
       watchdog_clear_after_s: Number(safetyForm.watchdog),
       horizon_limit_days: Number(safetyForm.horizon),
+      auto_schedule_write: safetyForm.autoWrite,
     })
     saved.value = t('settings.safetySaved')
     await load()
@@ -1450,6 +1454,14 @@ async function importSettings(event: Event): Promise<void> {
           <div class="col-12 col-sm-6">
             <label class="form-label" for="horizon">{{ t('settings.horizon') }}</label>
             <input id="horizon" v-model.number="safetyForm.horizon" class="form-control" type="number" min="1" max="2" />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="auto-write">{{ t('settings.autoScheduleWrite') }}</label>
+            <select id="auto-write" v-model="safetyForm.autoWrite" class="form-select">
+              <option value="off">{{ t('settings.autoScheduleWriteOff') }}</option>
+              <option value="when_changed">{{ t('settings.autoScheduleWriteOnChange') }}</option>
+            </select>
+            <p class="small text-muted mt-2 mb-0">{{ t('settings.autoScheduleWriteHint') }}</p>
           </div>
         </div>
         <div class="mt-3 small text-muted">

@@ -183,11 +183,12 @@ type EV struct {
 // Safety holds write gates and watchdog configuration. The *_armed_ui fields
 // are only the in-app half of the gate; the environment half is separate.
 type Safety struct {
-	WritesArmedUI           bool `json:"writes_armed_ui"`
-	EVControlArmedUI        bool `json:"ev_control_armed_ui"`
-	WatchdogClearAfterS     int  `json:"watchdog_clear_after_s"`
-	HorizonLimitDays        int  `json:"horizon_limit_days"`
-	ForeignScheduleTakeover bool `json:"foreign_schedule_takeover"`
+	WritesArmedUI           bool   `json:"writes_armed_ui"`
+	EVControlArmedUI        bool   `json:"ev_control_armed_ui"`
+	WatchdogClearAfterS     int    `json:"watchdog_clear_after_s"`
+	HorizonLimitDays        int    `json:"horizon_limit_days"`
+	ForeignScheduleTakeover bool   `json:"foreign_schedule_takeover"`
+	AutoScheduleWrite       string `json:"auto_schedule_write"`
 }
 
 // Default returns the documented default settings.
@@ -295,6 +296,7 @@ func Default() Values {
 			WatchdogClearAfterS:     1800,
 			HorizonLimitDays:        2,
 			ForeignScheduleTakeover: false,
+			AutoScheduleWrite:       "off",
 		},
 	}
 }

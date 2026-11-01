@@ -634,7 +634,8 @@
       "writesArm": "Aktivera schemaskrivningar till växelriktaren. Miljögränsen måste också vara öppen.",
       "evArm": "Aktivera faktisk styrning av billaddaren. Miljögränsen måste också vara öppen.",
       "watchdog": "Rensa ett gammalt schema efter så många sekunder utan lyckad uppdatering.",
-      "horizonLimit": "Högsta antal dagar ett schema får omfatta."
+      "horizonLimit": "Högsta antal dagar ett schema får omfatta.",
+      "autoScheduleWrite": "Ladda ner en ny plan automatiskt när schemat skiljer sig från växelriktaren. Manuella planer och främmande scheman skrivs aldrig över."
     },
     "planHelpTitle": "Så fungerar planeringen",
     "planHelpSubtitle": "Automatiska förslag, prisstrategi, peak shaving och skrivsäkerhet.",
@@ -731,6 +732,10 @@
     "evArm": "Aktivera elbilsstyrning i appen",
     "watchdog": "Watchdog rensar efter (sekunder)",
     "horizon": "Planeringshorisont (dagar)",
+    "autoScheduleWrite": "Automatiska schemaskrivningar",
+    "autoScheduleWriteHint": "Skriv en nygenererad plan till växelriktaren när schemat skiljer sig. Kräver aktiverade skrivningar och skriver aldrig över en manuell plan.",
+    "autoScheduleWriteOff": "Av",
+    "autoScheduleWriteOnChange": "När planen ändras",
     "saveSafety": "Spara säkerhetsinställningar",
     "safetySaved": "Säkerhetsinställningarna sparades.",
     "systemIntro": "Bygg- och anslutningsinformation.",

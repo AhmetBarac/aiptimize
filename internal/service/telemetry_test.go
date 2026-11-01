@@ -17,11 +17,12 @@ import (
 )
 
 type fakeInverter struct {
-	mu      sync.Mutex
-	reading inverter.Reading
-	err     error
-	calls   int
-	closed  int
+	mu       sync.Mutex
+	reading  inverter.Reading
+	err      error
+	calls    int
+	closed   int
+	schedule domain.Schedule
 }
 
 func (f *fakeInverter) Identity(context.Context) (inverter.Identity, error) {
@@ -39,7 +40,19 @@ func (f *fakeInverter) Read(context.Context) (inverter.Reading, error) {
 }
 
 func (f *fakeInverter) Schedule(context.Context) (domain.Schedule, error) {
-	return domain.Schedule{Days: map[string][]domain.ScheduleSlot{}}, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.schedule.Days == nil {
+		return domain.Schedule{Days: map[string][]domain.ScheduleSlot{}}, nil
+	}
+	return f.schedule, nil
+}
+
+func (f *fakeInverter) WriteSchedule(_ context.Context, schedule domain.Schedule) (domain.Schedule, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.schedule = schedule
+	return schedule, nil
 }
 
 func (f *fakeInverter) Close() error {

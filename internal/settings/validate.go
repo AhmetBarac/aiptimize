@@ -397,5 +397,12 @@ func validateSafety(v *Safety) error {
 	if v.HorizonLimitDays < 1 || v.HorizonLimitDays > 2 {
 		return invalid(SectionSafety, "horizon_limit_days", "must be 1 or 2")
 	}
+	switch v.AutoScheduleWrite {
+	case "", "off":
+		v.AutoScheduleWrite = "off"
+	case "when_changed":
+	default:
+		return invalid(SectionSafety, "auto_schedule_write", "must be off or when_changed")
+	}
 	return nil
 }

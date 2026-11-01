@@ -594,6 +594,7 @@ export interface SafetySettings {
   watchdog_clear_after_s: number
   horizon_limit_days: number
   foreign_schedule_takeover: boolean
+  auto_schedule_write: 'off' | 'when_changed'
 }
 
 export interface InverterSettings {

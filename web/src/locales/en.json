@@ -633,7 +633,8 @@
       "writesArm": "Arm schedule writes to the inverter. The environment gate must also be enabled.",
       "evArm": "Arm actual EV charger control. The environment gate must also be enabled.",
       "watchdog": "Clear a stale schedule after this many seconds without a successful update.",
-      "horizonLimit": "Maximum number of days a schedule may cover."
+      "horizonLimit": "Maximum number of days a schedule may cover.",
+      "autoScheduleWrite": "Automatically download a new plan when its schedule differs from the inverter. Manual plans and foreign schedules are never overwritten."
     },
     "planHelpTitle": "How planning works",
     "planHelpSubtitle": "Automatic suggestions, price strategy, peak shaving and write safety.",
@@ -730,6 +731,10 @@
     "evArm": "Arm EV control in the app",
     "watchdog": "Watchdog clear after (seconds)",
     "horizon": "Plan horizon limit (days)",
+    "autoScheduleWrite": "Automatic schedule writes",
+    "autoScheduleWriteHint": "Write a newly generated plan to the inverter when its schedule differs. Requires armed inverter writes and never overrides a manual plan.",
+    "autoScheduleWriteOff": "Off",
+    "autoScheduleWriteOnChange": "When plan changes",
     "saveSafety": "Save safety settings",
     "safetySaved": "Safety settings saved.",
     "systemIntro": "Build and connectivity information.",

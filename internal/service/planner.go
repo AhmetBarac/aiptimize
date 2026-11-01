@@ -249,7 +249,52 @@ func (s *PlannerService) Compute(ctx context.Context) (domain.Plan, error) {
 			"slots": stored.Slots, "no_plan_reason": stored.NoPlanReason,
 		})
 	}
+	s.autoApplyIfChanged(ctx, stored)
 	return stored, nil
+}
+
+// autoApplyIfChanged writes the freshly generated schedule when the opt-in
+// setting is enabled and the inverter is not already running it. Manual locks
+// and foreign schedules are never overwritten implicitly.
+func (s *PlannerService) autoApplyIfChanged(ctx context.Context, plan domain.Plan) {
+	values := s.cfg.Get()
+	if values.Safety.AutoScheduleWrite != "when_changed" {
+		return
+	}
+	if !s.writesEnv || !values.Safety.WritesArmedUI {
+		return
+	}
+	day := s.now().In(s.cfg.Location()).Format("2006-01-02")
+	if _, err := s.st.LatestDraftForDay(ctx, day); err == nil {
+		s.log.Info("automatic schedule write skipped: manual draft exists", "day", day)
+		return
+	}
+	if _, err := s.st.LatestAppliedForDay(ctx, day); err == nil {
+		s.log.Info("automatic schedule write skipped: manual plan is applied", "day", day)
+		return
+	}
+	desired, err := BuildSchedule(values, day, nil, &plan)
+	if err != nil {
+		s.log.Warn("automatic schedule build failed", "err", err)
+		return
+	}
+	current, err := s.telemetry.ReadSchedule(ctx)
+	if err != nil {
+		s.log.Warn("automatic schedule comparison failed", "err", err)
+		return
+	}
+	if len(ScheduleDiff(desired, current)) == 0 {
+		return
+	}
+	if s.foreignSchedule(ctx, current) && !values.Safety.ForeignScheduleTakeover {
+		s.log.Warn("automatic schedule write skipped: inverter has a foreign schedule")
+		return
+	}
+	if _, err := s.ApplyAuto(ctx, day, "auto"); err != nil {
+		s.log.Warn("automatic schedule write failed", "err", err)
+		return
+	}
+	s.log.Info("automatic plan applied to inverter", "day", day)
 }
 
 // Run computes a suggestion at startup and periodically thereafter. Errors keep
