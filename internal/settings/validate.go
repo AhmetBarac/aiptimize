@@ -136,6 +136,10 @@ func validateSite(v *Site) error {
 			return invalid(SectionSite, name, "must be between 0 and 10000 öre/kWh")
 		}
 	}
+	v.License = strings.TrimSpace(v.License)
+	if len(v.License) > 512 {
+		return invalid(SectionSite, "license", "must be at most 512 characters")
+	}
 	return nil
 }
 

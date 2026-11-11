@@ -9,6 +9,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -345,7 +347,39 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	for k, v := range sections {
 		out[k] = v
 	}
+	if raw, ok := out[settings.SectionSite]; ok {
+		if masked, err := maskSiteSecret(raw); err == nil {
+			out[settings.SectionSite] = masked
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// maskSiteSecret keeps the registry license out of API responses while telling
+// the UI whether one is configured.
+func maskSiteSecret(raw json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	var license string
+	if value, ok := fields["license"]; ok {
+		_ = json.Unmarshal(value, &license)
+	}
+	fields["license"] = json.RawMessage(`""`)
+	fields["license_set"] = json.RawMessage(strconv.FormatBool(strings.TrimSpace(license) != ""))
+	return json.Marshal(fields)
+}
+
+// registryToken returns the Docker Hub token used for update checks, preferring
+// the value stored in settings over the environment.
+func (s *Server) registryToken() string {
+	if s.settings != nil {
+		if token := strings.TrimSpace(s.settings.Get().Site.License); token != "" {
+			return token
+		}
+	}
+	return s.cfg.RegistryToken
 }
 
 type patchSettingsRequest struct {

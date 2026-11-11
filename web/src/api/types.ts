@@ -599,6 +599,8 @@ export interface SiteSettings {
   export_benefit_ore_kwh: number
   export_extra_ore_kwh: number
   show_full_price: boolean
+  license?: string
+  license_set?: boolean
 }
 
 export interface SafetySettings {

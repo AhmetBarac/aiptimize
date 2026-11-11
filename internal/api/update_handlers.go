@@ -16,7 +16,11 @@ func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	status, err := s.updates.Check(ctx, s.cfg.Version)
+	checker := *s.updates
+	if token := s.registryToken(); token != "" {
+		checker.Token = token
+	}
+	status, err := checker.Check(ctx, s.cfg.Version)
 	if err != nil {
 		s.log.Warn("update check failed", "err", err)
 		writeError(w, http.StatusBadGateway, "registry_unavailable",

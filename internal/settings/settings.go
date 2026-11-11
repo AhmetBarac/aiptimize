@@ -57,6 +57,10 @@ type Site struct {
 	ExportBenefitOre  float64 `json:"export_benefit_ore_kwh"`
 	ExportExtraOre    float64 `json:"export_extra_ore_kwh"`
 	ShowFullPrice     bool    `json:"show_full_price"`
+	// License is a Docker Hub personal access token used by the update check.
+	// It is stored so the credential can be rotated from the UI; the API never
+	// returns it.
+	License string `json:"license"`
 }
 
 // SignOverrides calibrates vendor sign conventions during commissioning.

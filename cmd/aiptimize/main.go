@@ -415,7 +415,7 @@ func runUpdateCheck() int {
 	if version != "dev" && cfg.Version == "dev" {
 		cfg.Version = version
 	}
-	checker := update.New(cfg.RegistryRepo, cfg.RegistryUsername, cfg.RegistryToken)
+	checker := update.New(cfg.RegistryRepo, cfg.RegistryUsername, updateToken(cfg))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	status, err := checker.Check(ctx, cfg.Version)
@@ -426,6 +426,26 @@ func runUpdateCheck() int {
 	out, _ := json.MarshalIndent(status, "", "  ")
 	fmt.Println(string(out))
 	return 0
+}
+
+// updateToken prefers the license stored in settings over the environment, the
+// same order the HTTP handler uses.
+func updateToken(cfg *config.Config) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	st, err := store.Open(ctx, cfg.DatabasePath)
+	if err != nil {
+		return cfg.RegistryToken
+	}
+	defer st.Close()
+	svc, err := settings.New(ctx, st)
+	if err != nil {
+		return cfg.RegistryToken
+	}
+	if license := strings.TrimSpace(svc.Get().Site.License); license != "" {
+		return license
+	}
+	return cfg.RegistryToken
 }
 
 func orUnknown(s string) string {

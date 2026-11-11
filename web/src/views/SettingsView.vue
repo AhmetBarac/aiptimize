@@ -60,6 +60,7 @@ const settingInfoKeys: Record<string, string> = {
   'export-benefit': 'exportBenefitOre',
   'export-extra': 'exportExtraOre',
   'show-full-price': 'showFullPrice',
+  'site-license': 'license',
   'inv-host': 'host',
   'inv-scheme': 'scheme',
   'inv-port': 'port',
@@ -181,7 +182,10 @@ const siteForm = reactive({
   exportBenefitOre: 0,
   exportExtraOre: 0,
   showFullPrice: false,
+  license: '',
 })
+
+const licenseSet = ref(false)
 
 const timezoneOptions = computed(() => {
   const supported = (
@@ -501,6 +505,8 @@ async function load(): Promise<void> {
     siteForm.exportBenefitOre = doc.site.export_benefit_ore_kwh ?? 0
     siteForm.exportExtraOre = doc.site.export_extra_ore_kwh ?? 0
     siteForm.showFullPrice = doc.site.show_full_price === true
+    siteForm.license = ''
+    licenseSet.value = doc.site.license_set === true
     inverterForm.host = doc.inverter.host
     inverterForm.scheme = doc.inverter.scheme
     inverterForm.port = doc.inverter.port
@@ -604,6 +610,7 @@ async function saveSite(): Promise<void> {
       export_benefit_ore_kwh: Number(siteForm.exportBenefitOre) || 0,
       export_extra_ore_kwh: Number(siteForm.exportExtraOre) || 0,
       show_full_price: siteForm.showFullPrice,
+      ...(siteForm.license.trim() ? { license: siteForm.license.trim() } : {}),
     })
     saved.value = t('settings.siteSaved')
     await load()
@@ -1065,6 +1072,25 @@ async function importSettings(event: Event): Promise<void> {
         <div class="form-check form-switch mt-4">
           <input id="show-full-price" v-model="siteForm.showFullPrice" class="form-check-input" type="checkbox" role="switch" />
           <label class="form-check-label" for="show-full-price">{{ t('settings.showFullPrice') }}</label>
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-12 col-sm-8">
+            <label class="form-label" for="site-license">{{ t('settings.license') }}</label>
+            <input
+              id="site-license"
+              v-model="siteForm.license"
+              class="form-control mono"
+              type="password"
+              autocomplete="off"
+              :placeholder="licenseSet ? t('settings.licensePlaceholderSet') : t('settings.licensePlaceholder')"
+            />
+            <p class="small text-muted mt-1 mb-0">
+              <i class="bi" :class="licenseSet ? 'bi-check-circle-fill' : 'bi-dash-circle'" aria-hidden="true"></i>
+              <span class="ms-1">{{ licenseSet ? t('settings.licenseConfigured') : t('settings.licenseMissing') }}</span>
+            </p>
+            <p class="small text-muted mt-1 mb-0">{{ t('settings.licenseHint') }}</p>
+          </div>
         </div>
 
         <button class="btn btn-primary mt-4" type="submit" :disabled="saving">

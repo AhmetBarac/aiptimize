@@ -115,7 +115,7 @@ starting again. Migrations run on startup. Keep the database and the matching
 | `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` | — | Zaptec installation id |
 | `AIPTIMIZE_REGISTRY_REPO` | `docker.io/ahmetbarac/aiptimize` | Repository the update check queries |
 | `AIPTIMIZE_REGISTRY_USERNAME` | — | Registry user (needed for a private repository) |
-| `AIPTIMIZE_REGISTRY_TOKEN` | — | Read-only token used by the update check |
+| `AIPTIMIZE_REGISTRY_TOKEN` | — | Fallback token when no license is stored in settings |
 | `AIPTIMIZE_UPDATE_REQUEST_FILE` | `/var/lib/aiptimize/update-request` | Trigger file watched by systemd |
 
 Secrets are read only from the environment. They are never returned by the API
@@ -208,6 +208,12 @@ new build can describe itself before it is pulled:
 
 `deploy/build.ps1` fills those from `VERSION`, `.buildnumber`, git and
 `-Notes "..."` (default: the commit subject).
+
+The registry credential is entered in the UI under **Settings → Site →
+License**: a Docker Hub personal access token with read access to the
+repository. It is stored with the other settings (SQLite) and never returned by
+the API — the settings response only says whether one is configured.
+`AIPTIMIZE_REGISTRY_TOKEN` stays as a fallback for headless installs.
 
 The container cannot replace itself, so *Update now* writes
 `/var/lib/aiptimize/update-request`, which `aiptimize-update.path` watches; the
