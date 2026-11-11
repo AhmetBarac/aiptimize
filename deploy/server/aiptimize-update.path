@@ -5,6 +5,8 @@ Documentation=https://github.com/AhmetBarac/aiptimize
 [Path]
 # The app cannot replace its own container; it writes this file instead.
 PathExists=/var/lib/aiptimize/update-request
+# Explicit: the trigger service is not named after the path unit.
+Unit=aiptimize-update-trigger.service
 
 [Install]
 WantedBy=paths.target

@@ -74,6 +74,7 @@ func New(repo, username, token string) *Checker {
 type registryRef struct {
 	authHost string
 	apiHost  string
+	service  string
 	repo     string
 }
 
@@ -92,12 +93,12 @@ func parseRepo(ref string) (registryRef, error) {
 		host := parts[0]
 		if host == "docker.io" || host == "index.docker.io" || host == "registry-1.docker.io" {
 			return registryRef{authHost: "auth.docker.io", apiHost: "registry-1.docker.io",
-				repo: parts[1] + "/" + parts[2]}, nil
+				service: "registry.docker.io", repo: parts[1] + "/" + parts[2]}, nil
 		}
-		return registryRef{authHost: host, apiHost: host, repo: parts[1] + "/" + parts[2]}, nil
+		return registryRef{authHost: host, apiHost: host, service: host, repo: parts[1] + "/" + parts[2]}, nil
 	case 2:
 		return registryRef{authHost: "auth.docker.io", apiHost: "registry-1.docker.io",
-			repo: parts[0] + "/" + parts[1]}, nil
+			service: "registry.docker.io", repo: parts[0] + "/" + parts[1]}, nil
 	default:
 		return registryRef{}, fmt.Errorf("update: cannot parse repository %q", ref)
 	}
@@ -146,7 +147,7 @@ func (c *Checker) Check(ctx context.Context, current string) (Status, error) {
 
 func (c *Checker) pullToken(ctx context.Context, ref registryRef) (string, error) {
 	url := fmt.Sprintf("%s/token?service=%s&scope=repository:%s:pull",
-		c.authBase(ref), ref.apiHost, ref.repo)
+		c.authBase(ref), ref.service, ref.repo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err

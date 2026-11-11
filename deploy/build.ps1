@@ -121,4 +121,4 @@ if ($Push) {
 } else {
     Write-Host 'not pushed (pass -Push to publish)'
 }
-$global:LASTEXITCODE = 0
+exit 0
