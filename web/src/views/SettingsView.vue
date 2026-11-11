@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
-import type { EVConfig, PVStringSettings, SettingsDocument } from '../api/types'
+import type { EVConfig, PVStringSettings, PlanApplyResult, PlanView, SettingsDocument } from '../api/types'
 import { loadMeta, loadSettings, patchSettings, session } from '../session'
 import PageHead from '../components/PageHead.vue'
 import Sheet from '../components/Sheet.vue'
@@ -226,6 +226,22 @@ const safetyForm = reactive({
   watchdog: 1800,
   horizon: 2,
   autoWrite: 'off' as 'off' | 'when_changed',
+  foreignTakeover: false,
+})
+
+const scheduleForeign = ref(false)
+const scheduleUnknown = ref(false)
+const takeoverBusy = ref(false)
+const takeoverDone = ref('')
+const takeoverError = ref('')
+const writesArmed = computed(() => session.meta?.gates.writes_armed === true)
+const canTakeControl = computed(
+  () => writesArmed.value && scheduleForeign.value && !scheduleUnknown.value,
+)
+const scheduleStateLabel = computed(() => {
+  if (scheduleUnknown.value) return t('settings.scheduleUnknown')
+  if (scheduleForeign.value) return t('settings.scheduleForeign')
+  return t('settings.scheduleOwned')
 })
 
 const pvForm = reactive({
@@ -375,6 +391,8 @@ async function load(): Promise<void> {
     safetyForm.watchdog = doc.safety.watchdog_clear_after_s
     safetyForm.horizon = doc.safety.horizon_limit_days
     safetyForm.autoWrite = doc.safety.auto_schedule_write === 'when_changed' ? 'when_changed' : 'off'
+    safetyForm.foreignTakeover = doc.safety.foreign_schedule_takeover === true
+    await loadScheduleOwnership()
     try {
       evConfig.value = await api.get<EVConfig>('/ev/config')
     } catch {
@@ -434,6 +452,7 @@ async function saveSafety(): Promise<void> {
       watchdog_clear_after_s: Number(safetyForm.watchdog),
       horizon_limit_days: Number(safetyForm.horizon),
       auto_schedule_write: safetyForm.autoWrite,
+      foreign_schedule_takeover: safetyForm.foreignTakeover,
     })
     saved.value = t('settings.safetySaved')
     await load()
@@ -441,6 +460,40 @@ async function saveSafety(): Promise<void> {
     error.value = err instanceof ApiError ? err.message : t('settings.saveFailed')
   } finally {
     saving.value = false
+  }
+}
+
+// loadScheduleOwnership asks the plan view who currently owns the inverter
+// schedule: aiptimize, a foreign controller, or unknown when the read fails.
+async function loadScheduleOwnership(): Promise<void> {
+  try {
+    const view = await api.get<PlanView>('/plan')
+    scheduleForeign.value = view.foreign_schedule === true
+    scheduleUnknown.value = view.inverter_read_ok === false
+  } catch {
+    scheduleUnknown.value = true
+  }
+}
+
+async function takeControl(): Promise<void> {
+  if (!canTakeControl.value) return
+  if (!window.confirm(t('plan.confirmTakeover'))) return
+  takeoverBusy.value = true
+  takeoverDone.value = ''
+  takeoverError.value = ''
+  try {
+    const result = await api.post<PlanApplyResult>('/schedule/takeover', { confirm: true })
+    takeoverDone.value = result.message || t('settings.takeControlDone')
+    await loadScheduleOwnership()
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const details = err.details as { error?: string } | undefined
+      takeoverError.value = details?.error ?? err.message
+    } else {
+      takeoverError.value = err instanceof Error ? err.message : t('settings.saveFailed')
+    }
+  } finally {
+    takeoverBusy.value = false
   }
 }
 
@@ -1475,6 +1528,25 @@ async function importSettings(event: Event): Promise<void> {
             <p class="small text-muted mt-2 mb-0">{{ t('settings.autoScheduleWriteHint') }}</p>
           </div>
         </div>
+        <hr class="my-4" />
+        <h3 class="h6">{{ t('settings.inverterSchedule') }}</h3>
+        <p class="small text-muted mb-2">{{ t('settings.inverterScheduleHint') }}</p>
+        <p class="small mb-2">
+          <i class="bi" :class="scheduleForeign ? 'bi-exclamation-triangle' : 'bi-shield-check'" aria-hidden="true"></i>
+          <span class="ms-1">{{ scheduleStateLabel }}</span>
+        </p>
+        <div class="form-check form-switch py-2">
+          <input id="foreign-takeover" v-model="safetyForm.foreignTakeover" class="form-check-input" type="checkbox" role="switch" />
+          <label class="form-check-label" for="foreign-takeover">{{ t('settings.foreignTakeover') }}</label>
+        </div>
+        <p class="small text-muted mb-2">{{ t('settings.foreignTakeoverHint') }}</p>
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="takeoverBusy || !canTakeControl" @click="takeControl">
+          <span v-if="takeoverBusy" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          {{ t('settings.takeControl') }}
+        </button>
+        <p v-if="!writesArmed" class="small text-muted mt-2 mb-0">{{ t('settings.takeControlNeedsArm') }}</p>
+        <p v-else-if="takeoverDone" class="small text-success mt-2 mb-0">{{ takeoverDone }}</p>
+        <p v-if="takeoverError" class="small text-danger mt-2 mb-0">{{ takeoverError }}</p>
         <div class="mt-3 small text-muted">
           <div class="key-value">
             <dt>{{ t('settings.envGate') }} — {{ t('dashboard.writes') }}</dt>

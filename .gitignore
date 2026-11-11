@@ -39,3 +39,6 @@ GUI inspiration/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local agent tooling
+.tools/
