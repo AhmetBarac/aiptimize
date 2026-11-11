@@ -57,6 +57,7 @@ type PlannerService struct {
 	evRestoreMode  int
 	evRestoreMax   float64
 	evRestoreUntil time.Time
+	wdLastWarn     time.Time
 }
 
 // SetWriteGate records the environment half of the inverter write gate for

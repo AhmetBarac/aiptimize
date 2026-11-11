@@ -39,8 +39,9 @@ environment.
   means the battery balances house load. An empty schedule is safe.
 - The battery planner (phase 4) rejects plans below the reserve SOC and never
   schedules a discharge that crosses local midnight.
-- A watchdog (phase 5) clears the schedule when telemetry or the plan goes stale
-  (`safety.watchdog_clear_after_s`, default 1800 s).
+- A watchdog clears the schedule when telemetry has been stale for longer than
+  `safety.watchdog_clear_after_s` (default 1800 s). It only acts while both write
+  gates are armed, and it never touches a schedule a foreign controller wrote.
 - A foreign schedule written by the vendor app or another controller is detected
   and is **not** overwritten until the user chooses *Take control*.
 - Manual edits are drafts until **Resubmit to inverter** is confirmed; the active

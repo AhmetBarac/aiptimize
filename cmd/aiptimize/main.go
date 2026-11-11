@@ -237,6 +237,7 @@ func runServe() int {
 	go telemetryPoller.Run(ctx)
 	go forecastSvc.Run(ctx)
 	go plannerSvc.Run(ctx)
+	go plannerSvc.RunWatchdog(ctx)
 	go plannerSvc.RunSlotPower(ctx)
 	go evSvc.Run(ctx)
 
