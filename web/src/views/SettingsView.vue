@@ -1094,7 +1094,7 @@ async function importSettings(event: Event): Promise<void> {
         </div>
 
         <div class="row g-3 mt-2">
-          <div class="col-12 col-sm-8">
+          <div class="col-12">
             <label class="form-label" for="site-license">{{ t('settings.license') }}</label>
             <input
               id="site-license"
@@ -1998,7 +1998,8 @@ section.aipt-card .form-check.form-switch .form-check-input {
 }
 
 section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> select),
-section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> input[type='text']) {
+section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> input[type='text']),
+section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> input[type='password']) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
