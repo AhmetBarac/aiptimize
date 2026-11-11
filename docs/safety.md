@@ -62,16 +62,11 @@ environment.
 
 1. Read the Solplanet schedule reference (`solplanet-schedule.md` in the evcc
    research workspace) and the HIL checklist in §9 of the development plan.
-2. Verify the dongle host, scheme and port, and confirm read-only telemetry for
-   at least 24 hours.
-3. Calibrate sign conventions (`inverter.sign_overrides`).
-4. Test with a single 30-minute slot at low power.
-5. Verify that the slot ends and the inverter returns to self-consumption.
-6. Verify the watchdog by stopping the service during a slot.
-7. Confirm that no raw register writes occur.
+2. Confirm read-only telemetry for at least 24 hours.
+3. Confirm that no raw register writes occur.
 
-Do not enable writes on a battery below the reserve SOC, and keep a way to
-release the battery (vendor app or dongle UI) available during commissioning.
+Keep a way to release the battery (vendor app or dongle UI) available during
+commissioning.
 
 ## Reporting a safety issue
 
