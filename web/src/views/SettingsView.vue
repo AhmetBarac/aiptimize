@@ -387,11 +387,16 @@ async function applyUpdate(): Promise<void> {
   const previous = update.value?.current ?? ''
   try {
     await api.post<{ updating: boolean }>('/system/update/apply', { confirm: true })
-    await waitForRestart(previous)
   } catch (err) {
-    updateApplying.value = false
-    updateError.value = err instanceof ApiError ? err.message : t('settings.updateFailed')
+    // The container can restart before the response arrives; the trigger may
+    // still have been written, so treat a network error as "keep waiting".
+    if (!(err instanceof ApiError) || err.status !== 0) {
+      updateApplying.value = false
+      updateError.value = err instanceof ApiError ? err.message : t('settings.updateFailed')
+      return
+    }
   }
+  await waitForRestart(previous)
 }
 
 // The container is replaced by the host, so wait for /meta to report a new
@@ -482,11 +487,25 @@ const evForm = reactive({
 
 onMounted(load)
 
+// After an in-app update the container is replaced; retry briefly so a restart
+// window does not surface as an error banner.
+async function loadSettingsWithRetry(): Promise<SettingsDocument> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await loadSettings()
+    } catch (err) {
+      const transient = err instanceof ApiError && err.status === 0
+      if (!transient || attempt >= 5) throw err
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+    }
+  }
+}
+
 async function load(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const doc = await loadSettings()
+    const doc = await loadSettingsWithRetry()
     settings.value = doc
     siteForm.name = doc.site.name
     siteForm.timezone = doc.site.timezone

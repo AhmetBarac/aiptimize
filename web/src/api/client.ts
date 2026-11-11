@@ -74,7 +74,10 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
       headers,
     })
   } catch (err) {
-    throw new ApiError('network_error', err instanceof Error ? err.message : 'Network error', 0)
+    const detail = err instanceof Error ? err.message : 'network error'
+    // The browser message ("Failed to fetch") is not user-facing; keep it in
+    // details for debugging and show something actionable instead.
+    throw new ApiError('network_error', 'The server is unreachable.', 0, { error: detail })
   }
 
   if (response.status === 204) {
