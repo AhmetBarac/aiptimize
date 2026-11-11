@@ -491,6 +491,18 @@ export interface Status {
   checks: Record<string, string>
 }
 
+export interface UpdateStatus {
+  repo: string
+  current: string
+  latest: string
+  update_available: boolean
+  notes?: string
+  revision?: string
+  created?: string
+  digest?: string
+  checked_at: string
+}
+
 export interface PricePoint {
   delivery_start: string
   delivery_end: string

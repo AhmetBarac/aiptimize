@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch for an aiptimize update request from the UI
+Documentation=https://github.com/AhmetBarac/aiptimize
+
+[Path]
+# The app cannot replace its own container; it writes this file instead.
+PathExists=/var/lib/aiptimize/update-request
+
+[Install]
+WantedBy=paths.target

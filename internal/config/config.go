@@ -52,6 +52,10 @@ type Config struct {
 	Version          string
 	Commit           string
 	BuildDate        string
+	RegistryRepo     string
+	RegistryUsername string
+	RegistryToken    string
+	UpdateRequestFile string
 }
 
 // ZaptecConfig holds the Zaptec cloud credentials (environment only).
@@ -85,6 +89,10 @@ func LoadFromEnv(getenv func(string) string) (*Config, error) {
 		Version:          env(getenv, "AIPTIMIZE_VERSION", "dev"),
 		Commit:           getenv("AIPTIMIZE_COMMIT"),
 		BuildDate:        getenv("AIPTIMIZE_BUILD_DATE"),
+		RegistryRepo:     env(getenv, "AIPTIMIZE_REGISTRY_REPO", "docker.io/ahmetbarac/aiptimize"),
+		RegistryUsername: getenv("AIPTIMIZE_REGISTRY_USERNAME"),
+		RegistryToken:    getenv("AIPTIMIZE_REGISTRY_TOKEN"),
+		UpdateRequestFile: env(getenv, "AIPTIMIZE_UPDATE_REQUEST_FILE", "/var/lib/aiptimize/update-request"),
 		Zaptec: ZaptecConfig{
 			Username:       getenv("AIPTIMIZE_ZAPTEC_USERNAME"),
 			Password:       getenv("AIPTIMIZE_ZAPTEC_PASSWORD"),

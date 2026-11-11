@@ -1,0 +1,11 @@
+[Unit]
+Description=Install an aiptimize update requested from the UI
+Documentation=https://github.com/AhmetBarac/aiptimize
+After=aiptimize.service
+
+[Service]
+Type=oneshot
+# Clear the trigger first so the path unit re-arms for the next request.
+ExecStartPre=/bin/rm -f /var/lib/aiptimize/update-request
+ExecStart=/usr/local/bin/aiptimize-update
+TimeoutStartSec=600

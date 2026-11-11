@@ -113,6 +113,10 @@ starting again. Migrations run on startup. Keep the database and the matching
 | `AIPTIMIZE_ZAPTEC_USERNAME` | — | Zaptec cloud service account |
 | `AIPTIMIZE_ZAPTEC_PASSWORD` | — | Zaptec cloud password |
 | `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` | — | Zaptec installation id |
+| `AIPTIMIZE_REGISTRY_REPO` | `docker.io/ahmetbarac/aiptimize` | Repository the update check queries |
+| `AIPTIMIZE_REGISTRY_USERNAME` | — | Registry user (needed for a private repository) |
+| `AIPTIMIZE_REGISTRY_TOKEN` | — | Read-only token used by the update check |
+| `AIPTIMIZE_UPDATE_REQUEST_FILE` | `/var/lib/aiptimize/update-request` | Trigger file watched by systemd |
 
 Secrets are read only from the environment. They are never returned by the API
 and never written to the database.
@@ -186,6 +190,36 @@ is also tagged with its version and commit, a rollback is one command:
 docker pull docker.io/ahmetbarac/aiptimize:sha-abc1234
 docker tag docker.io/ahmetbarac/aiptimize:sha-abc1234 docker.io/ahmetbarac/aiptimize:dev
 systemctl restart aiptimize
+```
+
+### In-app updates
+
+**Settings → System → Updates** shows the running build and a *Check for
+updates* button. The check reads the registry directly and compares the newest
+`0.xx.yyy` tag with the running version; it also reads the image labels, so the
+new build can describe itself before it is pulled:
+
+| Label | Shown as |
+|---|---|
+| `org.opencontainers.image.version` | version |
+| `org.opencontainers.image.revision` | commit |
+| `org.opencontainers.image.created` | build date |
+| `com.aiptimize.notes` | one-line build note (commit subject) |
+
+`deploy/build.ps1` fills those from `VERSION`, `.buildnumber`, git and
+`-Notes "..."` (default: the commit subject).
+
+The container cannot replace itself, so *Update now* writes
+`/var/lib/aiptimize/update-request`, which `aiptimize-update.path` watches; the
+one-shot `aiptimize-update-trigger.service` runs `aiptimize-update` and the unit
+restarts on the new image. The SPA polls `/api/v1/meta` and reloads when the
+version changes. Without those two units the button is hidden — the API answers
+`503 update_unavailable`.
+
+For a host without systemd, the same check is available from the CLI:
+
+```sh
+docker exec aiptimize /app/aiptimize update-check
 ```
 
 Migrations run automatically at startup and are idempotent. Back up `/data`

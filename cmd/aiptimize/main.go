@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -25,6 +26,7 @@ import (
 	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
+	"github.com/AhmetBarac/aiptimize/internal/update"
 	"github.com/AhmetBarac/aiptimize/internal/webui"
 )
 
@@ -55,6 +57,8 @@ func run(args []string) int {
 		return notYet("schedule clearing", "phase 5")
 	case "status":
 		return runStatus()
+	case "update-check":
+		return runUpdateCheck()
 	case "healthcheck":
 		return runHealthcheck()
 	case "version", "-v", "--version":
@@ -76,6 +80,7 @@ func usage(w io.Writer) {
 Usage:
   aiptimize serve          Run the HTTP server (default)
   aiptimize status         Print server metadata as JSON
+  aiptimize update-check   Ask the registry for a newer build (JSON)
   aiptimize healthcheck    Probe /healthz (for Docker)
   aiptimize plan           Compute a dry-run plan (phase 4)
   aiptimize apply          Apply the plan to the inverter (phase 5)
@@ -209,6 +214,23 @@ func runServe() int {
 	}
 	historySvc := service.NewHistoryService(st, settingsSvc, priceSvc, plannerSvc)
 
+	// The process cannot replace its own container, so an update request is a
+	// file the host's systemd path unit watches for.
+	requestUpdate := func() error {
+		if cfg.UpdateRequestFile == "" {
+			return errors.New("no update request file configured")
+		}
+		if err := os.MkdirAll(filepath.Dir(cfg.UpdateRequestFile), 0o755); err != nil {
+			return err
+		}
+		payload := []byte(time.Now().UTC().Format(time.RFC3339Nano) + "\n")
+		tmp := cfg.UpdateRequestFile + ".tmp"
+		if err := os.WriteFile(tmp, payload, 0o644); err != nil {
+			return err
+		}
+		return os.Rename(tmp, cfg.UpdateRequestFile)
+	}
+
 	restartCh := make(chan struct{}, 1)
 	requestRestart := func() {
 		select {
@@ -228,6 +250,8 @@ func runServe() int {
 		EV:             evSvc,
 		History:        historySvc,
 		RequestRestart: requestRestart,
+		Updates:        update.New(cfg.RegistryRepo, cfg.RegistryUsername, cfg.RegistryToken),
+		RequestUpdate:  requestUpdate,
 		Broker:         broker,
 		Logger:         logger,
 		WebFS:          webui.FS(),
@@ -376,6 +400,30 @@ func runStatus() int {
 		return 0
 	}
 	out, _ := json.MarshalIndent(v, "", "  ")
+	fmt.Println(string(out))
+	return 0
+}
+
+// runUpdateCheck asks the configured registry for a newer build without
+// touching the running process. Useful on the host and in support sessions.
+func runUpdateCheck() int {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
+		return 2
+	}
+	if version != "dev" && cfg.Version == "dev" {
+		cfg.Version = version
+	}
+	checker := update.New(cfg.RegistryRepo, cfg.RegistryUsername, cfg.RegistryToken)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	status, err := checker.Check(ctx, cfg.Version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "update check failed: %v\n", err)
+		return 1
+	}
+	out, _ := json.MarshalIndent(status, "", "  ")
 	fmt.Println(string(out))
 	return 0
 }

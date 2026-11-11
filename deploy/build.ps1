@@ -27,6 +27,7 @@
 param(
     [string]$Registry = 'docker.io/ahmetbarac/aiptimize',
     [string]$Platform = 'linux/arm64',
+    [string]$Notes = '',
     [switch]$Push,
     [switch]$NoIncrement
 )
@@ -74,6 +75,13 @@ if (-not $sha) { $sha = 'unknown' }
 $dirty = [bool](& git status --porcelain)
 $buildDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 
+# One line of release notes stored as an image label, read back by the in-app
+# update check. Defaults to the commit subject.
+if (-not $Notes) {
+    $Notes = (& git log -1 --pretty=%s).Trim()
+}
+if ($Notes.Length -gt 120) { $Notes = $Notes.Substring(0, 117) + '...' }
+
 $tags = @(
     "$Registry`:$version",
     "$Registry`:dev",
@@ -86,13 +94,15 @@ $buildArgs = @(
     '-f', 'deploy/Dockerfile',
     '--build-arg', "VERSION=$appVersion",
     '--build-arg', "COMMIT=$sha",
-    '--build-arg', "BUILD_DATE=$buildDate"
+    '--build-arg', "BUILD_DATE=$buildDate",
+    '--build-arg', "NOTES=$Notes"
 )
 foreach ($tag in $tags) { $buildArgs += @('-t', $tag) }
 $buildArgs += '.'
 if ($Push) { $buildArgs += '--push' }
 
 Write-Host "aiptimize $appVersion  (commit $sha$(if ($dirty) { ', dirty tree' }), $Platform)"
+Write-Host "notes: $Notes"
 Write-Host "tags: $($tags -join ', ')"
 if ($dirty) {
     Write-Warning 'Working tree has uncommitted changes; the commit tag does not describe them.'

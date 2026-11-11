@@ -34,6 +34,20 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # ---- runtime ---------------------------------------------------------------
 FROM alpine:3.22
 
+ARG VERSION=dev
+ARG COMMIT=
+ARG BUILD_DATE=
+ARG NOTES=
+
+# Read back by the in-app update check, so a newer build can describe itself
+# before it is pulled.
+LABEL org.opencontainers.image.title="aiptimize" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.source="https://github.com/AhmetBarac/aiptimize" \
+      com.aiptimize.notes="${NOTES}"
+
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -g 10001 -S aiptimize \
     && adduser -u 10001 -S -G aiptimize -h /app aiptimize \

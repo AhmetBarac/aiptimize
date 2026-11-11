@@ -17,6 +17,7 @@ import (
 	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 	"github.com/AhmetBarac/aiptimize/internal/store"
+	"github.com/AhmetBarac/aiptimize/internal/update"
 )
 
 // Deps are the server dependencies.
@@ -34,6 +35,11 @@ type Deps struct {
 	Broker    *Broker
 	Logger    *slog.Logger
 	WebFS     fs.FS
+	// Updates checks the container registry for a newer build.
+	Updates *update.Checker
+	// RequestUpdate asks the host supervisor to pull and restart. It is nil when
+	// the deployment cannot update itself.
+	RequestUpdate func() error
 	// RequestRestart asks the process supervisor to restart after the response
 	// has been sent. It is nil in tests and standalone API embeddings.
 	RequestRestart func()
@@ -61,6 +67,8 @@ type Server struct {
 	setupMu        sync.Mutex
 	now            func() time.Time
 	requestRestart func()
+	updates        *update.Checker
+	requestUpdate  func() error
 }
 
 // New builds a server and registers all routes.
@@ -88,6 +96,8 @@ func New(d Deps) *Server {
 		loginLimiter:   newRateLimiter(5, time.Minute),
 		now:            time.Now,
 		requestRestart: d.RequestRestart,
+		updates:        d.Updates,
+		requestUpdate:  d.RequestUpdate,
 	}
 	s.routes()
 	return s
@@ -133,6 +143,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/ev/config", s.requireAuth(s.handleEVConfig))
 	s.mux.HandleFunc("PUT /api/v1/ev/config", s.requireAuth(s.handleUpdateEVConfig))
 	s.mux.HandleFunc("POST /api/v1/system/restart", s.requireAuth(s.handleRestart))
+	s.mux.HandleFunc("GET /api/v1/system/update", s.requireAuth(s.handleUpdateCheck))
+	s.mux.HandleFunc("POST /api/v1/system/update/apply", s.requireAuth(s.handleUpdateApply))
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}", s.requireAuth(s.handleCharger))
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}/status", s.requireAuth(s.handleChargerStatus))
 	s.mux.HandleFunc("PATCH /api/v1/chargers/{id}/config", s.requireAuth(s.handleChargerConfig))

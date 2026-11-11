@@ -3,12 +3,20 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
-import type { EVConfig, PVStringSettings, PlanApplyResult, PlanView, SettingsDocument, Status } from '../api/types'
+import type {
+  EVConfig,
+  PVStringSettings,
+  PlanApplyResult,
+  PlanView,
+  SettingsDocument,
+  Status,
+  UpdateStatus,
+} from '../api/types'
 import { loadMeta, loadSettings, patchSettings, session } from '../session'
 import PageHead from '../components/PageHead.vue'
 import Sheet from '../components/Sheet.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 
 const sections = ['site', 'inverter', 'solar', 'load', 'plan', 'ev', 'safety', 'system'] as const
@@ -343,6 +351,70 @@ async function refreshStatus(): Promise<void> {
 async function openGateInfo(): Promise<void> {
   gateInfoOpen.value = true
   await Promise.all([refreshStatus(), loadScheduleOwnership()])
+}
+
+const update = ref<UpdateStatus | null>(null)
+const updateBusy = ref(false)
+const updateApplying = ref(false)
+const updateError = ref('')
+
+async function checkUpdate(): Promise<void> {
+  updateBusy.value = true
+  updateError.value = ''
+  try {
+    update.value = await api.get<UpdateStatus>('/system/update')
+  } catch (err) {
+    update.value = null
+    if (err instanceof ApiError) {
+      const details = err.details as { error?: string } | undefined
+      updateError.value = details?.error ?? err.message
+    } else {
+      updateError.value = t('settings.updateCheckFailed')
+    }
+  } finally {
+    updateBusy.value = false
+  }
+}
+
+async function applyUpdate(): Promise<void> {
+  if (!window.confirm(t('settings.updateConfirm'))) return
+  updateApplying.value = true
+  updateError.value = ''
+  const previous = update.value?.current ?? ''
+  try {
+    await api.post<{ updating: boolean }>('/system/update/apply', { confirm: true })
+    await waitForRestart(previous)
+  } catch (err) {
+    updateApplying.value = false
+    updateError.value = err instanceof ApiError ? err.message : t('settings.updateFailed')
+  }
+}
+
+// The container is replaced by the host, so wait for /meta to report a new
+// version before reloading the SPA.
+async function waitForRestart(previous: string): Promise<void> {
+  for (let attempt = 0; attempt < 45; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    try {
+      const response = await fetch('/api/v1/meta', { cache: 'no-store' })
+      if (!response.ok) continue
+      const meta = (await response.json()) as { version?: string }
+      if (meta.version && meta.version !== previous) {
+        window.location.reload()
+        return
+      }
+    } catch {
+      // The server is restarting; keep polling.
+    }
+  }
+  window.location.reload()
+}
+
+function formatBuildDate(value?: string): string {
+  if (!value) return t('settings.unknownValue')
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString(locale.value, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 const pvForm = reactive({
@@ -1724,6 +1796,44 @@ async function importSettings(event: Event): Promise<void> {
           <dd>{{ settings.price.area }} · {{ settings.price.currency }}</dd>
         </div>
       </dl>
+
+      <div class="update-card mt-4">
+        <div class="update-head">
+          <div>
+            <div class="update-title">{{ t('settings.updates') }}</div>
+            <p class="update-hint mb-0">{{ t('settings.updatesHint') }}</p>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm" type="button" :disabled="updateBusy" @click="checkUpdate">
+            <span v-if="updateBusy" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            {{ updateBusy ? t('settings.checkingUpdates') : t('settings.checkForUpdates') }}
+          </button>
+        </div>
+
+        <p v-if="updateError" class="small text-danger mt-2 mb-0">{{ updateError }}</p>
+
+        <div v-else-if="update" class="mt-3 small">
+          <template v-if="update.update_available">
+            <p class="update-version mb-1">
+              <i class="bi bi-arrow-up-circle-fill text-warning" aria-hidden="true"></i>
+              <span class="ms-1">{{ t('settings.updateAvailable', { version: update.latest }) }}</span>
+            </p>
+            <p v-if="update.notes" class="update-notes mb-1">{{ update.notes }}</p>
+            <p class="text-muted mb-2">
+              {{ t('settings.updateBuilt', { date: formatBuildDate(update.created), commit: update.revision || '—' }) }}
+            </p>
+            <button class="btn btn-primary btn-sm" type="button" :disabled="updateApplying" @click="applyUpdate">
+              <span v-if="updateApplying" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+              {{ updateApplying ? t('settings.updating') : t('settings.updateNow') }}
+            </button>
+            <p v-if="updateApplying" class="text-muted mt-2 mb-0">{{ t('settings.updateRestarting') }}</p>
+          </template>
+          <p v-else class="mb-0 text-success">
+            <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+            <span class="ms-1">{{ t('settings.updateCurrent', { version: update.latest }) }}</span>
+          </p>
+        </div>
+      </div>
+
       <div class="d-flex flex-wrap gap-2 mt-4">
         <button class="btn btn-outline-secondary" type="button" @click="exportSettings">
           <i class="bi bi-download" aria-hidden="true"></i>
@@ -1918,5 +2028,38 @@ section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(.form-check) {
   font-size: 0.78rem;
   line-height: 1.45;
   color: var(--aipt-muted);
+}
+
+.update-card {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 0.75rem;
+}
+
+.update-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.update-title {
+  font-weight: 600;
+  color: var(--aipt-text);
+}
+
+.update-hint {
+  font-size: 0.78rem;
+  color: var(--aipt-muted);
+}
+
+.update-version {
+  color: var(--aipt-text);
+}
+
+.update-notes {
+  font-size: 0.82rem;
+  color: var(--aipt-text);
 }
 </style>
