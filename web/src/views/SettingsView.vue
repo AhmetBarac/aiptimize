@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
-import type { EVConfig, PVStringSettings, PlanApplyResult, PlanView, SettingsDocument } from '../api/types'
+import type { EVConfig, PVStringSettings, PlanApplyResult, PlanView, SettingsDocument, Status } from '../api/types'
 import { loadMeta, loadSettings, patchSettings, session } from '../session'
 import PageHead from '../components/PageHead.vue'
 import Sheet from '../components/Sheet.vue'
@@ -126,7 +126,7 @@ function settingInfoKey(id: string): string {
 }
 
 function decorateSettings(): void {
-  document.querySelectorAll('.setting-info-btn').forEach((node) => node.remove())
+  document.querySelectorAll('.setting-info-btn[data-generated]').forEach((node) => node.remove())
   if (!settings.value) return
   document.querySelectorAll<HTMLLabelElement>('.aipt-card label[for]').forEach((label) => {
     const key = settingInfoKey(label.htmlFor)
@@ -136,6 +136,7 @@ function decorateSettings(): void {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'setting-info-btn'
+    button.dataset.generated = 'true'
     button.setAttribute('aria-label', `${title}: ${t('settings.settingHelp')}`)
     button.innerHTML = '<i class="bi bi-info-circle" aria-hidden="true"></i>'
     button.addEventListener('click', (event) => {
@@ -243,6 +244,106 @@ const scheduleStateLabel = computed(() => {
   if (scheduleForeign.value) return t('settings.scheduleForeign')
   return t('settings.scheduleOwned')
 })
+
+type PreconditionStatus = 'success' | 'pending' | 'failed'
+
+interface Precondition {
+  key: string
+  label: string
+  detail: string
+  status: PreconditionStatus
+}
+
+const gateInfoOpen = ref(false)
+const statusSnapshot = ref<Status | null>(null)
+
+// The planner refuses to plan from telemetry older than this, so it is the
+// threshold that matters here; /status.stale flips much earlier (90 s).
+const writeTelemetryLimitS = 300
+
+const preconditions = computed<Precondition[]>(() => {
+  const gates = session.meta?.gates
+  const telemetry = statusSnapshot.value?.telemetry
+  const reserve = settings.value?.inverter.reserve_soc ?? 0
+  const soc = telemetry?.sample?.soc
+  const age = telemetry?.age_s
+
+  let telemetryStatus: PreconditionStatus = 'pending'
+  let telemetryDetail = t('settings.preconditionTelemetryMissing')
+  if (telemetry?.available && telemetry.sample) {
+    const ageS = Math.round(age ?? 0)
+    if (ageS > writeTelemetryLimitS) {
+      telemetryStatus = 'failed'
+      telemetryDetail = t('settings.preconditionTelemetryStale', { age: ageS })
+    } else {
+      telemetryStatus = 'success'
+      telemetryDetail = t('settings.preconditionTelemetryFresh', {
+        age: ageS,
+        soc: Math.round(soc ?? 0),
+      })
+    }
+  }
+
+  let socStatus: PreconditionStatus = 'pending'
+  let socDetail = t('settings.preconditionSocUnknown')
+  if (soc !== undefined) {
+    socStatus = soc > reserve ? 'success' : 'failed'
+    socDetail = t('settings.preconditionSocDetail', { soc: Math.round(soc), reserve })
+  }
+
+  let ownerStatus: PreconditionStatus = 'success'
+  let ownerDetail = t('settings.preconditionForeignOk')
+  if (scheduleUnknown.value) {
+    ownerStatus = 'pending'
+    ownerDetail = t('settings.preconditionForeignUnknown')
+  } else if (scheduleForeign.value) {
+    ownerStatus = 'failed'
+    ownerDetail = t('settings.preconditionForeignFailed')
+  }
+
+  return [
+    {
+      key: 'env',
+      label: t('settings.preconditionEnv'),
+      detail: gates?.writes_env ? t('settings.preconditionEnvOn') : t('settings.preconditionEnvOff'),
+      status: gates?.writes_env ? 'success' : 'failed',
+    },
+    {
+      key: 'ui',
+      label: t('settings.preconditionUI'),
+      detail: gates?.writes_ui ? t('settings.preconditionUIOn') : t('settings.preconditionUIOff'),
+      status: gates?.writes_ui ? 'success' : 'failed',
+    },
+    { key: 'telemetry', label: t('settings.preconditionTelemetry'), detail: telemetryDetail, status: telemetryStatus },
+    { key: 'soc', label: t('settings.preconditionSoc'), detail: socDetail, status: socStatus },
+    { key: 'owner', label: t('settings.preconditionForeign'), detail: ownerDetail, status: ownerStatus },
+  ]
+})
+
+function preconditionIcon(status: PreconditionStatus): string {
+  if (status === 'success') return 'bi-check-circle-fill'
+  if (status === 'failed') return 'bi-x-circle-fill'
+  return 'bi-hourglass-split'
+}
+
+function preconditionTone(status: PreconditionStatus): string {
+  if (status === 'success') return 'success'
+  if (status === 'failed') return 'danger'
+  return 'warning'
+}
+
+async function refreshStatus(): Promise<void> {
+  try {
+    statusSnapshot.value = await api.get<Status>('/status')
+  } catch {
+    statusSnapshot.value = null
+  }
+}
+
+async function openGateInfo(): Promise<void> {
+  gateInfoOpen.value = true
+  await Promise.all([refreshStatus(), loadScheduleOwnership()])
+}
 
 const pvForm = reactive({
   strings: [] as PVStringSettings[],
@@ -393,6 +494,7 @@ async function load(): Promise<void> {
     safetyForm.autoWrite = doc.safety.auto_schedule_write === 'when_changed' ? 'when_changed' : 'off'
     safetyForm.foreignTakeover = doc.safety.foreign_schedule_takeover === true
     await loadScheduleOwnership()
+    await refreshStatus()
     try {
       evConfig.value = await api.get<EVConfig>('/ev/config')
     } catch {
@@ -1548,6 +1650,17 @@ async function importSettings(event: Event): Promise<void> {
         <p v-else-if="takeoverDone" class="small text-success mt-2 mb-0">{{ takeoverDone }}</p>
         <p v-if="takeoverError" class="small text-danger mt-2 mb-0">{{ takeoverError }}</p>
         <div class="mt-3 small text-muted">
+          <div class="gate-list-head">
+            <span class="gate-list-title">{{ t('settings.environmentGates') }}</span>
+            <button
+              type="button"
+              class="setting-info-btn gate-info-btn"
+              :aria-label="t('settings.preconditionsTitle')"
+              @click="openGateInfo"
+            >
+              <i class="bi bi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
           <div class="key-value">
             <dt>{{ t('settings.envGate') }} — {{ t('dashboard.writes') }}</dt>
             <dd>{{ onOff(session.meta?.gates.writes_env) }}</dd>
@@ -1638,6 +1751,37 @@ async function importSettings(event: Event): Promise<void> {
       </button>
     </template>
   </Sheet>
+
+  <Sheet
+    v-model:open="gateInfoOpen"
+    :title="t('settings.preconditionsTitle')"
+    :subtitle="t('settings.preconditionsSubtitle')"
+    size="sm"
+  >
+    <ul class="precondition-list">
+      <li v-for="item in preconditions" :key="item.key" class="precondition-item">
+        <i
+          class="bi precondition-icon"
+          :class="[preconditionIcon(item.status), `text-${preconditionTone(item.status)}`]"
+          aria-hidden="true"
+        ></i>
+        <div class="precondition-body">
+          <div class="precondition-head">
+            <span class="precondition-label">{{ item.label }}</span>
+            <span class="precondition-state" :class="`text-${preconditionTone(item.status)}`">
+              {{ t(`settings.preconditionState.${item.status}`) }}
+            </span>
+          </div>
+          <p class="precondition-detail mb-0">{{ item.detail }}</p>
+        </div>
+      </li>
+    </ul>
+    <template #footer>
+      <button class="btn btn-primary" type="button" @click="gateInfoOpen = false">
+        {{ t('common.close') }}
+      </button>
+    </template>
+  </Sheet>
 </template>
 
 <style scoped>
@@ -1708,5 +1852,71 @@ section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(> input[type='text'
 
 section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(.form-check) {
   display: block !important;
+}
+
+.gate-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.gate-list-title {
+  font-weight: 600;
+  color: var(--aipt-text);
+}
+
+.precondition-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.precondition-item {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.precondition-icon {
+  flex: 0 0 auto;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.precondition-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.precondition-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.precondition-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--aipt-text);
+}
+
+.precondition-state {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.precondition-detail {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--aipt-muted);
 }
 </style>

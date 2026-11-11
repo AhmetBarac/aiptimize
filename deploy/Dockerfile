@@ -4,7 +4,7 @@
 FROM node:24-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
@@ -20,7 +20,8 @@ COPY --from=web /src/internal/webui/dist ./internal/webui/dist
 ARG VERSION=dev
 ARG COMMIT=
 ARG BUILD_DATE=
-RUN CGO_ENABLED=0 go build -trimpath \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath \
     -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
     -o /out/aiptimize ./cmd/aiptimize
 
