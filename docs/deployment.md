@@ -57,6 +57,17 @@ The unit recreates the container from `docker.io/ahmetbarac/aiptimize:dev` on
 every start and keeps the named volume, so restarts and upgrades take the same
 path. Docker Compose is not required.
 
+The registry repository is private, so the host needs read access once:
+
+```sh
+echo "$TOKEN" | docker login -u ahmetbarac --password-stdin
+```
+
+Use a Docker Hub personal access token with **Read** permission on all
+repositories (not the "public repositories only" scope). It is stored in
+`/root/.docker/config.json` (mode 600) and used by both `aiptimize-update` and
+the unit's `--pull missing`.
+
 ### Data
 
 `/data/aiptimize.db` (plus WAL) holds users, sessions, settings, prices,

@@ -107,8 +107,8 @@ if (-not $NoIncrement) {
 
 Write-Host "built $appVersion"
 if ($Push) {
-    $digest = (& $docker buildx imagetools inspect "$Registry`:$version" --format '{{json .Manifest}}' 2>$null)
     Write-Host "pushed to $Registry ($version, dev, sha-$sha)"
 } else {
     Write-Host 'not pushed (pass -Push to publish)'
 }
+$global:LASTEXITCODE = 0
