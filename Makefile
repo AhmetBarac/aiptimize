@@ -42,10 +42,11 @@ run:
 	go run ./cmd/aiptimize serve
 
 docker:
-	docker compose -f deploy/compose.yaml build
+	docker buildx build --platform linux/arm64 -f deploy/Dockerfile -t aiptimize:local .
 
 docker-run:
-	docker compose -f deploy/compose.yaml up -d
+	docker run --rm --name aiptimize -p 8080:8080 --env-file .env \
+		-v aiptimize-v1-data:/data docker.io/ahmetbarac/aiptimize:dev
 
 e2e:
 	cd web && npm run test:e2e

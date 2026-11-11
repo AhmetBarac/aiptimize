@@ -31,7 +31,7 @@ keys enabled, and a single pooled connection.
 | API | `/api/v1` JSON, stable error envelope, request IDs, security headers, login rate limiting |
 | Streaming | SSE broker, heartbeat and status events |
 | SPA | Vue 3 + TypeScript + Vite, Bootstrap 5, ECharts, vue-router, vue-i18n (en/sv), mobile bottom tabs and desktop sidebar |
-| Ops | Multi-stage Dockerfile, non-root uid 10001, healthcheck, compose with read-only root and `/data` volume |
+| Ops | Multi-stage Dockerfile, non-root uid 10001, healthcheck, systemd unit with read-only root and `/data` volume, images published to Docker Hub |
 
 ## Phase 1 — prices
 

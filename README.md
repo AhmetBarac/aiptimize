@@ -154,7 +154,7 @@ internal/domain/     shared value types
 web/                 Vue 3 + TypeScript + Vite + Bootstrap + ECharts
 testdata/nordpool/   synthetic provider-schema fixtures (96 and 100 points)
 testdata/solplanet/  captured dongle payloads (sanitized) and schedule
-deploy/              Dockerfile, compose.yaml, .env.example
+deploy/              Dockerfile, build.ps1, server unit and update script
 docs/                architecture, prices, telemetry, solplanet, API, safety, deployment
 ```
 
