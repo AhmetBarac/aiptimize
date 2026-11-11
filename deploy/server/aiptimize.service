@@ -1,0 +1,30 @@
+[Unit]
+Description=Aiptimize energy scheduler
+Documentation=https://github.com/AhmetBarac/aiptimize
+Requires=docker.service
+After=docker.service
+# The Docker data root (and the aiptimize-v1-data volume) lives on /f.
+RequiresMountsFor=/f
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=60
+KillMode=mixed
+# Recreate from the pulled image on every (re)start; the named volume keeps state.
+ExecStartPre=-/usr/bin/docker rm -f aiptimize
+ExecStart=/usr/bin/docker run --name aiptimize \
+    --pull missing \
+    -p 8080:8080 \
+    --env-file /opt/aiptimize/app.env \
+    -v aiptimize-v1-data:/data \
+    --read-only \
+    --tmpfs /tmp:size=64m \
+    --security-opt no-new-privileges:true \
+    --stop-timeout 30 \
+    docker.io/ahmetbarac/aiptimize:dev
+ExecStop=/usr/bin/docker stop -t 30 aiptimize
+
+[Install]
+WantedBy=multi-user.target

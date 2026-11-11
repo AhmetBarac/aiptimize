@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1
 
+# Builder stages run on the native build platform and cross-compile for the
+# target. Only the runtime stage is target-platform, so an arm64 image can be
+# produced on an amd64 workstation without QEMU emulation.
+
 # ---- web build -------------------------------------------------------------
-FROM node:24-alpine AS web
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
@@ -9,19 +13,21 @@ COPY web/ ./
 RUN npm run build
 
 # ---- go build --------------------------------------------------------------
-FROM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache ca-certificates git
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 COPY --from=web /src/internal/webui/dist ./internal/webui/dist
 
+ARG TARGETOS=linux
+ARG TARGETARCH
 ARG VERSION=dev
 ARG COMMIT=
 ARG BUILD_DATE=
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
     -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
     -o /out/aiptimize ./cmd/aiptimize
 

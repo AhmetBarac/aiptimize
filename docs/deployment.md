@@ -1,16 +1,33 @@
 # Deployment
 
-## Docker Compose
+## Container image
+
+The application host does not build anything. Images are built on a workstation
+with Docker Desktop and published to Docker Hub; the server only pulls.
 
 ```sh
-cp deploy/.env.example .env
-# edit .env: set AIPTIMIZE_ADMIN_PASSWORD or use the setup screen,
-# keep AIPTIMIZE_ENABLE_WRITES=false until commissioning.
-docker compose up -d --build
+# on the workstation, from the repository root
+./deploy/build.ps1 -Push        # linux/arm64; pushes 0.12.041, dev and sha-<sha>
 ```
 
-The root `compose.yaml` includes `deploy/compose.yaml`. Both build from the
-repository root. The container:
+`deploy/build.ps1` reads the minor version from `VERSION` (`0.12`) and the
+counter from `.buildnumber`, increments the counter, and tags the image three
+ways:
+
+| Tag | Meaning |
+|---|---|
+| `0.12.041` | immutable build |
+| `dev` | moving tag the server follows |
+| `sha-abc1234` | the commit that produced it, for rollback |
+
+The binary reports `dev-0.12.041`: the code stays on the dev line, and every
+image remains uniquely identifiable. Bump `VERSION` for a milestone; the build
+number is automatic.
+
+Builder stages run natively and cross-compile (`GOOS`/`GOARCH`), so a
+`linux/arm64` image is produced on an amd64 workstation without QEMU.
+
+The runtime container:
 
 - runs as uid/gid `10001` (non-root);
 - has a read-only root filesystem with a small `/tmp` tmpfs;
@@ -20,13 +37,31 @@ repository root. The container:
 - stops with a 30 s grace period so the WAL can be checkpointed.
 
 The volume name is explicit (`aiptimize-v1-data`) so it cannot collide with a
-leftover volume from another application in the same Docker project.
+leftover volume from another application.
+
+## Server installation
+
+Two files are the whole installation: `deploy/server/aiptimize.service` and
+`deploy/server/aiptimize-update.sh`.
+
+```sh
+mkdir -p /opt/aiptimize
+install -m 644 deploy/server/aiptimize.service /etc/systemd/system/aiptimize.service
+install -m 755 deploy/server/aiptimize-update.sh /usr/local/bin/aiptimize-update
+printf 'AIPTIMIZE_ENABLE_WRITES=false\n' > /opt/aiptimize/app.env
+systemctl daemon-reload
+systemctl enable --now aiptimize
+```
+
+The unit recreates the container from `docker.io/ahmetbarac/aiptimize:dev` on
+every start and keeps the named volume, so restarts and upgrades take the same
+path. Docker Compose is not required.
 
 ### Data
 
 `/data/aiptimize.db` (plus WAL) holds users, sessions, settings, prices,
 telemetry, plans, revisions, schedule writes and EV data. Back up by stopping
-the container and copying the volume, or by running
+the service and copying the volume, or by running
 `sqlite3 /data/aiptimize.db ".backup /data/backup.db"`. The binary checkpoints
 the WAL on graceful shutdown. Settings can also be exported/imported as JSON
 from Settings → System.
@@ -34,15 +69,15 @@ from Settings → System.
 ### Backup and restore
 
 ```sh
-docker compose stop
+systemctl stop aiptimize
 docker run --rm -v aiptimize-v1-data:/data -v "$PWD":/backup alpine \
   cp /data/aiptimize.db /backup/aiptimize-$(date +%F).db
-docker compose start
+systemctl start aiptimize
 ```
 
 Restore by stopping the service, replacing `aiptimize.db` in the volume and
 starting again. Migrations run on startup. Keep the database and the matching
-`.env` together; secrets are not included in settings export.
+`app.env` together; secrets are not included in settings export.
 
 ### Environment
 
@@ -130,8 +165,16 @@ used for demos; real Zaptec control additionally needs
 ## Upgrades
 
 ```sh
-git pull
-docker compose up -d --build
+aiptimize-update          # pull :dev, restart only when the digest changed
+```
+
+The script prints the health response and the running image. Because every build
+is also tagged with its version and commit, a rollback is one command:
+
+```sh
+docker pull docker.io/ahmetbarac/aiptimize:sha-abc1234
+docker tag docker.io/ahmetbarac/aiptimize:sha-abc1234 docker.io/ahmetbarac/aiptimize:dev
+systemctl restart aiptimize
 ```
 
 Migrations run automatically at startup and are idempotent. Back up `/data`
@@ -139,11 +182,11 @@ before major upgrades.
 
 ## Troubleshooting
 
-- **`/healthz` fails** — check container logs; the data directory must be
-  writable by uid 10001.
+- **`/healthz` fails** — `journalctl -u aiptimize -n 50`; the data directory
+  must be writable by uid 10001.
 - **401 after login behind a proxy** — set `AIPTIMIZE_TRUST_PROXY=true` and
   terminate TLS at the proxy.
-- **`docker compose` cannot find `.env`** — the compose file uses
-  `required: false`; copy `deploy/.env.example` to `.env` for configuration.
+- **`aiptimize-update` reports a digest but the app did not change** — the
+  running container is pinned to `:dev`; check `docker inspect aiptimize`.
 - **Setup screen keeps appearing** — no user exists yet; complete setup or set
-  `AIPTIMIZE_ADMIN_PASSWORD`.
+  `AIPTIMIZE_ADMIN_PASSWORD` in `/opt/aiptimize/app.env`.

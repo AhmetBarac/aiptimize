@@ -1,0 +1,7 @@
+# Keep shell scripts and Docker files LF even on Windows checkouts: they run on
+# Linux and a stray CRLF breaks the interpreter line.
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.ps1 text eol=crlf
+*.service text eol=lf

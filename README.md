@@ -20,12 +20,21 @@ The full design and delivery plan live in
 
 ## Quick start
 
-### Docker (recommended)
+### Docker
+
+Images are built on a workstation and published to Docker Hub; hosts only pull.
 
 ```sh
-cp deploy/.env.example .env       # optional; configure secrets and gates
-docker compose up -d --build
+./deploy/build.ps1 -Push          # build linux/arm64 and push 0.12.041, dev, sha-<sha>
+docker run -d --name aiptimize -p 8080:8080 \
+  --env-file .env -v aiptimize-v1-data:/data \
+  docker.io/ahmetbarac/aiptimize:dev
 ```
+
+The application host runs that container from
+`deploy/server/aiptimize.service` under systemd, and `aiptimize-update` pulls a
+new build and restarts only when the image digest changed. See
+[docs/deployment.md](docs/deployment.md).
 
 Open <http://localhost:8080> and complete the first-run setup. If
 `AIPTIMIZE_ADMIN_PASSWORD` is set, the admin user is seeded at startup and the
