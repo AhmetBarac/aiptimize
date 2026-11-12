@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.aiptimize.companion.data.DiscoveredServer
 import io.aiptimize.companion.data.InstanceInfo
+import io.aiptimize.companion.data.ProbeResult
 import io.aiptimize.companion.data.ResolvedEndpoint
 import io.aiptimize.companion.data.ServerProfile
 import io.aiptimize.companion.data.Transport
@@ -119,6 +120,7 @@ private sealed interface TestState {
     data object Idle : TestState
     data object Running : TestState
     data class Ok(val info: InstanceInfo, val url: String) : TestState
+    data class Gated(val url: String) : TestState
     data class Failed(val message: String) : TestState
 }
 
@@ -211,10 +213,12 @@ fun AddServerScreen(
                         state = TestState.Running
                         scope.launch {
                             val result = vm.test(url)
-                            state = if (result == null) {
-                                TestState.Failed("No Aiptimize server answered at that address.")
-                            } else {
-                                TestState.Ok(result.first, result.second)
+                            val probe = result?.first
+                            state = when {
+                                result == null -> TestState.Failed("That address is not valid.")
+                                probe is ProbeResult.Verified -> TestState.Ok(probe.info, result.second)
+                                probe is ProbeResult.Gated -> TestState.Gated(result.second)
+                                else -> TestState.Failed("No Aiptimize server answered at that address.")
                             }
                         }
                     },
@@ -260,6 +264,33 @@ fun AddServerScreen(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
+                    }
+                    is TestState.Gated -> {
+                        Text(
+                            "Reachable, protected by Cloudflare Access.",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "Sign in with the one-time PIN when the page opens.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                val host = runCatching { java.net.URI(current.url).host }
+                                    .getOrNull().orEmpty().ifBlank { "Remote server" }
+                                onSave(
+                                    ServerProfile(
+                                        // No instance id is visible through Access; the
+                                        // hostname keeps the profile stable.
+                                        instanceId = "wan:$host",
+                                        label = host,
+                                        wanUrl = current.url,
+                                    ),
+                                )
+                            },
+                            enabled = current.url.startsWith("https://"),
+                        ) { Text("Save as WAN") }
                     }
                     is TestState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)
                     else -> Unit

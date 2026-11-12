@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.aiptimize.companion.data.ApiClient
 import io.aiptimize.companion.data.DiscoveredServer
 import io.aiptimize.companion.data.DiscoveryClient
-import io.aiptimize.companion.data.InstanceInfo
+import io.aiptimize.companion.data.ProbeResult
 import io.aiptimize.companion.data.ResolvedEndpoint
 import io.aiptimize.companion.data.ServerProfile
 import io.aiptimize.companion.data.ServerStore
@@ -43,10 +43,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun test(rawUrl: String): Pair<InstanceInfo, String>? {
+    suspend fun test(rawUrl: String): Pair<ProbeResult, String>? {
         val url = ApiClient.normalize(rawUrl) ?: return null
-        val info = api.instance(url, remote = ApiClient.isRemote(url)) ?: return null
-        return info to url
+        return api.probe(url, remote = ApiClient.isRemote(url)) to url
     }
 
     fun save(profile: ServerProfile) {
