@@ -45,3 +45,7 @@ Thumbs.db
 
 # Built artifacts
 *.apk
+
+# Generated download QR
+companion-download-qr.png
+apk-download-qr.png

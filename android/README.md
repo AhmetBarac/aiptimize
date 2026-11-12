@@ -43,17 +43,20 @@ BUILD SUCCESSFUL — app/build/outputs/apk/debug/app-debug.apk (11 MB)
 package io.aiptimize.companion, minSdk 26, target 35
 ```
 
+## Publishing a build
+
+Every companion build is distributed as a versioned APK plus a fresh QR code:
+
+1. Bump `versionCode`/`versionName` in [app/build.gradle.kts](app/build.gradle.kts).
+2. `./gradlew assembleDebug`
+3. Copy to the workspace as `aiptimize-companion-<versionName>.apk`, upload it to
+   the host that serves the download, and refresh the
+   `aiptimize-companion-latest.apk` alias.
+4. Generate the QR for the **versioned** URL (not `latest`) so the installed
+   build is unambiguous, then decode it once to confirm the payload.
+
 A debug APK is published at the repository root as
-`aiptimize-companion-0.1.0-debug.apk` for sideloading.
-
-```sh
-cd android
-./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
-./gradlew installDebug           # with a device attached
-```
-
-Android Studio only needs to open `android/` and sync; the wrapper is checked
-in.
+`aiptimize-companion-<version>.apk` for sideloading.
 
 ## Remote access
 
