@@ -195,6 +195,35 @@ used for demos; real Zaptec control additionally needs
 `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` and `AIPTIMIZE_ZAPTEC_CHARGER_ID`. Set
 `AIPTIMIZE_SIMULATOR=true` to run without a dongle, charger or internet weather.
 
+## Remote access (Cloudflare Tunnel)
+
+The reference deployment exposes the UI at `home.aiptimize.io` through a
+Cloudflare Tunnel, with Cloudflare Access in front:
+
+- `cloudflared` runs as a systemd service on the host and dials out; no inbound
+  ports are opened.
+- The tunnel's public hostname routes `home.aiptimize.io` to
+  `http://localhost:8080` (the unit uses host networking, so `localhost` is the
+  app).
+- An Access application covers the hostname with a **1 month** session and a
+  One-time-PIN policy listing the allowed email addresses.
+- API clients that cannot do the email flow use a **service token**: a second
+  Access policy with decision `non_identity` listing the token, and requests
+  carrying
+
+  ```sh
+  curl https://home.aiptimize.io/api/v1/instance \
+    -H "CF-Access-Client-Id: <client-id>.access" \
+    -H "CF-Access-Client-Secret: <secret>"
+  ```
+
+  Service tokens are managed under Zero Trust → Access → Service authentication;
+  the secret is shown once and can be rotated there or with
+  `POST /accounts/{id}/access/service_tokens/{uuid}/rotate`.
+
+A service token must be listed in a `non_identity` policy — adding it to an
+`allow` policy alongside email rules authenticates but still returns 403.
+
 ## Upgrades
 
 ```sh
