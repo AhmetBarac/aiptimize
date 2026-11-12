@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import io.aiptimize.companion.BuildConfig
 import io.aiptimize.companion.data.DiscoveredServer
 import io.aiptimize.companion.data.InstanceInfo
 import io.aiptimize.companion.data.ProbeResult
@@ -113,6 +114,14 @@ fun ServersScreen(
                         }
                     }
                 }
+            }
+            item {
+                Text(
+                    "Companion ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
             }
         }
     }
@@ -317,6 +326,29 @@ fun ViewerScreen(
     var attempt by remember { mutableIntStateOf(0) }
     var diagnostics by remember { mutableStateOf<String?>(null) }
 
+    val metricsScript = remember {
+        """(function(){
+            var d=document.documentElement;
+            var s=document.querySelector('.sheet-panel');
+            var r='none';
+            if (s) { var b=s.getBoundingClientRect(); r=Math.round(b.top)+'/'+Math.round(b.height); }
+            return JSON.stringify({
+              innerH:window.innerHeight, innerW:window.innerWidth,
+              dpr:window.devicePixelRatio,
+              visualH:window.visualViewport?Math.round(window.visualViewport.height):null,
+              docH:d.clientHeight, sheetTopHeight:r
+            });
+        })()""".trimIndent()
+    }
+
+    fun reportMetrics(view: WebView) {
+        val metrics = view.resources.displayMetrics
+        view.evaluateJavascript(metricsScript) { result ->
+            diagnostics = "view ${view.width}x${view.height} screen ${metrics.widthPixels}x${metrics.heightPixels} " +
+                "d${metrics.density}\n$result"
+        }
+    }
+
     LaunchedEffect(instanceId, attempt) {
         error = null
         endpoint = null
@@ -351,28 +383,7 @@ fun ViewerScreen(
                 navigationIcon = { TextButton(onClick = onBack) { Text("Servers") } },
                 actions = {
                     TextButton(onClick = { webView?.reload() }) { Text("Reload") }
-                    TextButton(onClick = {
-                        val view = webView ?: return@TextButton
-                        val metrics = view.resources.displayMetrics
-                        view.evaluateJavascript(
-                            """(function(){
-                                var d=document.documentElement;
-                                var s=document.querySelector('.sheet-panel');
-                                var r=s?JSON.stringify([Math.round(s.getBoundingClientRect().top),Math.round(s.getBoundingClientRect().height)]):'none';
-                                return JSON.stringify({
-                                  innerH:window.innerHeight, innerW:window.innerWidth,
-                                  dpr:window.devicePixelRatio,
-                                  visualH:window.visualViewport?Math.round(window.visualViewport.height):null,
-                                  docH:d.clientHeight, bodyH:document.body.clientHeight,
-                                  sheetTopHeight:r
-                                });
-                            })()""".trimIndent(),
-                        ) { result ->
-                            diagnostics = "view ${view.width}x${view.height}px  " +
-                                "screen ${metrics.widthPixels}x${metrics.heightPixels}px  " +
-                                "density ${metrics.density}\n" + result
-                        }
-                    }) { Text("Info") }
+                    TextButton(onClick = { webView?.let { reportMetrics(it) } }) { Text("Info") }
                 },
             )
         },
@@ -428,6 +439,10 @@ fun ViewerScreen(
                             settings.mixedContentMode =
                                 android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
                             webViewClient = object : WebViewClient() {
+                                override fun onPageFinished(view: WebView, url: String?) {
+                                    reportMetrics(view)
+                                }
+
                                 override fun onReceivedError(
                                     view: WebView,
                                     request: WebResourceRequest,
