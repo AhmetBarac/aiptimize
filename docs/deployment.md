@@ -39,6 +39,23 @@ The runtime container:
 The volume name is explicit (`aiptimize-v1-data`) so it cannot collide with a
 leftover volume from another application.
 
+## Release checklist
+
+Every change to the application (`cmd/`, `internal/`, `web/`) is published, never
+hand-copied onto the host:
+
+1. `./deploy/build.ps1 -Push` — increments `.buildnumber`, cross-compiles
+   `linux/arm64` and pushes `0.12.NNN`, `dev` and `sha-<sha>` to Docker Hub.
+2. Commit the bumped `.buildnumber` together with the change.
+3. On the host: `aiptimize-update`, or **Settings → System → Update now**.
+4. Verify `/healthz` reports the new `dev-0.12.NNN` and that
+   `docker image ls --digests ahmetbarac/aiptimize` shows the new digest on
+   `dev`.
+
+Tags are never reused: the build number is the version. Documentation,
+`android/` and the systemd unit files are not part of the image, so they need no
+publish — unit files are installed to `/etc/systemd/system` separately.
+
 ## Server installation
 
 Two files are the whole installation: `deploy/server/aiptimize.service` and
