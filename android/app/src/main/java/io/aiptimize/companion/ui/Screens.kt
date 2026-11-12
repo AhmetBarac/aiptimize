@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -341,6 +343,7 @@ fun ViewerScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
                 title = { Text(profile?.label ?: "Aiptimize") },
@@ -360,7 +363,7 @@ fun ViewerScreen(
             }
             when {
                 error != null -> Column(
-                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f).padding(32.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -369,18 +372,24 @@ fun ViewerScreen(
                     Button(onClick = { attempt++ }) { Text("Retry") }
                 }
                 endpoint == null -> Column(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) { CircularProgressIndicator() }
                 else -> AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    // weight, not fillMaxSize: inside a Column fillMaxSize would take
+                    // the whole height and push the bottom of the page off-screen.
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     factory = { context ->
                         WebView(context).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.allowFileAccess = false
                             settings.allowContentAccess = false
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = false
+                            settings.builtInZoomControls = false
+                            settings.displayZoomControls = false
                             settings.mixedContentMode =
                                 android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
                             webViewClient = object : WebViewClient() {
