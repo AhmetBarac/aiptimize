@@ -315,6 +315,7 @@ fun ViewerScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
+    var diagnostics by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(instanceId, attempt) {
         error = null
@@ -348,7 +349,31 @@ fun ViewerScreen(
             TopAppBar(
                 title = { Text(profile?.label ?: "Aiptimize") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Servers") } },
-                actions = { TextButton(onClick = { webView?.reload() }) { Text("Reload") } },
+                actions = {
+                    TextButton(onClick = { webView?.reload() }) { Text("Reload") }
+                    TextButton(onClick = {
+                        val view = webView ?: return@TextButton
+                        val metrics = view.resources.displayMetrics
+                        view.evaluateJavascript(
+                            """(function(){
+                                var d=document.documentElement;
+                                var s=document.querySelector('.sheet-panel');
+                                var r=s?JSON.stringify([Math.round(s.getBoundingClientRect().top),Math.round(s.getBoundingClientRect().height)]):'none';
+                                return JSON.stringify({
+                                  innerH:window.innerHeight, innerW:window.innerWidth,
+                                  dpr:window.devicePixelRatio,
+                                  visualH:window.visualViewport?Math.round(window.visualViewport.height):null,
+                                  docH:d.clientHeight, bodyH:document.body.clientHeight,
+                                  sheetTopHeight:r
+                                });
+                            })()""".trimIndent(),
+                        ) { result ->
+                            diagnostics = "view ${view.width}x${view.height}px  " +
+                                "screen ${metrics.widthPixels}x${metrics.heightPixels}px  " +
+                                "density ${metrics.density}\n" + result
+                        }
+                    }) { Text("Info") }
+                },
             )
         },
     ) { padding ->
@@ -359,6 +384,16 @@ fun ViewerScreen(
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            diagnostics?.let { text ->
+                Text(
+                    text,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
             when {
