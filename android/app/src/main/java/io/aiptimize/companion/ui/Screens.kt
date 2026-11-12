@@ -330,7 +330,16 @@ fun ViewerScreen(
     val metricsScript = remember {
         """(function(){
             var out=['vh='+window.innerHeight];
-            if (window.visualViewport) out.push('vv='+Math.round(window.visualViewport.height));
+            var rule='none';
+            try {
+              for (var i=0;i<document.styleSheets.length;i++){
+                var rs=document.styleSheets[i].cssRules;
+                for (var j=0;j<rs.length;j++){
+                  if (rs[j].selectorText==='.sheet-panel' && rs[j].style && rs[j].style.maxHeight) rule=rs[j].style.maxHeight;
+                }
+              }
+            } catch(e) { rule='err'; }
+            out.push('css='+rule);
             var panels=document.querySelectorAll('.sheet-panel');
             out.push('panels='+panels.length);
             for (var i=0;i<panels.length;i++){
