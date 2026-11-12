@@ -539,7 +539,9 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  max-height: 88dvh;
+  /* vh, not dvh: an Android WebView can resolve dvh to a few dozen pixels,
+     which collapses the sheet to its padding. */
+  max-height: 88vh;
   padding: 1.1rem 1.1rem calc(1.1rem + env(safe-area-inset-bottom, 0px));
   overflow: auto;
   border: 1px solid var(--aipt-border);
@@ -617,7 +619,7 @@
 
   .sheet-panel {
     max-width: 560px;
-    max-height: 85dvh;
+    max-height: 85vh;
     padding: 1.4rem;
     border-radius: 26px;
     border-bottom: 1px solid var(--aipt-border);

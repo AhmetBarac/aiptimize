@@ -53,6 +53,7 @@ import io.aiptimize.companion.data.ProbeResult
 import io.aiptimize.companion.data.ResolvedEndpoint
 import io.aiptimize.companion.data.ServerProfile
 import io.aiptimize.companion.data.Transport
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -328,16 +329,10 @@ fun ViewerScreen(
 
     val metricsScript = remember {
         """(function(){
-            var d=document.documentElement;
             var s=document.querySelector('.sheet-panel');
             var r='none';
-            if (s) { var b=s.getBoundingClientRect(); r=Math.round(b.top)+'/'+Math.round(b.height); }
-            return JSON.stringify({
-              innerH:window.innerHeight, innerW:window.innerWidth,
-              dpr:window.devicePixelRatio,
-              visualH:window.visualViewport?Math.round(window.visualViewport.height):null,
-              docH:d.clientHeight, sheetTopHeight:r
-            });
+            if (s) { var b=s.getBoundingClientRect(); r=Math.round(b.top)+'+'+Math.round(b.height); }
+            return 'vh='+window.innerHeight+' sheet='+r;
         })()""".trimIndent()
     }
 
@@ -345,7 +340,17 @@ fun ViewerScreen(
         val metrics = view.resources.displayMetrics
         view.evaluateJavascript(metricsScript) { result ->
             diagnostics = "view ${view.width}x${view.height} screen ${metrics.widthPixels}x${metrics.heightPixels} " +
-                "d${metrics.density}\n$result"
+                result.trim('"')
+        }
+    }
+
+    // Refresh while the viewer is open so a screenshot always reflects the
+    // sheet that is currently on screen.
+    LaunchedEffect(webView) {
+        val view = webView ?: return@LaunchedEffect
+        while (true) {
+            reportMetrics(view)
+            delay(700)
         }
     }
 
