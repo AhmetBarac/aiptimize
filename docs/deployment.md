@@ -135,6 +135,10 @@ the database and shown under **Settings → System**, so a server keeps its
 identity when DHCP changes its address. Discovery is LAN-only; nothing is
 exposed beyond the local broadcast domain.
 
+The companion app lives in [android/](../android/README.md); it discovers
+servers with the probe above, keeps several profiles keyed by instance id and
+shows the web UI in a WebView over LAN or the Cloudflare tunnel.
+
 ## Reverse proxy and TLS
 
 Terminate TLS at a proxy (Caddy, nginx, Traefik) and forward to port 8080. Set

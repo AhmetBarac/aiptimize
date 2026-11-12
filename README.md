@@ -155,6 +155,7 @@ web/                 Vue 3 + TypeScript + Vite + Bootstrap + ECharts
 testdata/nordpool/   synthetic provider-schema fixtures (96 and 100 points)
 testdata/solplanet/  captured dongle payloads (sanitized) and schedule
 deploy/              Dockerfile, build.ps1, server unit and update script
+android/             companion app (Kotlin/Compose, discovery + WebView)
 docs/                architecture, prices, telemetry, solplanet, API, safety, deployment
 ```
 

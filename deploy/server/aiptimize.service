@@ -16,7 +16,7 @@ KillMode=mixed
 ExecStartPre=-/usr/bin/docker rm -f aiptimize
 ExecStart=/usr/bin/docker run --name aiptimize \
     --pull missing \
-    -p 8080:8080 \
+    --network host \
     --env-file /opt/aiptimize/app.env \
     -v aiptimize-v1-data:/data \
     -v /var/lib/aiptimize:/var/lib/aiptimize \
