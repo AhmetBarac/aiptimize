@@ -1815,6 +1815,10 @@ async function importSettings(event: Event): Promise<void> {
           <dd class="mono">{{ session.meta?.build_date || '—' }}</dd>
         </div>
         <div class="key-value">
+          <dt>{{ t('settings.instanceID') }}</dt>
+          <dd class="mono">{{ session.meta?.instance_id || '—' }}</dd>
+        </div>
+        <div class="key-value">
           <dt>{{ t('settings.inverter') }}</dt>
           <dd>{{ settings.inverter.type }}</dd>
         </div>

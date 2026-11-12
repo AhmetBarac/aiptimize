@@ -15,6 +15,7 @@ export interface Meta {
   now: string
   timezone: string
   setup_required: boolean
+  instance_id?: string
   gates: Gates
   features: Record<string, unknown>
   site: {

@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/AhmetBarac/aiptimize/internal/api"
 	"github.com/AhmetBarac/aiptimize/internal/auth"
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/discovery"
 	"github.com/AhmetBarac/aiptimize/internal/ev"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
 	"github.com/AhmetBarac/aiptimize/internal/service"
@@ -131,6 +133,12 @@ func runServe() int {
 	settingsSvc, err := settings.New(ctx, st)
 	if err != nil {
 		logger.Error("cannot load settings", "err", err)
+		return 1
+	}
+
+	instance, err := service.LoadInstance(ctx, st)
+	if err != nil {
+		logger.Error("cannot load instance identity", "err", err)
 		return 1
 	}
 
@@ -252,6 +260,7 @@ func runServe() int {
 		RequestRestart: requestRestart,
 		Updates:        update.New(cfg.RegistryRepo, cfg.RegistryUsername, cfg.RegistryToken),
 		RequestUpdate:  requestUpdate,
+		Instance:       instance,
 		Broker:         broker,
 		Logger:         logger,
 		WebFS:          webui.FS(),
@@ -264,6 +273,41 @@ func runServe() int {
 	go plannerSvc.RunWatchdog(ctx)
 	go plannerSvc.RunSlotPower(ctx)
 	go evSvc.Run(ctx)
+
+	if cfg.Discovery {
+		httpPort := 8080
+		if _, portText, splitErr := net.SplitHostPort(cfg.Listen); splitErr == nil {
+			if parsed, convErr := strconv.Atoi(portText); convErr == nil {
+				httpPort = parsed
+			}
+		}
+		responder, err := discovery.New(discovery.Options{
+			Port:     cfg.DiscoveryPort,
+			HTTPPort: httpPort,
+			Log:      logger,
+			Info: func() discovery.Info {
+				checkCtx, cancel := context.WithTimeout(ctx, time.Second)
+				users, userErr := st.UserCount(checkCtx)
+				cancel()
+				return discovery.Info{
+					ID:            instance.ID(),
+					Name:          settingsSvc.Get().Site.Name,
+					Version:       cfg.Version,
+					SetupRequired: userErr == nil && users == 0,
+				}
+			},
+		})
+		if err != nil {
+			logger.Warn("LAN discovery could not start", "err", err)
+		} else {
+			go func() {
+				if runErr := responder.Run(ctx); runErr != nil {
+					logger.Warn("LAN discovery stopped", "err", runErr)
+				}
+			}()
+			logger.Info("LAN discovery listening", "port", cfg.DiscoveryPort, "instance_id", instance.ID())
+		}
+	}
 
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

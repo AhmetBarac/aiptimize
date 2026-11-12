@@ -39,6 +39,8 @@ type Deps struct {
 	WebFS     fs.FS
 	// Updates checks the container registry for a newer build.
 	Updates *update.Checker
+	// Instance identifies this installation to the companion app.
+	Instance *service.Instance
 	// RequestUpdate asks the host supervisor to pull and restart. It is nil when
 	// the deployment cannot update itself.
 	RequestUpdate func() error
@@ -71,6 +73,7 @@ type Server struct {
 	requestRestart func()
 	updates        *update.Checker
 	requestUpdate  func() error
+	instance       *service.Instance
 }
 
 // New builds a server and registers all routes.
@@ -100,6 +103,7 @@ func New(d Deps) *Server {
 		requestRestart: d.RequestRestart,
 		updates:        d.Updates,
 		requestUpdate:  d.RequestUpdate,
+		instance:       d.Instance,
 	}
 	s.routes()
 	return s
@@ -115,6 +119,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/healthz", s.handleHealthz)
 	s.mux.HandleFunc("GET /api/v1/readyz", s.handleReadyz)
 	s.mux.HandleFunc("GET /api/v1/meta", s.handleMeta)
+	s.mux.HandleFunc("GET /api/v1/instance", s.handleInstance)
 	s.mux.HandleFunc("POST /api/v1/setup", s.handleSetup)
 	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
 	s.mux.HandleFunc("POST /api/v1/auth/logout", s.requireAuth(s.handleLogout))
@@ -281,6 +286,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 		"now":            s.now().UTC(),
 		"timezone":       v.Site.Timezone,
 		"setup_required": required,
+		"instance_id":    s.instanceID(),
 		"gates":          s.gates(),
 		"features":       featureSet(),
 		"ev": map[string]any{
@@ -295,6 +301,33 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 			"show_full_price": v.Site.ShowFullPrice,
 		},
 	})
+}
+
+// handleInstance is the public identity endpoint used by LAN discovery and the
+// companion app to prove a URL is this server.
+func (s *Server) handleInstance(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	required, err := s.setupRequired(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not read application state.", nil)
+		return
+	}
+	v := s.settings.Get()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":             s.instanceID(),
+		"name":           v.Site.Name,
+		"version":        s.cfg.Version,
+		"api_version":    1,
+		"setup_required": required,
+	})
+}
+
+func (s *Server) instanceID() string {
+	if s.instance == nil {
+		return ""
+	}
+	return s.instance.ID()
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {

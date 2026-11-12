@@ -56,6 +56,8 @@ type Config struct {
 	RegistryUsername string
 	RegistryToken    string
 	UpdateRequestFile string
+	Discovery        bool
+	DiscoveryPort    int
 }
 
 // ZaptecConfig holds the Zaptec cloud credentials (environment only).
@@ -117,6 +119,14 @@ func LoadFromEnv(getenv func(string) string) (*Config, error) {
 	if cfg.Simulator, err = parseBool(getenv("AIPTIMIZE_SIMULATOR")); err != nil {
 		return nil, fmt.Errorf("AIPTIMIZE_SIMULATOR: %w", err)
 	}
+	if cfg.Discovery, err = parseBool(env(getenv, "AIPTIMIZE_DISCOVERY", "true")); err != nil {
+		return nil, fmt.Errorf("AIPTIMIZE_DISCOVERY: %w", err)
+	}
+	port, err := strconv.Atoi(env(getenv, "AIPTIMIZE_DISCOVERY_PORT", "8099"))
+	if err != nil {
+		return nil, fmt.Errorf("AIPTIMIZE_DISCOVERY_PORT: %w", err)
+	}
+	cfg.DiscoveryPort = port
 	if cfg.TrustProxy, err = parseBool(env(getenv, "AIPTIMIZE_TRUST_PROXY", "false")); err != nil {
 		return nil, fmt.Errorf("AIPTIMIZE_TRUST_PROXY: %w", err)
 	}
@@ -156,6 +166,9 @@ func (c *Config) Validate() error {
 	}
 	if c.AdminPassword != "" && len(c.AdminPassword) < 8 {
 		return errors.New("AIPTIMIZE_ADMIN_PASSWORD must be at least 8 characters")
+	}
+	if c.Discovery && (c.DiscoveryPort < 1 || c.DiscoveryPort > 65535) {
+		return fmt.Errorf("AIPTIMIZE_DISCOVERY_PORT must be between 1 and 65535, got %d", c.DiscoveryPort)
 	}
 	if c.SessionSecret != "" && len(c.SessionSecret) < 32 {
 		return errors.New("AIPTIMIZE_SESSION_SECRET must be at least 32 characters")

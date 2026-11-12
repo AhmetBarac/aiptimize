@@ -112,9 +112,28 @@ starting again. Migrations run on startup. Keep the database and the matching
 | `AIPTIMIZE_REGISTRY_USERNAME` | — | Registry user (needed for a private repository) |
 | `AIPTIMIZE_REGISTRY_TOKEN` | — | Fallback token when no license is stored in settings |
 | `AIPTIMIZE_UPDATE_REQUEST_FILE` | `/var/lib/aiptimize/update-request` | Trigger file watched by systemd |
+| `AIPTIMIZE_DISCOVERY` | `true` | Answer LAN discovery probes from the companion app |
+| `AIPTIMIZE_DISCOVERY_PORT` | `8099` | UDP port for the discovery responder |
 
 Secrets are read only from the environment. They are never returned by the API
 and never written to the database.
+
+## LAN discovery
+
+The server answers a UDP broadcast probe so the companion app can find it
+without an address:
+
+```
+→ 255.255.255.255:8099   {"aiptimize":"discover","v":1}
+← unicast               {"aiptimize":"server","v":1,"instance_id":"…","name":"BaracHome",
+                         "version":"dev-0.13.0","api":"http://192.168.0.154:8080","setup_required":false}
+```
+
+`GET /api/v1/instance` returns the same identity over HTTP and is what the app's
+"test address" button validates. The instance id is generated once, stored in
+the database and shown under **Settings → System**, so a server keeps its
+identity when DHCP changes its address. Discovery is LAN-only; nothing is
+exposed beyond the local broadcast domain.
 
 ## Reverse proxy and TLS
 

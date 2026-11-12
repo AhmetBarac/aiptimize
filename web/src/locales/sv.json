@@ -800,6 +800,7 @@
     "systemIntro": "Bygg- och anslutningsinformation.",
     "buildCommit": "Commit",
     "buildDate": "Byggdatum",
+    "instanceID": "Instans-ID",
     "inverter": "Växelriktare",
     "inverterIntro": "Skrivskyddad anslutning till dongeln. Telemetri hämtas med valt intervall och skriver aldrig till växelriktaren.",
     "scheme": "Protokoll",
