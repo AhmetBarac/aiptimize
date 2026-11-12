@@ -240,16 +240,25 @@ fun AddServerScreen(
                                     ),
                                 )
                             }) { Text("Save as LAN") }
-                            OutlinedButton(onClick = {
-                                onSave(
-                                    ServerProfile(
-                                        instanceId = current.info.id,
-                                        label = current.info.name,
-                                        wanUrl = current.url,
-                                        version = current.info.version,
-                                    ),
-                                )
-                            }) { Text("Save as WAN") }
+                            OutlinedButton(
+                                onClick = {
+                                    onSave(
+                                        ServerProfile(
+                                            instanceId = current.info.id,
+                                            label = current.info.name,
+                                            wanUrl = current.url,
+                                            version = current.info.version,
+                                        ),
+                                    )
+                                },
+                                enabled = current.url.startsWith("https://"),
+                            ) { Text("Save as WAN") }
+                        }
+                        if (!current.url.startsWith("https://")) {
+                            Text(
+                                "A remote address must use https.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                     is TestState.Failed -> Text(current.message, color = MaterialTheme.colorScheme.error)

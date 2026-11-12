@@ -27,7 +27,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val resolver = EndpointResolver(api)
 
     val servers: StateFlow<List<ServerProfile>> = store.servers
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _discovered = MutableStateFlow<List<DiscoveredServer>>(emptyList())
     val discovered: StateFlow<List<DiscoveredServer>> = _discovered.asStateFlow()

@@ -37,11 +37,12 @@ so 8080 and 8099 are both reachable directly).
 
 Needs Android Studio (or a JDK 17 + Android SDK 35 toolchain). JDK, Android SDK
 and Gradle are not installed on the workstation this was written on, so the
-project has **not** been compiled yet — the first `./gradlew assembleDebug` is
-still to be run.
+project has **not** been compiled yet — the first sync is still to be run.
 
 ```sh
 cd android
+# Android Studio: File → Open → android/, then let it sync (it generates the
+# Gradle wrapper JAR and downloads Gradle 8.10.2).
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug           # with a device attached
 ```
