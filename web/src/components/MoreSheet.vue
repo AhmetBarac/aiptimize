@@ -27,6 +27,21 @@ const links = [
   { to: '/settings', icon: 'bi-gear', key: 'nav.settings', hint: 'more.settingsHint' },
 ]
 
+// The companion app injects a native bridge so the web UI can hand control back
+// to it (switch to the server list, or reload the page). Absent in a browser.
+const companion = (window as unknown as { Aiptimize?: { servers: () => void; reload: () => void } }).Aiptimize
+const companionAvailable = computed(() => typeof companion !== 'undefined')
+
+function companionServers(): void {
+  companion?.servers()
+  ui.moreOpen = false
+}
+
+function companionReload(): void {
+  companion?.reload()
+  ui.moreOpen = false
+}
+
 function changeLocale(event: Event): void {
   const value = (event.target as HTMLSelectElement).value
   if (value === 'en' || value === 'sv') setLocale(value as Locale)
@@ -51,6 +66,22 @@ async function logout(): Promise<void> {
         <i class="bi bi-chevron-right more-chevron" aria-hidden="true"></i>
       </RouterLink>
     </nav>
+
+    <div v-if="companionAvailable" class="more-section">
+      <h3>{{ t('more.companion') }}</h3>
+      <button class="more-row" type="button" @click="companionServers">
+        <span class="more-row-label">
+          <i class="bi bi-collection" aria-hidden="true"></i>
+          {{ t('more.servers') }}
+        </span>
+      </button>
+      <button class="more-row" type="button" @click="companionReload">
+        <span class="more-row-label">
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+          {{ t('more.reload') }}
+        </span>
+      </button>
+    </div>
 
     <div class="more-section">
       <h3>{{ t('more.preferences') }}</h3>

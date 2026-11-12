@@ -1,12 +1,17 @@
 package io.aiptimize.companion.ui
 
 import android.annotation.SuppressLint
+import android.os.Handler
+import android.os.Looper
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -44,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.aiptimize.companion.BuildConfig
@@ -53,7 +61,6 @@ import io.aiptimize.companion.data.ProbeResult
 import io.aiptimize.companion.data.ResolvedEndpoint
 import io.aiptimize.companion.data.ServerProfile
 import io.aiptimize.companion.data.Transport
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -325,46 +332,17 @@ fun ViewerScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
-    var diagnostics by remember { mutableStateOf<String?>(null) }
 
-    val metricsScript = remember {
-        """(function(){
-            var out=['vh='+window.innerHeight];
-            var rule='none';
-            try {
-              for (var i=0;i<document.styleSheets.length;i++){
-                var rs=document.styleSheets[i].cssRules;
-                for (var j=0;j<rs.length;j++){
-                  if (rs[j].selectorText==='.sheet-panel' && rs[j].style && rs[j].style.maxHeight) rule=rs[j].style.maxHeight;
-                }
-              }
-            } catch(e) { rule='err'; }
-            out.push('css='+rule);
-            var panels=document.querySelectorAll('.sheet-panel');
-            out.push('panels='+panels.length);
-            for (var i=0;i<panels.length;i++){
-              var p=panels[i], b=p.getBoundingClientRect(), cs=getComputedStyle(p);
-              out.push('p'+i+'='+Math.round(b.top)+'+'+Math.round(b.height)+'/scroll'+p.scrollHeight+'/max'+cs.maxHeight);
-            }
-            return out.join(' ');
-        })()""".trimIndent()
-    }
+    // Bridge the web UI can call from its More menu: switch back to the server
+    // list, or reload the page. JavascriptInterface callbacks run on a binder
+    // thread, so hop to the main thread.
+    val bridge = remember {
+        object {
+            @JavascriptInterface
+            fun servers() = runOnMain { onBack() }
 
-    fun reportMetrics(view: WebView) {
-        val metrics = view.resources.displayMetrics
-        view.evaluateJavascript(metricsScript) { result ->
-            diagnostics = "view ${view.width}x${view.height} screen ${metrics.widthPixels}x${metrics.heightPixels} " +
-                result.trim('"')
-        }
-    }
-
-    // Refresh while the viewer is open so a screenshot always reflects the
-    // sheet that is currently on screen.
-    LaunchedEffect(webView) {
-        val view = webView ?: return@LaunchedEffect
-        while (true) {
-            reportMetrics(view)
-            delay(700)
+            @JavascriptInterface
+            fun reload() = runOnMain { webView?.reload() }
         }
     }
 
@@ -394,38 +372,26 @@ fun ViewerScreen(
         if (view != null && view.canGoBack()) view.goBack() else onBack()
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = {
-            TopAppBar(
-                title = { Text(profile?.label ?: "Aiptimize") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Servers") } },
-                actions = {
-                    TextButton(onClick = { webView?.clearCache(true); webView?.reload() }) { Text("Reload") }
-                    TextButton(onClick = { webView?.let { reportMetrics(it) } }) { Text("Info") }
-                },
-            )
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            endpoint?.let { active ->
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = 12.dp),
+            ) {
+                Text("‹", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    "${active.transport.name}  ·  ${active.baseUrl}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    profile?.label ?: "Aiptimize",
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            diagnostics?.let { text ->
-                Text(
-                    text,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
+
             when {
                 error != null -> Column(
                     modifier = Modifier.fillMaxWidth().weight(1f).padding(32.dp),
@@ -457,11 +423,8 @@ fun ViewerScreen(
                             settings.displayZoomControls = false
                             settings.mixedContentMode =
                                 android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                            addJavascriptInterface(bridge, "Aiptimize")
                             webViewClient = object : WebViewClient() {
-                                override fun onPageFinished(view: WebView, url: String?) {
-                                    reportMetrics(view)
-                                }
-
                                 override fun onReceivedError(
                                     view: WebView,
                                     request: WebResourceRequest,
@@ -479,6 +442,10 @@ fun ViewerScreen(
             }
         }
     }
+}
+
+private fun runOnMain(block: () -> Unit) {
+    Handler(Looper.getMainLooper()).post(block)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
