@@ -57,16 +57,11 @@ The unit recreates the container from `docker.io/ahmetbarac/aiptimize:dev` on
 every start and keeps the named volume, so restarts and upgrades take the same
 path. Docker Compose is not required.
 
-The registry repository is private, so the host needs read access once:
-
-```sh
-echo "$TOKEN" | docker login -u ahmetbarac --password-stdin
-```
-
-Use a Docker Hub personal access token with **Read** permission on all
-repositories (not the "public repositories only" scope). It is stored in
-`/root/.docker/config.json` (mode 600) and used by both `aiptimize-update` and
-the unit's `--pull missing`.
+The registry repository is private. `aiptimize-update` logs in with the license
+stored in **Settings → Site → License** (falling back to
+`AIPTIMIZE_REGISTRY_TOKEN`), so the token is rotated in one place and the host's
+`/root/.docker/config.json` follows automatically. A manual `docker login` is
+only needed for ad-hoc pulls on a fresh host before the first start.
 
 ### Data
 
@@ -213,7 +208,8 @@ The registry credential is entered in the UI under **Settings → Site →
 License**: a Docker Hub personal access token with read access to the
 repository. It is stored with the other settings (SQLite) and never returned by
 the API — the settings response only says whether one is configured.
-`AIPTIMIZE_REGISTRY_TOKEN` stays as a fallback for headless installs.
+`aiptimize-update` reads it to log in before pulling, so rotating the license is
+enough; `AIPTIMIZE_REGISTRY_TOKEN` stays as a fallback for headless installs.
 
 The container cannot replace itself, so *Update now* writes
 `/var/lib/aiptimize/update-request`, which `aiptimize-update.path` watches; the

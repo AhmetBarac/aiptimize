@@ -1,15 +1,52 @@
 #!/bin/sh
-# Pull the dev image and restart aiptimize only when the digest changed.
+# Pull the published image and restart aiptimize only when the digest changed.
 # Usage: aiptimize-update [tag]   (default tag: dev)
+#
+# The registry credential is the Docker Hub license stored in the application
+# settings (Settings -> Site -> License), so the token is rotated in one place.
+# AIPTIMIZE_REGISTRY_TOKEN in /opt/aiptimize/app.env is only a fallback.
 set -eu
 
 IMAGE="docker.io/ahmetbarac/aiptimize"
 TAG="${1:-dev}"
 SERVICE="aiptimize"
+VOLUME="aiptimize-v1-data"
+
+if [ -f /opt/aiptimize/app.env ]; then
+    # shellcheck disable=SC1091
+    . /opt/aiptimize/app.env
+fi
+REGISTRY_USER="${AIPTIMIZE_REGISTRY_USERNAME:-ahmetbarac}"
 
 digest_of() {
     docker image inspect -f '{{index .RepoDigests 0}}' "$IMAGE:$TAG" 2>/dev/null || echo "none"
 }
+
+# Read the license from the application database without locking it for writes.
+stored_license() {
+    mountpoint=$(docker volume inspect -f '{{.Mountpoint}}' "$VOLUME" 2>/dev/null || true)
+    [ -n "$mountpoint" ] && [ -f "$mountpoint/aiptimize.db" ] || return 0
+    python3 - "$mountpoint/aiptimize.db" <<'PY' 2>/dev/null || true
+import json, sqlite3, sys
+con = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+row = con.execute("select value_json from settings where key='site'").fetchone()
+print(json.loads(row[0]).get("license", "") if row else "", end="")
+PY
+}
+
+token=$(stored_license)
+if [ -z "$token" ]; then
+    token="${AIPTIMIZE_REGISTRY_TOKEN:-}"
+fi
+
+if [ -n "$token" ]; then
+    if ! printf '%s' "$token" | docker login -u "$REGISTRY_USER" --password-stdin >/dev/null 2>&1; then
+        echo "registry login failed for $REGISTRY_USER; check the license in Settings -> Site" >&2
+        exit 1
+    fi
+else
+    echo "no registry license configured; trying an anonymous pull" >&2
+fi
 
 before=$(digest_of)
 echo "pulling $IMAGE:$TAG"
