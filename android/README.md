@@ -35,17 +35,25 @@ so 8080 and 8099 are both reachable directly).
 
 ## Build
 
-Needs Android Studio (or a JDK 17 + Android SDK 35 toolchain). JDK, Android SDK
-and Gradle are not installed on the workstation this was written on, so the
-project has **not** been compiled yet — the first sync is still to be run.
+Verified with Gradle 8.10.2, Temurin JDK 17, Android SDK 35 (platform 35,
+build-tools 35.0.0):
+
+```
+BUILD SUCCESSFUL — app/build/outputs/apk/debug/app-debug.apk (11 MB)
+package io.aiptimize.companion, minSdk 26, target 35
+```
+
+A debug APK is published at the repository root as
+`aiptimize-companion-0.1.0-debug.apk` for sideloading.
 
 ```sh
 cd android
-# Android Studio: File → Open → android/, then let it sync (it generates the
-# Gradle wrapper JAR and downloads Gradle 8.10.2).
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug           # with a device attached
 ```
+
+Android Studio only needs to open `android/` and sync; the wrapper is checked
+in.
 
 ## Remote access
 
