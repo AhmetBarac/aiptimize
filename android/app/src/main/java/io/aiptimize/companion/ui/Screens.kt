@@ -329,10 +329,15 @@ fun ViewerScreen(
 
     val metricsScript = remember {
         """(function(){
-            var s=document.querySelector('.sheet-panel');
-            var r='none';
-            if (s) { var b=s.getBoundingClientRect(); r=Math.round(b.top)+'+'+Math.round(b.height); }
-            return 'vh='+window.innerHeight+' sheet='+r;
+            var out=['vh='+window.innerHeight];
+            if (window.visualViewport) out.push('vv='+Math.round(window.visualViewport.height));
+            var panels=document.querySelectorAll('.sheet-panel');
+            out.push('panels='+panels.length);
+            for (var i=0;i<panels.length;i++){
+              var p=panels[i], b=p.getBoundingClientRect(), cs=getComputedStyle(p);
+              out.push('p'+i+'='+Math.round(b.top)+'+'+Math.round(b.height)+'/scroll'+p.scrollHeight+'/max'+cs.maxHeight);
+            }
+            return out.join(' ');
         })()""".trimIndent()
     }
 
@@ -387,7 +392,7 @@ fun ViewerScreen(
                 title = { Text(profile?.label ?: "Aiptimize") },
                 navigationIcon = { TextButton(onClick = onBack) { Text("Servers") } },
                 actions = {
-                    TextButton(onClick = { webView?.reload() }) { Text("Reload") }
+                    TextButton(onClick = { webView?.clearCache(true); webView?.reload() }) { Text("Reload") }
                     TextButton(onClick = { webView?.let { reportMetrics(it) } }) { Text("Info") }
                 },
             )
