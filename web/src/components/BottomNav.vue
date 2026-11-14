@@ -6,6 +6,7 @@ import { currentLocale, setLocale, SUPPORTED_LOCALES, type Locale } from '../i18
 import { session, signOut } from '../session'
 import { theme, toggleTheme } from '../theme'
 import { openMore, ui } from '../ui'
+import SolarIcon from './SolarIcon.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -13,7 +14,7 @@ const router = useRouter()
 
 const primary = [
   { name: 'plan', to: '/plan', icon: 'bi-calendar3-week' },
-  { name: 'solar', to: '/solar', icon: 'bi-sun' },
+  { name: 'solar', to: '/solar', icon: 'solar-panel' },
   { name: 'home', to: '/', icon: 'bi-house-door' },
   { name: 'car', to: '/car', icon: 'bi-ev-station' },
 ]
@@ -60,7 +61,10 @@ async function logout(): Promise<void> {
         :class="[`nav-${item.name}`, { active: isActive(item.to) }]"
         :aria-current="isActive(item.to) ? 'page' : undefined"
       >
-        <span class="nav-icon"><i class="bi" :class="item.icon" aria-hidden="true"></i></span>
+        <span class="nav-icon">
+          <SolarIcon v-if="item.icon === 'solar-panel'" />
+          <i v-else class="bi" :class="item.icon" aria-hidden="true"></i>
+        </span>
         <span class="nav-label">{{ t(`nav.${item.name}`) }}</span>
       </router-link>
 
@@ -72,7 +76,10 @@ async function logout(): Promise<void> {
         :class="{ active: isActive(item.to) }"
         :aria-current="isActive(item.to) ? 'page' : undefined"
       >
-        <span class="nav-icon"><i class="bi" :class="item.icon" aria-hidden="true"></i></span>
+        <span class="nav-icon">
+          <SolarIcon v-if="item.icon === 'solar-panel'" />
+          <i v-else class="bi" :class="item.icon" aria-hidden="true"></i>
+        </span>
         <span class="nav-label">{{ t(`nav.${item.name}`) }}</span>
       </router-link>
 
