@@ -27,7 +27,20 @@ Hardware writes require **both**:
 
 The effective state shown by `/meta` and `/status` is
 `environment && in-app`. EV control has a separate pair:
-`AIPTIMIZE_ENABLE_EV_CONTROL` plus `safety.ev_control_armed_ui`.
+`environment` plus `safety.ev_control_armed_ui`.
+
+The EV environment gate is **derived from the charger link**. When
+`AIPTIMIZE_ENABLE_EV_CONTROL` is unset (the default, mode `auto`) the gate opens
+as soon as an EV charger is configured and its status polls succeed, and closes
+again when polling fails for longer than 60 s. `AIPTIMIZE_ENABLE_EV_CONTROL=true`
+or `on` pins the gate open, `false` or `off` pins it closed. The in-app arming
+switch is still required and regardless of mode it disarms EV writes when it is
+off. `/meta` reports the resolved state in `gates.ev_control_env`, the override
+in `gates.ev_control_mode` and the link state in `ev.healthy`.
+
+The inverter environment gate stays a plain opt-in
+(`AIPTIMIZE_ENABLE_WRITES=true`), because a wrong inverter write is not visible
+as a missing link health signal.
 
 Restarting with the environment gate off disarms writes regardless of the
 stored in-app switch. The in-app switch is not a secret and does not bypass the

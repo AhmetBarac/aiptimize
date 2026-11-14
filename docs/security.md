@@ -22,7 +22,9 @@
 ## Gates and audit
 
 - Inverter writes require `AIPTIMIZE_ENABLE_WRITES=true` and the UI arm switch.
-- EV control requires `AIPTIMIZE_ENABLE_EV_CONTROL=true` and its own UI switch.
+- EV control requires its UI arm switch. Its environment half is automatic: it
+  follows the charger link and is only forced by
+  `AIPTIMIZE_ENABLE_EV_CONTROL=true|false`.
 - Both are disarmed by default. Applying a plan or EV command also requires
   `confirm: true`; plan revisions are checked optimistically.
 - Plan drafts/applies, schedule writes/readbacks, EV commands, clear and

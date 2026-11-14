@@ -118,7 +118,7 @@ starting again. Migrations run on startup. Keep the database and the matching
 | `AIPTIMIZE_COOKIE_SECURE` | `auto` | `auto`, `always`, `never` |
 | `AIPTIMIZE_TRUST_PROXY` | `false` | Trust `X-Forwarded-Proto`/`Host` |
 | `AIPTIMIZE_ENABLE_WRITES` | `false` | Environment write gate |
-| `AIPTIMIZE_ENABLE_EV_CONTROL` | `false` | Environment EV gate |
+| `AIPTIMIZE_ENABLE_EV_CONTROL` | `auto` | Environment EV gate: `auto`, `true`/`on`, `false`/`off` |
 | `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price and inverter simulators instead of the network/hardware |
 | `AIPTIMIZE_NORDPOOL_BASE_URL` | Data Portal endpoint | Override only for a local fixture server |
 | `AIPTIMIZE_OPENMETEO_BASE_URL` | Open-Meteo forecast endpoint | Override only for a local fixture server |
@@ -205,8 +205,10 @@ optimiser horizon, slot budget, setpoints and reserve policy. The planner
 computes a suggestion automatically 8 s after startup and every 5 minutes.
 Drafts can be edited and applied from the Plan screen. Applying requires
 `AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, so leave writes
-disarmed until the HIL checklist is complete. EV control is separate:
-`AIPTIMIZE_ENABLE_EV_CONTROL=true` plus the EV arm switch. The simulator is
+disarmed until the HIL checklist is complete. EV control is separate: it needs
+the EV arm switch, and its environment gate opens by itself once the charger is
+configured and answering (pin it with `AIPTIMIZE_ENABLE_EV_CONTROL=true` or
+`false` if you want a hard override). The simulator is
 used for demos; real Zaptec control additionally needs
 `AIPTIMIZE_ZAPTEC_USERNAME`, `AIPTIMIZE_ZAPTEC_PASSWORD`,
 `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` and `AIPTIMIZE_ZAPTEC_CHARGER_ID`. Set
@@ -286,6 +288,18 @@ one-shot `aiptimize-update-trigger.service` runs `aiptimize-update` and the unit
 restarts on the new image. The SPA polls `/api/v1/meta` and reloads when the
 version changes. Without those two units the button is hidden — the API answers
 `503 update_unavailable`.
+
+The confirmation is an in-page panel, not a browser dialog, and the handler
+writes the request file *before* answering, so a host-side problem surfaces as
+`500 update_failed` with the reason instead of a button that appears to do
+nothing. If the app has not restarted after ~90 s the UI says so; in that case
+check the trigger:
+
+```sh
+ls -l /var/lib/aiptimize/update-request      # empty + owned by 10001 when idle
+journalctl -u aiptimize-update-trigger -n 50
+systemctl start aiptimize-update-trigger     # manual retry, same code path
+```
 
 For a host without systemd, the same check is available from the CLI:
 

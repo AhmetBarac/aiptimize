@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AhmetBarac/aiptimize/internal/config"
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 	"github.com/AhmetBarac/aiptimize/internal/ev"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
@@ -42,11 +43,14 @@ type EVService struct {
 	log         *slog.Logger
 	now         func() time.Time
 
-	controlEnv bool
-	mu         sync.Mutex
-	latest     *domain.EVPlanPreview
-	lastSet    time.Time
-	powerW     float64
+	control config.EVControlMode
+	mu      sync.Mutex
+	latest  *domain.EVPlanPreview
+	lastSet time.Time
+	powerW  float64
+
+	lastStatusOK  time.Time
+	lastStatusErr time.Time
 
 	provider        string
 	restartRequired bool
@@ -56,7 +60,7 @@ type EVService struct {
 // NewEVService builds the EV service. The simulator is used when configured;
 // no cloud credentials are needed for demos and tests.
 func NewEVService(cfg *settings.Service, st *store.Store, priceSvc *prices.Service,
-	forecast *ForecastService, log *slog.Logger, simulator bool, controlEnv bool,
+	forecast *ForecastService, log *slog.Logger, simulator bool, control config.EVControlMode,
 	now func() time.Time) *EVService {
 	var charger ev.Charger
 	if simulator {
@@ -68,12 +72,12 @@ func NewEVService(cfg *settings.Service, st *store.Store, priceSvc *prices.Servi
 			Connected: true, Now: now,
 		})
 	}
-	return NewEVServiceWithCharger(cfg, st, priceSvc, forecast, log, charger, controlEnv, now)
+	return NewEVServiceWithCharger(cfg, st, priceSvc, forecast, log, charger, control, now)
 }
 
 // NewEVServiceWithCharger builds the EV service with an explicit adapter.
 func NewEVServiceWithCharger(cfg *settings.Service, st *store.Store, priceSvc *prices.Service,
-	forecast *ForecastService, log *slog.Logger, charger ev.Charger, controlEnv bool,
+	forecast *ForecastService, log *slog.Logger, charger ev.Charger, control config.EVControlMode,
 	now func() time.Time) *EVService {
 	if now == nil {
 		now = time.Now
@@ -86,7 +90,7 @@ func NewEVServiceWithCharger(cfg *settings.Service, st *store.Store, priceSvc *p
 		provider = providerForType(charger.Type())
 	}
 	return &EVService{cfg: cfg, st: st, prices: priceSvc, forecast: forecast,
-		charger: charger, log: log, now: now, controlEnv: controlEnv, provider: provider}
+		charger: charger, log: log, now: now, control: control.Effective(), provider: provider}
 }
 
 func providerForType(typ string) string {
@@ -102,6 +106,43 @@ func providerForType(typ string) string {
 
 // Charger returns the adapter (nil when no adapter is configured).
 func (s *EVService) Charger() ev.Charger { return s.charger }
+
+// evHealthWindow is how long a successful status poll keeps the automatic
+// environment gate open. The controller polls every 15 s, so this tolerates a
+// few missed polls before the link is considered lost.
+const evHealthWindow = 60 * time.Second
+
+// Healthy reports whether an adapter is configured and its most recent status
+// poll succeeded within the health window. A failed poll closes the link until
+// the next successful one.
+func (s *EVService) Healthy() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.charger == nil || s.lastStatusOK.IsZero() || !s.lastStatusErr.IsZero() {
+		return false
+	}
+	return s.now().Sub(s.lastStatusOK) <= evHealthWindow
+}
+
+// evControlEnv reports the environment half of the EV gate. In the default
+// auto mode it follows the charger link, so a configured charger that answers
+// status polls opens the gate without any environment variable.
+func (s *EVService) evControlEnv() bool {
+	return s.control.Resolve(s.Healthy())
+}
+
+// recordStatus feeds one charger status poll into the link health tracker.
+func (s *EVService) recordStatus(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	if err != nil {
+		s.lastStatusErr = now
+		return
+	}
+	s.lastStatusOK = now
+	s.lastStatusErr = time.Time{}
+}
 
 // SetBatteryHold wires the battery interlock used during EV charging.
 func (s *EVService) SetBatteryHold(hold EVBatteryHold) { s.batteryHold = hold }
@@ -287,6 +328,7 @@ func (s *EVService) Status(ctx context.Context) (domain.ChargerStatus, error) {
 		return domain.ChargerStatus{}, ErrEVUnavailable
 	}
 	status, err := s.charger.Status(ctx)
+	s.recordStatus(err)
 	if err != nil {
 		return domain.ChargerStatus{}, err
 	}
@@ -630,8 +672,12 @@ func (s *EVService) EVGridWindows(from, to time.Time) []bool {
 }
 
 // Run evaluates the smart-charging controller every 15 seconds. It only sends
-// commands when the EV environment and UI gates are both armed.
+// commands when the EV environment gate (automatic by default) and the in-app
+// UI gate are both armed.
 func (s *EVService) Run(ctx context.Context) {
+	// Poll once at startup so the link health (and the automatic environment
+	// gate) has a value before the first 15 s tick.
+	s.tick(ctx)
 	s.refreshLatest(ctx)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -700,6 +746,7 @@ func (s *EVService) tick(ctx context.Context) {
 		return
 	}
 	status, err := s.charger.Status(ctx)
+	s.recordStatus(err)
 	if err != nil {
 		s.log.Warn("EV status failed", "err", err)
 		return
@@ -711,7 +758,7 @@ func (s *EVService) tick(ctx context.Context) {
 		}
 	}
 	cfg := s.cfg.Get()
-	if !s.controlEnv || !cfg.Safety.EVControlArmedUI {
+	if !s.evControlEnv() || !cfg.Safety.EVControlArmedUI {
 		return
 	}
 	now := s.now()

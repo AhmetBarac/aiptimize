@@ -160,7 +160,7 @@ func newTestAPI(t *testing.T, web fs.FS) *testAPI {
 	})
 	solarSvc := service.NewSolarService(svc, st, forecastSvc)
 	plannerSvc := service.NewPlannerService(st, svc, priceSvc, forecastSvc, telemetrySvc, logger, nil)
-	evSvc := service.NewEVService(svc, st, priceSvc, forecastSvc, logger, true, true, time.Now)
+	evSvc := service.NewEVService(svc, st, priceSvc, forecastSvc, logger, true, config.EVControlAuto, time.Now)
 	plannerSvc.SetEVProvider(evSvc)
 	evSvc.SetBatteryHold(plannerSvc)
 	telemetrySvc.SetEVPowerProvider(evSvc.PowerW)

@@ -248,6 +248,12 @@ const takeoverBusy = ref(false)
 const takeoverDone = ref('')
 const takeoverError = ref('')
 const writesArmed = computed(() => session.meta?.gates.writes_armed === true)
+const evGateModeLabel = computed(() => {
+  const mode = session.meta?.gates.ev_control_mode ?? 'auto'
+  if (mode === 'on') return t('settings.evGateModeOn')
+  if (mode === 'off') return t('settings.evGateModeOff')
+  return t('settings.evGateModeAuto')
+})
 const canTakeControl = computed(
   () => writesArmed.value && scheduleForeign.value && !scheduleUnknown.value,
 )
@@ -360,11 +366,15 @@ async function openGateInfo(): Promise<void> {
 const update = ref<UpdateStatus | null>(null)
 const updateBusy = ref(false)
 const updateApplying = ref(false)
+const updateConfirming = ref(false)
 const updateError = ref('')
+const updateApplyError = ref('')
 
 async function checkUpdate(): Promise<void> {
   updateBusy.value = true
   updateError.value = ''
+  updateApplyError.value = ''
+  updateConfirming.value = false
   try {
     update.value = await api.get<UpdateStatus>('/system/update')
   } catch (err) {
@@ -380,10 +390,11 @@ async function checkUpdate(): Promise<void> {
   }
 }
 
+// The confirmation is an in-page panel rather than window.confirm(), which
+// browsers can suppress, leaving the click silently ignored.
 async function applyUpdate(): Promise<void> {
-  if (!window.confirm(t('settings.updateConfirm'))) return
   updateApplying.value = true
-  updateError.value = ''
+  updateApplyError.value = ''
   const previous = update.value?.current ?? ''
   try {
     await api.post<{ updating: boolean }>('/system/update/apply', { confirm: true })
@@ -392,10 +403,17 @@ async function applyUpdate(): Promise<void> {
     // still have been written, so treat a network error as "keep waiting".
     if (!(err instanceof ApiError) || err.status !== 0) {
       updateApplying.value = false
-      updateError.value = err instanceof ApiError ? err.message : t('settings.updateFailed')
+      if (err instanceof ApiError) {
+        const details = err.details as { error?: string } | undefined
+        const detail = typeof details?.error === 'string' ? details.error : ''
+        updateApplyError.value = detail ? `${err.message} ${detail}` : err.message
+      } else {
+        updateApplyError.value = t('settings.updateFailed')
+      }
       return
     }
   }
+  updateConfirming.value = false
   await waitForRestart(previous)
 }
 
@@ -416,7 +434,8 @@ async function waitForRestart(previous: string): Promise<void> {
       // The server is restarting; keep polling.
     }
   }
-  window.location.reload()
+  updateApplying.value = false
+  updateApplyError.value = t('settings.updateRestartTimeout')
 }
 
 function formatBuildDate(value?: string): string {
@@ -1787,6 +1806,10 @@ async function importSettings(event: Event): Promise<void> {
             <dd>{{ onOff(session.meta?.gates.ev_control_env) }}</dd>
           </div>
           <div class="key-value">
+            <dt>{{ t('settings.evGateMode') }}</dt>
+            <dd>{{ evGateModeLabel }}</dd>
+          </div>
+          <div class="key-value">
             <dt>{{ t('settings.effective') }}</dt>
             <dd>{{ onOff(session.meta?.gates.writes_armed) }}</dd>
           </div>
@@ -1870,11 +1893,31 @@ async function importSettings(event: Event): Promise<void> {
             <p class="text-muted mb-2">
               {{ t('settings.updateBuilt', { date: formatBuildDate(update.created), commit: update.revision || '—' }) }}
             </p>
-            <button class="btn btn-primary btn-sm" type="button" :disabled="updateApplying" @click="applyUpdate">
-              <span v-if="updateApplying" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-              {{ updateApplying ? t('settings.updating') : t('settings.updateNow') }}
+            <button
+              v-if="!updateConfirming"
+              class="btn btn-primary btn-sm"
+              type="button"
+              @click="updateConfirming = true"
+            >
+              {{ t('settings.updateNow') }}
             </button>
+            <div v-else class="update-confirm">
+              <p class="mb-2">{{ t('settings.updateConfirm') }}</p>
+              <button class="btn btn-primary btn-sm" type="button" :disabled="updateApplying" @click="applyUpdate">
+                <span v-if="updateApplying" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                {{ updateApplying ? t('settings.updating') : t('settings.updateConfirmYes') }}
+              </button>
+              <button
+                class="btn btn-outline-secondary btn-sm ms-2"
+                type="button"
+                :disabled="updateApplying"
+                @click="updateConfirming = false"
+              >
+                {{ t('settings.updateCancel') }}
+              </button>
+            </div>
             <p v-if="updateApplying" class="text-muted mt-2 mb-0">{{ t('settings.updateRestarting') }}</p>
+            <p v-if="updateApplyError" class="small text-danger mt-2 mb-0">{{ updateApplyError }}</p>
           </template>
           <p v-else class="mb-0 text-success">
             <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
@@ -2111,5 +2154,17 @@ section.aipt-card form :deep(.row.g-3) > [class*='col-']:has(.form-check) {
 .update-notes {
   font-size: 0.82rem;
   color: var(--aipt-text);
+}
+
+.update-confirm {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 0.6rem;
+  background: rgba(127, 127, 127, 0.08);
+  max-width: 30rem;
+}
+
+.update-confirm button + button {
+  margin-left: 0.5rem;
 }
 </style>

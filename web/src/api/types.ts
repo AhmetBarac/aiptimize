@@ -5,6 +5,7 @@ export interface Gates {
   ev_control_env: boolean
   ev_control_ui: boolean
   ev_control_armed: boolean
+  ev_control_mode: 'auto' | 'on' | 'off'
   simulator: boolean
 }
 
@@ -487,7 +488,7 @@ export interface Status {
   prices: PriceStatus
   forecast: ForecastStatus
   plan: PlanStatus
-  ev: { available: boolean; id?: string; status?: ChargerStatus; plan?: EVPreview }
+  ev: { available: boolean; healthy?: boolean; id?: string; status?: ChargerStatus; plan?: EVPreview }
   schedule: { available: boolean }
   checks: Record<string, string>
 }

@@ -2,11 +2,18 @@ package api
 
 import (
 	"context"
+	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/domain"
+	"github.com/AhmetBarac/aiptimize/internal/ev"
+	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
 )
 
@@ -14,7 +21,6 @@ func TestEVChargerAndPlan(t *testing.T) {
 	a := newTestAPI(t, nil)
 	a.setup()
 	seedPricesAndTelemetry(t, a)
-	a.srv.cfg.EnableEVControl = true
 	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"ev_control_armed_ui":true}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +110,126 @@ func TestEVControlDisarmed(t *testing.T) {
 	resp, body := a.post("/api/v1/chargers/sim-ev-1/mode", map[string]any{"mode": "now"})
 	if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), "ev_control_disarmed") {
 		t.Fatalf("disarmed mode = %d %s", resp.StatusCode, body)
+	}
+}
+
+// failingCharger is a live simulator whose status poll always fails.
+type failingCharger struct{ ev.Charger }
+
+func (failingCharger) Status(context.Context) (domain.ChargerStatus, error) {
+	return domain.ChargerStatus{}, errors.New("charger unreachable")
+}
+
+// newEVService rebuilds the server's EV service with another adapter.
+func (a *testAPI) newEVService(charger ev.Charger) *service.EVService {
+	a.t.Helper()
+	return service.NewEVServiceWithCharger(a.settings, a.store, a.prices, a.forecast,
+		slog.New(slog.NewTextHandler(io.Discard, nil)), charger, config.EVControlAuto, time.Now)
+}
+
+func (a *testAPI) metaGates() map[string]any {
+	a.t.Helper()
+	resp, body := a.get("/api/v1/meta")
+	if resp.StatusCode != http.StatusOK {
+		a.t.Fatalf("meta = %d %s", resp.StatusCode, body)
+	}
+	return decodeMap(a.t, body)["gates"].(map[string]any)
+}
+
+func TestEVControlAutoGateFollowsChargerHealth(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"ev_control_armed_ui":true}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	gates := a.metaGates()
+	if gates["ev_control_mode"] != "auto" {
+		t.Errorf("mode = %v", gates["ev_control_mode"])
+	}
+	if gates["ev_control_env"] != false {
+		t.Errorf("the link gate must stay closed until the charger answers: %v", gates)
+	}
+
+	// One successful status poll proves the charger link works and opens the
+	// environment half of the gate without any environment variable.
+	resp, body := a.get("/api/v1/chargers/sim-ev-1/status")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d %s", resp.StatusCode, body)
+	}
+	gates = a.metaGates()
+	if gates["ev_control_env"] != true || gates["ev_control_armed"] != true {
+		t.Fatalf("gates after a healthy poll = %v", gates)
+	}
+	if resp, body = a.post("/api/v1/chargers/sim-ev-1/mode", map[string]any{"mode": "now"}); resp.StatusCode != http.StatusOK {
+		t.Fatalf("mode = %d %s", resp.StatusCode, body)
+	}
+
+	// A failed poll closes the gate again; the UI arm switch cannot reopen it.
+	a.srv.ev = a.newEVService(failingCharger{Charger: a.ev.Charger()})
+	if resp, body = a.get("/api/v1/chargers/sim-ev-1/status"); resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("failing status = %d %s", resp.StatusCode, body)
+	}
+	gates = a.metaGates()
+	if gates["ev_control_env"] != false || gates["ev_control_armed"] != false {
+		t.Fatalf("gates after a failed poll = %v", gates)
+	}
+	if resp, body = a.post("/api/v1/chargers/sim-ev-1/mode", map[string]any{"mode": "now"}); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("mode while the link is down = %d %s", resp.StatusCode, body)
+	}
+}
+
+func TestEVControlAutoGateStillRespectsArmSwitch(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	if resp, body := a.get("/api/v1/chargers/sim-ev-1/status"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d %s", resp.StatusCode, body)
+	}
+	gates := a.metaGates()
+	if gates["ev_control_env"] != true {
+		t.Fatalf("link gate = %v", gates["ev_control_env"])
+	}
+	if gates["ev_control_ui"] != false || gates["ev_control_armed"] != false {
+		t.Fatalf("a healthy link must not arm control by itself: %v", gates)
+	}
+	resp, body := a.post("/api/v1/chargers/sim-ev-1/mode", map[string]any{"mode": "now"})
+	if resp.StatusCode != http.StatusConflict || !strings.Contains(string(body), "ev_control_disarmed") {
+		t.Fatalf("mode with the arm switch off = %d %s", resp.StatusCode, body)
+	}
+
+	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"ev_control_armed_ui":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	if resp, body = a.post("/api/v1/chargers/sim-ev-1/mode", map[string]any{"mode": "now"}); resp.StatusCode != http.StatusOK {
+		t.Fatalf("mode after arming = %d %s", resp.StatusCode, body)
+	}
+}
+
+func TestEVControlForcedModeOverridesChargerHealth(t *testing.T) {
+	a := newTestAPI(t, nil)
+	a.setup()
+	if _, err := a.settings.Patch(context.Background(), settings.SectionSafety, []byte(`{"ev_control_armed_ui":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	if resp, body := a.get("/api/v1/chargers/sim-ev-1/status"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d %s", resp.StatusCode, body)
+	}
+
+	// An operator can still pin the gate closed even when the charger is fine.
+	a.srv.cfg.EVControlMode = config.EVControlOff
+	gates := a.metaGates()
+	if gates["ev_control_env"] != false || gates["ev_control_armed"] != false {
+		t.Fatalf("forced-off gates = %v", gates)
+	}
+	if resp, body := a.post("/api/v1/chargers/sim-ev-1/mode", map[string]any{"mode": "now"}); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("mode while forced off = %d %s", resp.StatusCode, body)
+	}
+
+	// ... and pin it open regardless of the link state.
+	a.srv.cfg.EVControlMode = config.EVControlOn
+	gates = a.metaGates()
+	if gates["ev_control_env"] != true || gates["ev_control_armed"] != true {
+		t.Fatalf("forced-on gates = %v", gates)
 	}
 }
 

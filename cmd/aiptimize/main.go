@@ -169,7 +169,7 @@ func runServe() int {
 	})
 	solarSvc := service.NewSolarService(settingsSvc, st, forecastSvc)
 	evSvc := service.NewEVService(settingsSvc, st, priceSvc, forecastSvc, logger,
-		false, cfg.EnableEVControl, time.Now)
+		false, cfg.EVControlMode, time.Now)
 	evSettings := settingsSvc.Get().EV
 	provider := strings.ToLower(strings.TrimSpace(evSettings.Provider))
 	if provider == "" {
@@ -180,7 +180,7 @@ func runServe() int {
 		logger.Info("EV adapter disabled in settings")
 	case cfg.Simulator || provider == "simulator":
 		evSvc = service.NewEVService(settingsSvc, st, priceSvc, forecastSvc, logger,
-			true, cfg.EnableEVControl, time.Now)
+			true, cfg.EVControlMode, time.Now)
 		logger.Info("EV adapter selected", "provider", "simulator")
 	case provider == "zaptec":
 		chargerID := evSettings.ChargerID
@@ -207,7 +207,7 @@ func runServe() int {
 			Now:       time.Now,
 		})
 		evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
-			charger, cfg.EnableEVControl, time.Now)
+			charger, cfg.EVControlMode, time.Now)
 		logger.Info("EV adapter selected", "provider", "zaptec", "charger_id", chargerID,
 			"has_credentials", username != "" && password != "")
 	default:
@@ -325,7 +325,7 @@ func runServe() int {
 			"data_dir", cfg.DataDir,
 			"timezone", cfg.Timezone,
 			"writes_env", cfg.EnableWrites,
-			"ev_control_env", cfg.EnableEVControl,
+			"ev_control_mode", cfg.EVControlMode.Effective(),
 			"simulator", cfg.Simulator,
 		)
 		errCh <- httpSrv.ListenAndServe()
