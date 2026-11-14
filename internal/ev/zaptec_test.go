@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -74,5 +75,20 @@ func TestZaptecAdapter(t *testing.T) {
 	defer mu.Unlock()
 	if updates != 1 || commands != 2 {
 		t.Fatalf("updates=%d commands=%d", updates, commands)
+	}
+}
+
+func TestZaptecFailureDescribesEcoMode(t *testing.T) {
+	body := []byte(`{"Code":527,"Details":"Cannot update installation when using eco mode"}`)
+	got := zaptecFailure(http.StatusInternalServerError, body)
+
+	if !strings.Contains(got, "527") || !strings.Contains(got, "eco mode") {
+		t.Fatalf("eco mode failure = %q", got)
+	}
+	if !strings.Contains(got, "disable eco mode") {
+		t.Fatalf("eco mode failure lacks the hint: %q", got)
+	}
+	if plain := zaptecFailure(http.StatusBadGateway, []byte("nope")); plain != "status 502" {
+		t.Fatalf("opaque failure = %q", plain)
 	}
 }

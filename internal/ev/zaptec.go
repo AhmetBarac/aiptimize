@@ -205,6 +205,26 @@ func (z *Zaptec) accessToken(ctx context.Context) (string, error) {
 	return token.AccessToken, nil
 }
 
+// zaptecFailure turns an error response into something actionable. Zaptec
+// reports business-rule rejections as HTTP 500 with a Code/Details body, e.g.
+// {Code:527, Details:"Cannot update installation when using eco mode"}.
+func zaptecFailure(status int, raw []byte) string {
+	var problem struct {
+		Code    int    `json:"Code"`
+		Details string `json:"Details"`
+	}
+	if err := json.Unmarshal(raw, &problem); err == nil {
+		switch {
+		case problem.Code == 527:
+			return fmt.Sprintf("status %d (code 527): %s — eco mode blocks remote current control; "+
+				"disable eco mode for this charger in the Zaptec app", status, problem.Details)
+		case problem.Details != "":
+			return fmt.Sprintf("status %d (code %d): %s", status, problem.Code, problem.Details)
+		}
+	}
+	return fmt.Sprintf("status %d", status)
+}
+
 func (z *Zaptec) request(ctx context.Context, method, path string, payload any, out any) error {
 	token, err := z.accessToken(ctx)
 	if err != nil {
@@ -241,7 +261,7 @@ func (z *Zaptec) request(ctx context.Context, method, path string, payload any, 
 		return fmt.Errorf("zaptec %s: unauthorized", path)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("zaptec %s: status %d", path, resp.StatusCode)
+		return fmt.Errorf("zaptec %s: %s", path, zaptecFailure(resp.StatusCode, raw))
 	}
 	if out != nil {
 		if err := json.Unmarshal(raw, out); err != nil {
