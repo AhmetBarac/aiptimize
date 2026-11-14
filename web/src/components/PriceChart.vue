@@ -62,7 +62,9 @@ function render(): void {
   const orange = css('--aipt-orange', '#ea7a1c')
 
   const data = values
-  let markLineData: Array<{ xAxis: string }> = []
+  // Index, not label: a 48-hour range repeats every HH:mm, so matching by name
+  // puts the marker on the wrong day.
+  let markLineData: Array<{ xAxis: number }> = []
   let markPointData: Array<{ coord: [number, number]; value: string }> = []
   if (props.now) {
     const nowMs = Date.parse(props.now)
@@ -76,7 +78,7 @@ function render(): void {
       }
     })
     if (best < 60 * 60 * 1000) {
-      markLineData = [{ xAxis: labels[index] }]
+      markLineData = [{ xAxis: index }]
       markPointData = [{ coord: [index, values[index]], value: formatPrice(values[index], props.locale) }]
     }
   }
