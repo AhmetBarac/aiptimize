@@ -13,7 +13,7 @@ const router = useRouter()
 
 const primary = [
   { name: 'plan', to: '/plan', icon: 'bi-calendar3-week' },
-  { name: 'prices', to: '/prices', icon: 'bi-graph-up' },
+  { name: 'solar', to: '/solar', icon: 'bi-sun' },
   { name: 'home', to: '/', icon: 'bi-house-door' },
   { name: 'car', to: '/car', icon: 'bi-ev-station' },
 ]
@@ -25,7 +25,7 @@ const secondary = [
 
 const locale = computed(() => currentLocale())
 const moreActive = computed(() =>
-  ['/history', '/solar', '/settings'].some((path) => route.path === path || route.path.startsWith(`${path}/`)),
+  ['/history', '/prices', '/settings'].some((path) => route.path === path || route.path.startsWith(`${path}/`)),
 )
 
 function isActive(path: string): boolean {

@@ -22,7 +22,7 @@ const open = computed({
 
 const links = [
   { to: '/history', icon: 'bi-bar-chart', key: 'nav.history', hint: 'more.historyHint' },
-  { to: '/solar', icon: 'bi-sun', key: 'solar.title', hint: 'more.solarHint' },
+  { to: '/prices', icon: 'bi-graph-up', key: 'nav.prices', hint: 'more.pricesHint' },
   { to: '/system', icon: 'bi-activity', key: 'system.title', hint: 'more.systemHint' },
   { to: '/settings', icon: 'bi-gear', key: 'nav.settings', hint: 'more.settingsHint' },
 ]
