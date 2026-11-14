@@ -252,14 +252,25 @@ onBeforeUnmount(() => {
           <span>{{ t(`car.modeHints.${option}`) }}</span>
         </button>
       </div>
-      <div class="row g-3 mt-2">
-        <div class="col-6 col-md-3">
+      <div class="row g-3 mt-2 align-items-end">
+        <div class="col-auto">
           <label class="form-label" for="ev-current">{{ t('car.current') }} (A)</label>
-          <input id="ev-current" v-model.number="currentA" class="form-control" type="number" :min="charger.config.min_current_a" :max="charger.config.max_current_a" step="1" />
+          <input
+            id="ev-current"
+            v-model.number="currentA"
+            class="form-control ev-current-input"
+            type="number"
+            inputmode="numeric"
+            :min="charger.config.min_current_a"
+            :max="charger.config.max_current_a"
+            step="1"
+          />
         </div>
-        <div class="col-6 col-md-3 d-flex align-items-end gap-2">
-          <button class="btn btn-outline-secondary" type="button" :disabled="!canControl || busy" @click="setCurrent">{{ t('car.applyCurrent') }}</button>
-          <button class="btn btn-outline-secondary" type="button" :disabled="!canControl || busy" @click="pauseOrResume">
+        <div class="col d-flex gap-2">
+          <button class="btn btn-outline-secondary flex-fill" type="button" :disabled="!canControl || busy" @click="setCurrent">
+            {{ t('car.applyCurrent') }}
+          </button>
+          <button class="btn btn-outline-secondary flex-fill" type="button" :disabled="!canControl || busy" @click="pauseOrResume">
             {{ status.paused ? t('car.resume') : t('car.pause') }}
           </button>
         </div>

@@ -2753,6 +2753,12 @@ button.flow-node:hover {
   gap: 0.55rem;
 }
 
+/* Charge current is two digits at most, so keep the field small and give the
+   buttons the space they need. */
+.ev-current-input {
+  width: 5.5rem;
+}
+
 .mode-card {
   display: flex;
   flex-direction: column;
