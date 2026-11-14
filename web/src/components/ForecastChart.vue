@@ -62,7 +62,6 @@ function render(): void {
   const border = css('--aipt-border', 'rgba(255,255,255,.08)')
   const surface = css('--aipt-surface', '#141416')
   const warm = css('--aipt-solar-warm', '#ffd166')
-  const green = css('--aipt-green', '#32d74b')
   const blue = css('--aipt-blue', '#0a84ff')
 
   const fmt = (value: number | null | undefined) =>
@@ -105,8 +104,9 @@ function render(): void {
       symbol: 'none',
       connectNulls: false,
       data: measuredPv,
-      lineStyle: { width: 2.4, color: green },
-      itemStyle: { color: green },
+      // Same colour as the forecast, distinguished by being solid.
+      lineStyle: { width: 2.4, color: warm },
+      itemStyle: { color: warm },
     })
   }
   if (hasMeasuredLoad) {
