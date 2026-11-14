@@ -289,6 +289,18 @@ restarts on the new image. The SPA polls `/api/v1/meta` and reloads when the
 version changes. Without those two units the button is hidden — the API answers
 `503 update_unavailable`.
 
+The confirmation is an in-page panel, not a browser dialog, and the handler
+writes the request file *before* answering, so a host-side problem surfaces as
+`500 update_failed` with the reason instead of a button that appears to do
+nothing. If the app has not restarted after ~90 s the UI says so; in that case
+check the trigger:
+
+```sh
+ls -l /var/lib/aiptimize/update-request      # empty + owned by 10001 when idle
+journalctl -u aiptimize-update-trigger -n 50
+systemctl start aiptimize-update-trigger     # manual retry, same code path
+```
+
 For a host without systemd, the same check is available from the CLI:
 
 ```sh

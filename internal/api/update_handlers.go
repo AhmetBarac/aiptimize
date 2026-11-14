@@ -51,14 +51,15 @@ func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 			"Installing an update requires confirm: true.", nil)
 		return
 	}
+	// Write the request before answering so a failure reaches the UI instead of
+	// leaving it waiting for a restart that was never asked for.
+	if err := s.requestUpdate(); err != nil {
+		s.log.Error("could not request an update", "err", err)
+		writeError(w, http.StatusInternalServerError, "update_failed",
+			"Could not hand the update request to the host supervisor.",
+			map[string]any{"error": err.Error()})
+		return
+	}
+	s.log.Info("update requested from the UI")
 	writeJSON(w, http.StatusAccepted, map[string]any{"updating": true})
-	go func() {
-		// Give the response time to reach the client; the restart follows.
-		time.Sleep(1500 * time.Millisecond)
-		if err := s.requestUpdate(); err != nil {
-			s.log.Error("could not request an update", "err", err)
-			return
-		}
-		s.log.Info("update requested from the UI")
-	}()
 }
