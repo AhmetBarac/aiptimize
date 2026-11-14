@@ -3,10 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
+	"github.com/AhmetBarac/aiptimize/internal/service"
 )
 
 func (s *Server) evConfigPayload() map[string]any {
@@ -310,6 +312,28 @@ func (s *Server) handleDeleteStaticPlan(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleActivateStaticPlan makes an existing static plan the active schedule.
+func (s *Server) handleActivateStaticPlan(w http.ResponseWriter, r *http.Request) {
+	if !s.evAvailable(w) {
+		return
+	}
+	id, err := parseID(r.URL.Query().Get("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "Plan id is required.", nil)
+		return
+	}
+	plan, preview, err := s.ev.ActivatePlan(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrEVPlanNotFound) {
+			writeError(w, http.StatusNotFound, "ev_plan_not_found", err.Error(), nil)
+			return
+		}
+		writeError(w, http.StatusUnprocessableEntity, "ev_plan_activate_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plan": plan, "preview": preview})
 }
 
 func (s *Server) handleRepeatingPlans(w http.ResponseWriter, r *http.Request) {

@@ -473,6 +473,33 @@ func (s *EVService) SaveStaticPlan(ctx context.Context, plan domain.EVPlan) (dom
 	return saved, preview, err
 }
 
+// ActivatePlan makes an existing plan the one schedule in force and returns its
+// freshly computed preview.
+func (s *EVService) ActivatePlan(ctx context.Context, id int64) (domain.EVPlan, domain.EVPlanPreview, error) {
+	plans, err := s.st.ListEVPlans(ctx, s.ID())
+	if err != nil {
+		return domain.EVPlan{}, domain.EVPlanPreview{}, err
+	}
+	var target domain.EVPlan
+	found := false
+	for _, plan := range plans {
+		if plan.ID == id {
+			target = plan
+			found = true
+			break
+		}
+	}
+	if !found {
+		return domain.EVPlan{}, domain.EVPlanPreview{}, ErrEVPlanNotFound
+	}
+	if err := s.st.ActivateEVPlan(ctx, s.ID(), id); err != nil {
+		return domain.EVPlan{}, domain.EVPlanPreview{}, err
+	}
+	target.Active = true
+	preview, err := s.ComputePlan(ctx, target)
+	return target, preview, err
+}
+
 // SaveRepeatingPlans replaces all repeating plans.
 func (s *EVService) SaveRepeatingPlans(ctx context.Context, plans []domain.EVPlan) ([]domain.EVPlan, error) {
 	for i := range plans {

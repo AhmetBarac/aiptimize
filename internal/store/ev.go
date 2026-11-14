@@ -76,6 +76,32 @@ func (s *Store) DeleteEVPlan(ctx context.Context, id int64) error {
 	return nil
 }
 
+// ActivateEVPlan marks one plan active and every other plan of the same charger
+// inactive, so exactly one schedule is in force.
+func (s *Store) ActivateEVPlan(ctx context.Context, chargerID string, id int64) error {
+	now := formatTime(time.Now())
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE ev_plans SET active = 0, updated_at = ? WHERE charger_id = ? AND id <> ?`,
+		now, chargerID, id); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx,
+		`UPDATE ev_plans SET active = 1, updated_at = ? WHERE charger_id = ? AND id = ?`,
+		now, chargerID, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit()
+}
+
 // SaveEVPlanRun stores a computed/previewed run for audit and UI.
 func (s *Store) SaveEVPlanRun(ctx context.Context, planID *int64, preview domain.EVPlanPreview) error {
 	windows, err := json.Marshal(preview.Windows)

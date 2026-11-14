@@ -7,6 +7,7 @@ import { session } from '../session'
 import MetricCard from '../components/MetricCard.vue'
 import PageHead from '../components/PageHead.vue'
 import PlanPreview from '../components/PlanPreview.vue'
+import Sheet from '../components/Sheet.vue'
 
 const { t } = useI18n()
 const charger = ref<ChargerPayload | null>(null)
@@ -27,6 +28,11 @@ const precondition = ref(0)
 // Two-step plan: "Create plan" renders a preview, "Save plan" persists exactly
 // the settings that were previewed.
 const draft = ref<EVPreview | null>(null)
+// Saved-plan viewer: the eye button opens one of the stored plans and shows its
+// preview, from where it can be scheduled.
+const viewing = ref<EVPlan | null>(null)
+const viewOpen = ref(false)
+const viewPreview = ref<EVPreview | null>(null)
 const draftKey = ref('')
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -207,6 +213,43 @@ async function savePlan(): Promise<void> {
     draft.value = null
     draftKey.value = ''
     message.value = t('car.planSaved')
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function openPlan(plan: EVPlan): Promise<void> {
+  if (!charger.value) return
+  viewing.value = plan
+  viewPreview.value = null
+  viewOpen.value = true
+  error.value = ''
+  try {
+    viewPreview.value = await api.post<EVPreview>(`/chargers/${charger.value.id}/plan/preview`, {
+      target_energy_kwh: plan.target_energy_kwh,
+      deadline: plan.deadline_local,
+      precondition_min: plan.precondition_min,
+      strategy: plan.strategy,
+    })
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+async function scheduleViewed(): Promise<void> {
+  const plan = viewing.value
+  if (!charger.value || !plan) return
+  busy.value = true
+  error.value = ''
+  message.value = ''
+  try {
+    await api.post(`/chargers/${charger.value.id}/plan/static/activate?id=${plan.id}`, {})
+    viewOpen.value = false
+    viewing.value = null
+    message.value = t('car.planActivated')
     await load()
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
@@ -396,16 +439,58 @@ onBeforeUnmount(() => {
         <p class="small text-muted mb-0">{{ canSavePlan ? t('car.draftHint') : t('car.draftStale') }}</p>
       </div>
       <div v-if="plans.length" class="mt-3">
-        <div v-for="plan in plans" :key="plan.id" class="key-value">
-          <dt>{{ plan.target_energy_kwh }} kWh · {{ plan.deadline_local }} · {{ plan.strategy }}</dt>
-          <dd>
-            <button class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="deletePlan(plan)">{{ t('car.delete') }}</button>
+        <div v-for="plan in plans" :key="plan.id" class="key-value plan-row">
+          <dt>
+            {{ plan.target_energy_kwh }} kWh · {{ plan.deadline_local }} · {{ plan.strategy }}
+            <span v-if="plan.active" class="badge-soft badge-on ms-1">{{ t('car.planActive') }}</span>
+          </dt>
+          <dd class="d-flex gap-1">
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              :disabled="busy"
+              :aria-label="t('car.viewPlan')"
+              :title="t('car.viewPlan')"
+              @click="openPlan(plan)"
+            >
+              <i class="bi bi-eye" aria-hidden="true"></i>
+            </button>
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              :disabled="busy"
+              :aria-label="t('car.delete')"
+              :title="t('car.delete')"
+              @click="deletePlan(plan)"
+            >
+              <i class="bi bi-trash" aria-hidden="true"></i>
+            </button>
           </dd>
         </div>
       </div>
     </section>
 
     <p class="small text-muted">{{ t('car.limitation') }}</p>
+
+    <Sheet
+      v-model:open="viewOpen"
+      :title="t('car.viewTitle')"
+      :subtitle="viewing ? `${viewing.target_energy_kwh} kWh · ${viewing.deadline_local} · ${viewing.strategy}` : ''"
+      size="sm"
+    >
+      <PlanPreview v-if="viewPreview" :preview="viewPreview" />
+      <p v-else class="small text-muted mb-0">{{ t('common.loading') }}</p>
+      <template #footer>
+        <button
+          class="btn btn-primary w-100"
+          type="button"
+          :disabled="busy || viewing?.active"
+          @click="scheduleViewed"
+        >
+          {{ viewing?.active ? t('car.planActive') : t('car.scheduleViewed') }}
+        </button>
+      </template>
+    </Sheet>
   </template>
 
   <section v-else class="aipt-card">

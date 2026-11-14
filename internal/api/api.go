@@ -162,6 +162,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}/plan", s.requireAuth(s.handleChargerPlan))
 	s.mux.HandleFunc("POST /api/v1/chargers/{id}/plan/static", s.requireAuth(s.handleStaticPlan))
 	s.mux.HandleFunc("DELETE /api/v1/chargers/{id}/plan/static", s.requireAuth(s.handleDeleteStaticPlan))
+	s.mux.HandleFunc("POST /api/v1/chargers/{id}/plan/static/activate", s.requireAuth(s.handleActivateStaticPlan))
 	s.mux.HandleFunc("PUT /api/v1/chargers/{id}/plans/repeating", s.requireAuth(s.handleRepeatingPlans))
 	s.mux.HandleFunc("POST /api/v1/chargers/{id}/plan/preview", s.requireAuth(s.handlePlanPreview))
 	s.mux.HandleFunc("GET /api/v1/chargers/{id}/session", s.requireAuth(s.handleEVSession))
