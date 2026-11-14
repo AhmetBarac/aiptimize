@@ -193,9 +193,10 @@ function render(): void {
           data: pv,
           symbol: 'none',
           smooth: 0.2,
-          lineStyle: { width: 1.8, color: green },
+          // PV here is the forecast, so it is dashed like the other estimates.
+          lineStyle: { width: 1.8, color: green, type: 'dashed' },
           itemStyle: { color: green },
-          areaStyle: { color: 'rgba(50,215,75,0.16)' },
+          areaStyle: { color: 'rgba(50,215,75,0.12)' },
         },
         {
           name: props.labels.load,
