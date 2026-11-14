@@ -30,7 +30,7 @@ const force = reactive({
   durationMin: 60,
 })
 
-const sample = computed(() => status.value?.telemetry.sample ?? null)
+const sample = computed(() => status.value?.telemetry?.sample ?? null)
 const inverterMode = computed(() => sample.value?.inverter_mode ?? 0)
 const canWrite = computed(() => status.value?.gates.writes_armed === true)
 const batteryPower = computed(() => sample.value?.battery_w ?? 0)
@@ -49,7 +49,7 @@ const modeLabel = computed(() => {
 })
 const dayOrder = ['Mon', 'Tus', 'Wen', 'Thu', 'Fri', 'Sat', 'Sun']
 const scheduleDays = computed(() =>
-  dayOrder.map((key) => ({ key, slots: schedule.value?.schedule.days[key] ?? [] })),
+  dayOrder.map((key) => ({ key, slots: schedule.value?.schedule?.days?.[key] ?? [] })),
 )
 
 function fmtTime(hour: number, minute: number): string {
