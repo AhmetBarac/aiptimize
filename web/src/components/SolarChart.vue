@@ -128,7 +128,9 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: expected,
-          lineStyle: { width: 2, color: warmLight },
+          // Expected, minimum and maximum are all estimates, so all three are
+          // dashed; only the measured production is solid.
+          lineStyle: { width: 2, color: warmLight, type: 'dashed' },
           itemStyle: { color: warmLight },
         },
         {
@@ -137,7 +139,7 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: min,
-          lineStyle: { width: 1, color: warmDim, type: 'dashed' },
+          lineStyle: { width: 1.2, color: warmDim, type: 'dashed' },
           itemStyle: { color: warmDim },
         },
         {
@@ -146,7 +148,7 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: max,
-          lineStyle: { width: 1, color: warm, type: 'dashed' },
+          lineStyle: { width: 1.2, color: warm, type: 'dashed' },
           itemStyle: { color: warm },
         },
         {
