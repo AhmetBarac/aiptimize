@@ -45,14 +45,16 @@ Every change to the application (`cmd/`, `internal/`, `web/`) is published, neve
 hand-copied onto the host:
 
 1. `./deploy/build.ps1 -Push` — increments `.buildnumber`, cross-compiles
-   `linux/arm64` and pushes `0.12.NNN`, `dev` and `sha-<sha>` to Docker Hub.
-2. Commit the bumped `.buildnumber` together with the change.
-3. On the host: `aiptimize-update`, or **Settings → System → Update now**.
-4. Verify `/healthz` reports the new `dev-0.12.NNN` and that
+   `linux/arm64`, pushes `0.12.NNN`, `dev` and `sha-<sha>` to Docker Hub, then
+   commits the bumped counter and pushes the matching `v0.12.NNN` git tag, so
+   GitHub history mirrors the registry.
+2. On the host: `aiptimize-update`, or **Settings → System → Update now**.
+3. Verify `/healthz` reports the new `dev-0.12.NNN` and that
    `docker image ls --digests ahmetbarac/aiptimize` shows the new digest on
    `dev`.
 
-Tags are never reused: the build number is the version. Documentation,
+Tags are never reused: the build number is the version, and `v0.12.NNN` on
+GitHub always points at the commit the image was built from. Documentation,
 `android/` and the systemd unit files are not part of the image, so they need no
 publish — unit files are installed to `/etc/systemd/system` separately.
 

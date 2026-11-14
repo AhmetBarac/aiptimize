@@ -118,6 +118,25 @@ if (-not $NoIncrement) {
 Write-Host "built $appVersion"
 if ($Push) {
     Write-Host "pushed to $Registry ($version, dev, sha-$sha)"
+    if (-not $NoIncrement) {
+        # Keep the repository history aligned with the published image: commit
+        # the bumped counter, then tag that commit and push the tag.
+        $tag = "v$version"
+        & git add -- $counterFile
+        & git commit --quiet -m "Bump build number to $version"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Build counter was not committed; the tag will not include it.'
+        }
+        if (-not (& git tag -l $tag)) {
+            & git tag -a $tag -m "Release $version"
+        }
+        & git push --quiet origin $tag 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "tagged $tag and pushed it"
+        } else {
+            Write-Warning "created $tag locally but could not push it"
+        }
+    }
 } else {
     Write-Host 'not pushed (pass -Push to publish)'
 }
