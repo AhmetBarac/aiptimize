@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -28,6 +29,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val servers: StateFlow<List<ServerProfile>> = store.servers
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** True once the stored servers have been read, so callers can tell "none" from "not yet". */
+    val ready: StateFlow<Boolean> = store.servers
+        .map { true }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _discovered = MutableStateFlow<List<DiscoveredServer>>(emptyList())
     val discovered: StateFlow<List<DiscoveredServer>> = _discovered.asStateFlow()

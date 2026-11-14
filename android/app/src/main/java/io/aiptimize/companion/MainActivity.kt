@@ -3,8 +3,14 @@ package io.aiptimize.companion
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -27,8 +33,27 @@ class MainActivity : ComponentActivity() {
                 val nav = rememberNavController()
                 val vm: MainViewModel = viewModel()
                 val servers by vm.servers.collectAsState()
+                val ready by vm.ready.collectAsState()
                 val discovered by vm.discovered.collectAsState()
                 val scanning by vm.scanning.collectAsState()
+
+                // With a single server configured there is nothing to choose, so
+                // go straight to it; the list only appears for zero or several.
+                LaunchedEffect(ready) {
+                    if (ready && servers.size == 1) {
+                        nav.navigate("viewer/${servers.first().instanceId}") {
+                            popUpTo("servers") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
+                if (!ready) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                    return@AiptimizeTheme
+                }
 
                 NavHost(navController = nav, startDestination = "servers") {
                     composable("servers") {
@@ -59,7 +84,17 @@ class MainActivity : ComponentActivity() {
                         ViewerScreen(
                             vm = vm,
                             instanceId = entry.arguments?.getString("id").orEmpty(),
-                            onBack = { nav.popBackStack() },
+                            onBack = {
+                                // Started straight on the viewer, so there may be
+                                // nothing to pop; then the list becomes the root.
+                                if (!nav.popBackStack()) {
+                                    val current = nav.currentDestination?.id
+                                    nav.navigate("servers") {
+                                        if (current != null) popUpTo(current) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            },
                         )
                     }
                     composable(
