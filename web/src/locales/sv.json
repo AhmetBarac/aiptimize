@@ -487,6 +487,8 @@
     "pause": "Pausa",
     "resume": "Återuppta",
     "sendingCommand": "Skickar…",
+    "awaitingCommand": "Väntar på laddaren…",
+    "commandUnconfirmed": "Kommandot skickades, men laddaren har inte bekräftat inom 10 sekunder.",
     "sessionTitle": "Laddsession",
     "sessionHint": "Paus stoppar laddningen och håller den stoppad. Återuppta låter planen ladda igen.",
     "sessionPaused": "Pausad",

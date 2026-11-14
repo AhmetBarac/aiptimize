@@ -16,6 +16,7 @@ const preview = ref<EVPreview | null>(null)
 const loading = ref(true)
 const busy = ref(false)
 const pendingCommand = ref(false)
+const commandPhase = ref<'sending' | 'waiting'>('sending')
 const error = ref('')
 const message = ref('')
 const currentA = ref(6)
@@ -122,19 +123,49 @@ async function setCurrent(): Promise<void> {
   }
 }
 
+const COMMAND_TIMEOUT_MS = 10_000
+const COMMAND_POLL_MS = 1_000
+
+// Zaptec accepts the command before the charger acts on it, so the indicator
+// has to follow the reported state rather than the HTTP response.
+async function waitForCharger(paused: boolean): Promise<boolean> {
+  const id = charger.value?.id
+  if (!id) return false
+  const deadline = Date.now() + COMMAND_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, COMMAND_POLL_MS))
+    if (!charger.value) return false
+    const next = await api.get<ChargerStatus>(`/chargers/${id}/status`).catch(() => null)
+    if (!next) continue
+    charger.value.status = next
+    if (next.paused === paused) return true
+  }
+  return false
+}
+
 async function pauseOrResume(): Promise<void> {
   if (!charger.value) return
+  const expectPaused = !status.value?.paused
   busy.value = true
   pendingCommand.value = true
+  commandPhase.value = 'sending'
   error.value = ''
+  message.value = ''
   try {
-    const action = status.value?.paused ? 'resume' : 'pause'
-    charger.value.status = await api.post(`/chargers/${charger.value.id}/${action}`, {})
+    charger.value.status = await api.post(
+      `/chargers/${charger.value.id}/${expectPaused ? 'pause' : 'resume'}`,
+      {},
+    )
+    commandPhase.value = 'waiting'
+    if (!(await waitForCharger(expectPaused))) {
+      message.value = t('car.commandUnconfirmed')
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
     busy.value = false
     pendingCommand.value = false
+    commandPhase.value = 'sending'
   }
 }
 
@@ -249,7 +280,15 @@ onBeforeUnmount(() => {
         <i v-if="pendingCommand" class="bi bi-arrow-repeat spin" aria-hidden="true"></i>
         <i v-else class="bi" :class="status.paused ? 'bi-play-fill' : 'bi-pause-fill'" aria-hidden="true"></i>
         <span class="ms-1">
-          {{ pendingCommand ? t('car.sendingCommand') : status.paused ? t('car.resume') : t('car.pause') }}
+          {{
+            pendingCommand
+              ? commandPhase === 'waiting'
+                ? t('car.awaitingCommand')
+                : t('car.sendingCommand')
+              : status.paused
+                ? t('car.resume')
+                : t('car.pause')
+          }}
         </span>
       </button>
     </section>

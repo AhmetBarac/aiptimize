@@ -486,6 +486,8 @@
     "pause": "Pause",
     "resume": "Resume",
     "sendingCommand": "Sending…",
+    "awaitingCommand": "Waiting for charger…",
+    "commandUnconfirmed": "Command sent, but the charger has not confirmed within 10 seconds.",
     "sessionTitle": "Charging session",
     "sessionHint": "Pause stops charging and holds it stopped. Resume lets the plan charge again.",
     "sessionPaused": "Paused",
