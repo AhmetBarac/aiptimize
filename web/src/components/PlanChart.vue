@@ -80,6 +80,7 @@ function render(): void {
   const border = css('--aipt-border', 'rgba(255,255,255,.08)')
   const surface = css('--aipt-surface', '#141416')
   const green = css('--aipt-green', '#32d74b')
+  const warm = css('--aipt-solar-warm', '#ffd166')
   const blue = css('--aipt-blue', '#0a84ff')
   const orange = css('--aipt-orange', '#ff9f0a')
   const accent = css('--aipt-accent', '#7c5cff')
@@ -193,10 +194,11 @@ function render(): void {
           data: pv,
           symbol: 'none',
           smooth: 0.2,
-          // PV here is the forecast, so it is dashed like the other estimates.
-          lineStyle: { width: 1.8, color: green, type: 'dashed' },
-          itemStyle: { color: green },
-          areaStyle: { color: 'rgba(50,215,75,0.12)' },
+          // PV here is the forecast, so it is dashed and solar yellow like the
+          // forecast chart.
+          lineStyle: { width: 1.8, color: warm, type: 'dashed' },
+          itemStyle: { color: warm },
+          areaStyle: { color: 'rgba(255,209,102,0.12)' },
         },
         {
           name: props.labels.load,
