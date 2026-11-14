@@ -74,11 +74,20 @@ const currency = computed(() => plan.value?.summary.currency ?? '')
 const draft = computed(() => view.value?.draft ?? null)
 const sync = computed(() => view.value?.sync ?? null)
 const todayDate = ref('')
+const RANGE_48H = '48h'
+const rangeMode = ref<'day' | '48h'>('day')
 const daySlots = computed(() => {
+  if (rangeMode.value === '48h') return plan.value?.slots ?? []
   const day = view.value?.date
   if (!day) return plan.value?.slots ?? []
   return (plan.value?.slots ?? []).filter((slot) => slot.day_local === day)
 })
+// The timeline is drawn per calendar day, so the 48h view stacks two of them.
+const timelineDays = computed(() =>
+  rangeMode.value === '48h'
+    ? [todayDate.value, tomorrowDate.value].filter(Boolean)
+    : [view.value?.date ?? ''],
+)
 const hasSlots = computed(() => daySlots.value.length > 0)
 const timezone = computed(() => plan.value?.timezone ?? session.meta?.timezone ?? 'UTC')
 const timelineSlots = computed<PlanSlot[]>(() => {
@@ -175,8 +184,62 @@ const dayOptions = computed(() =>
   [
     { value: todayDate.value, label: t('plan.today') },
     { value: tomorrowDate.value, label: t('plan.tomorrow') },
+    { value: RANGE_48H, label: t('plan.next48h') },
   ].filter((option) => Boolean(option.value)),
 )
+
+// Combines the today and tomorrow plans into one plan for the 48h view.
+function mergePlans(a?: Plan, b?: Plan): Plan | undefined {
+  if (!a) return b
+  if (!b) return a
+  return {
+    ...a,
+    horizon_start: a.horizon_start < b.horizon_start ? a.horizon_start : b.horizon_start,
+    horizon_end: a.horizon_end > b.horizon_end ? a.horizon_end : b.horizon_end,
+    summary: {
+      cost: a.summary.cost + b.summary.cost,
+      baseline_cost: a.summary.baseline_cost + b.summary.baseline_cost,
+      savings: a.summary.savings + b.summary.savings,
+      charge_kwh: a.summary.charge_kwh + b.summary.charge_kwh,
+      discharge_kwh: a.summary.discharge_kwh + b.summary.discharge_kwh,
+      cycles: a.summary.cycles + b.summary.cycles,
+      slot_count: a.summary.slot_count + b.summary.slot_count,
+      currency: a.summary.currency || b.summary.currency,
+    },
+    slots: [...a.slots, ...b.slots].sort((x, y) => x.start.localeCompare(y.start)),
+    curve: [...a.curve, ...b.curve].sort((x, y) => x.start.localeCompare(y.start)),
+    warnings: [...a.warnings, ...b.warnings],
+  }
+}
+
+async function loadRange(): Promise<void> {
+  const first = todayDate.value || localDateKey(new Date(), session.meta?.timezone ?? 'UTC')
+  const second = addDays(first, 1)
+  const [a, b] = await Promise.all([
+    api.get<PlanView>(`/plan?date=${first}`).catch(() => null),
+    api.get<PlanView>(`/plan?date=${second}`).catch(() => null),
+  ])
+  const base = a ?? b
+  if (!base) {
+    view.value = null
+    return
+  }
+  view.value = {
+    ...base,
+    draft: mergePlans(a?.draft, b?.draft),
+    effective: mergePlans(a?.effective, b?.effective),
+    auto: mergePlans(a?.auto, b?.auto),
+    applied: mergePlans(a?.applied, b?.applied),
+    inverter_plan: mergePlans(a?.inverter_plan, b?.inverter_plan),
+    validation: {},
+    schedule_diff: [],
+    inverter_match: true,
+    foreign_schedule: false,
+    warnings: [...(a?.warnings ?? []), ...(b?.warnings ?? [])],
+  }
+  error.value = ''
+  validation.value = {}
+}
 
 async function load(day?: string): Promise<void> {
   try {
@@ -215,10 +278,20 @@ function displaySlotPrice(slot: PlanSlot): number {
 }
 
 async function selectDay(day: string): Promise<void> {
-  if (view.value?.date === day) return
+  const isRange = day === RANGE_48H
+  const sameSelection = isRange
+    ? rangeMode.value === '48h'
+    : view.value?.date === day && rangeMode.value === 'day'
+  if (sameSelection) return
   busy.value = true
   editing.value = false
-  await load(day)
+  message.value = ''
+  rangeMode.value = isRange ? '48h' : 'day'
+  if (isRange) {
+    await loadRange()
+  } else {
+    await load(day)
+  }
   busy.value = false
 }
 
@@ -547,13 +620,15 @@ function fmtTime(iso: string): string {
       <div class="plan-hero-controls">
         <div class="plan-hero-day">
           <SegmentedControl
-            :model-value="view.date"
+            :model-value="rangeMode === '48h' ? RANGE_48H : view.date"
             :options="dayOptions"
             :group-label="t('plan.title')"
             size="sm"
             @update:model-value="selectDay"
           />
-          <span class="plan-hero-date">{{ selectedDayLabel }} · {{ view.date }}</span>
+          <span class="plan-hero-date">
+            {{ selectedDayLabel }} · {{ view.date }}<template v-if="rangeMode === '48h'"> → {{ tomorrowDate }}</template>
+          </span>
         </div>
       </div>
 
@@ -592,21 +667,24 @@ function fmtTime(iso: string): string {
         <span class="small text-muted">{{ view.date }}</span>
       </div>
 
-      <PlanTimeline
-        :slots="timelineSlots"
-        :day="view.date"
-        :timezone="plan.timezone"
-        :locale="locale"
-        :now="nowIso"
-        :prices="priceBlocks"
-        :full-price="session.meta?.site.show_full_price === true"
-        :editable="editing"
-        :selected-index="selectedIndex"
-        :labels="timelineLabels"
-        @select-slot="selectTimelineSlot"
-        @update-slot="updateTimelineSlot"
-        @add-slot="addSlotAt"
-      />
+      <div v-for="day in timelineDays" :key="day">
+        <p v-if="rangeMode === '48h'" class="small text-muted mb-1">{{ day }}</p>
+        <PlanTimeline
+          :slots="timelineSlots"
+          :day="day"
+          :timezone="plan.timezone"
+          :locale="locale"
+          :now="nowIso"
+          :prices="priceBlocks"
+          :full-price="session.meta?.site.show_full_price === true"
+          :editable="editing"
+          :selected-index="selectedIndex"
+          :labels="timelineLabels"
+          @select-slot="selectTimelineSlot"
+          @update-slot="updateTimelineSlot"
+          @add-slot="addSlotAt"
+        />
+      </div>
       <p v-if="editing" class="timeline-edit-hint">{{ t('plan.timelineEditHint') }}</p>
 
       <div v-if="editing">
@@ -723,7 +801,8 @@ function fmtTime(iso: string): string {
       </div>
 
       <div v-if="!editing" class="plan-card-actions">
-        <div class="plan-primary-actions">
+        <p v-if="rangeMode === '48h'" class="small text-muted mb-0">{{ t('plan.rangeHint') }}</p>
+        <div v-else class="plan-primary-actions">
           <button v-if="plan" class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="startEdit">
             <i class="bi bi-pencil" aria-hidden="true"></i>
             <span class="ms-1">{{ t('plan.edit') }}</span>
@@ -733,10 +812,10 @@ function fmtTime(iso: string): string {
             <span class="ms-1">{{ t('plan.downloadPlan') }}</span>
           </button>
         </div>
-        <button v-if="draft" class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="discardDraft">
+        <button v-if="rangeMode !== '48h' && draft" class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="discardDraft">
           {{ t('plan.discardDraft') }}
         </button>
-        <button v-if="view.foreign_schedule && canWrite" class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="takeControl">
+        <button v-if="rangeMode !== '48h' && view.foreign_schedule && canWrite" class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="takeControl">
           {{ t('plan.takeControl') }}
         </button>
       </div>

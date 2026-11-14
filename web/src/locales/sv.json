@@ -379,6 +379,8 @@
     "revisionConflict": "Planen ändrades någon annanstans. Den senaste versionen har laddats; spara igen för att behålla dina ändringar.",
     "today": "Idag",
     "tomorrow": "Imorgon",
+    "next48h": "48 h",
+    "rangeHint": "Visar idag och imorgon tillsammans. Välj en enskild dag för att redigera eller tillämpa planen.",
     "takeControl": "Ta kontroll",
     "clearSchedule": "Rensa schema",
     "inverterControl": "Växelriktarstyrning",

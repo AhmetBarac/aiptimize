@@ -379,6 +379,8 @@
     "revisionConflict": "The plan was changed elsewhere. The latest version is loaded; save again to keep your changes.",
     "today": "Today",
     "tomorrow": "Tomorrow",
+    "next48h": "48 h",
+    "rangeHint": "Showing today and tomorrow together. Pick a single day to edit or apply the plan.",
     "takeControl": "Take control",
     "clearSchedule": "Clear schedule",
     "inverterControl": "Inverter control",
