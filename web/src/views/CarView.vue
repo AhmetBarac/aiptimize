@@ -6,8 +6,9 @@ import type { ChargerPayload, ChargerPlanPayload, ChargerStatus, EVConfig, EVPla
 import { session } from '../session'
 import MetricCard from '../components/MetricCard.vue'
 import PageHead from '../components/PageHead.vue'
+import PlanPreview from '../components/PlanPreview.vue'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const charger = ref<ChargerPayload | null>(null)
 const evConfig = ref<EVConfig | null>(null)
 const plans = ref<EVPlan[]>([])
@@ -21,6 +22,10 @@ const targetKwh = ref(20)
 const deadline = ref(defaultDeadline())
 const strategy = ref('cheapest')
 const precondition = ref(0)
+// Two-step plan: "Create plan" renders a preview, "Save plan" persists exactly
+// the settings that were previewed.
+const draft = ref<EVPreview | null>(null)
+const draftKey = ref('')
 let timer: ReturnType<typeof setInterval> | undefined
 
 const canControl = computed(() => Boolean(session.meta?.gates?.ev_control_armed))
@@ -35,6 +40,19 @@ const activeProvider = computed(
 const hasZaptecCredentials = computed(() => evConfig.value?.credentials.zaptec === true)
 const status = computed(() => charger.value?.status ?? null)
 const mode = computed(() => status.value?.mode ?? 'off')
+
+function planInput(): Record<string, unknown> {
+  return {
+    target_energy_kwh: Number(targetKwh.value),
+    deadline: deadline.value,
+    precondition_min: Number(precondition.value),
+    strategy: strategy.value,
+  }
+}
+
+const planKey = computed(() => JSON.stringify(planInput()))
+// Saving is only allowed for settings the user has just previewed.
+const canSavePlan = computed(() => Boolean(draft.value) && draftKey.value === planKey.value)
 
 function defaultDeadline(): string {
   const d = new Date()
@@ -117,20 +135,43 @@ async function pauseOrResume(): Promise<void> {
   }
 }
 
-async function savePlan(): Promise<void> {
+async function createPlan(): Promise<void> {
   if (!charger.value) return
   busy.value = true
   error.value = ''
   message.value = ''
   try {
+    const input = planInput()
+    draft.value = await api.post<EVPreview>(`/chargers/${charger.value.id}/plan/preview`, input)
+    draftKey.value = JSON.stringify(input)
+  } catch (err) {
+    draft.value = null
+    draftKey.value = ''
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    busy.value = false
+  }
+}
+
+function discardDraft(): void {
+  draft.value = null
+  draftKey.value = ''
+  message.value = ''
+}
+
+async function savePlan(): Promise<void> {
+  if (!charger.value || !canSavePlan.value) return
+  busy.value = true
+  error.value = ''
+  message.value = ''
+  try {
     const result = await api.post<{ plan: EVPlan; preview: EVPreview }>(`/chargers/${charger.value.id}/plan/static`, {
-      target_energy_kwh: Number(targetKwh.value),
-      deadline: deadline.value,
-      precondition_min: Number(precondition.value),
-      strategy: strategy.value,
+      ...planInput(),
       active: true,
     })
     preview.value = result.preview
+    draft.value = null
+    draftKey.value = ''
     message.value = t('car.planSaved')
     await load()
   } catch (err) {
@@ -151,16 +192,6 @@ async function deletePlan(plan: EVPlan): Promise<void> {
   } finally {
     busy.value = false
   }
-}
-
-function fmtTime(iso: string): string {
-  return new Intl.DateTimeFormat(locale.value, {
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: session.meta?.timezone ?? 'UTC',
-  }).format(new Date(iso))
 }
 
 onMounted(() => {
@@ -242,24 +273,7 @@ onBeforeUnmount(() => {
         <span v-if="preview" class="badge-soft" :class="preview.state === 'unreachable' ? 'badge-warn' : 'badge-on'">{{ preview.state }}</span>
       </div>
       <div v-if="preview" class="mt-3">
-        <div class="plan-home-stats mb-3">
-          <div><span class="tile-label">{{ t('car.target') }}</span><strong>{{ preview.target_kwh.toFixed(1) }} kWh</strong></div>
-          <div><span class="tile-label">{{ t('car.remaining') }}</span><strong>{{ preview.remaining_kwh.toFixed(1) }} kWh</strong></div>
-          <div><span class="tile-label">{{ t('car.duration') }}</span><strong>{{ preview.required_min }} min</strong></div>
-        </div>
-        <div v-if="preview.windows.length" class="table-responsive">
-          <table class="table table-sm plan-table">
-            <thead><tr><th>{{ t('car.window') }}</th><th>{{ t('car.source') }}</th><th class="text-end">{{ t('car.energy') }}</th></tr></thead>
-            <tbody>
-              <tr v-for="window in preview.windows" :key="window.start">
-                <td>{{ fmtTime(window.start) }}–{{ fmtTime(window.end) }}</td>
-                <td><span class="badge-soft" :class="window.source === 'pv' ? 'badge-charge' : 'badge-discharge'">{{ window.source }}</span></td>
-                <td class="text-end">{{ window.energy_kwh.toFixed(1) }} kWh</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-for="warning in preview.warnings ?? []" :key="warning" class="small text-muted mb-1">{{ warning }}</p>
+        <PlanPreview :preview="preview" />
       </div>
       <div v-else class="empty-state">{{ t('car.noPlan') }}</div>
     </section>
@@ -287,11 +301,27 @@ onBeforeUnmount(() => {
             <label class="form-label" for="ev-precondition">{{ t('car.precondition') }}</label>
             <input id="ev-precondition" v-model.number="precondition" class="form-control" type="number" min="0" max="240" step="5" />
           </div>
-          <div class="col-12 col-sm-2 d-flex align-items-end">
-            <button class="btn btn-primary w-100" type="submit" :disabled="busy">{{ t('car.savePlan') }}</button>
+          <div class="col-12 col-sm-2 d-flex align-items-end gap-2">
+            <button class="btn btn-outline-primary flex-fill" type="button" :disabled="busy" @click="createPlan">
+              {{ t('car.createPlan') }}
+            </button>
+            <button class="btn btn-primary flex-fill" type="submit" :disabled="busy || !canSavePlan">
+              {{ t('car.savePlan') }}
+            </button>
           </div>
         </div>
       </form>
+
+      <div v-if="draft" class="mt-4 pt-3 border-top">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <h3 class="h6 mb-0">{{ t('car.draftTitle') }}</h3>
+          <button class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="discardDraft">
+            {{ t('car.discard') }}
+          </button>
+        </div>
+        <PlanPreview :preview="draft" />
+        <p class="small text-muted mb-0">{{ canSavePlan ? t('car.draftHint') : t('car.draftStale') }}</p>
+      </div>
       <div v-if="plans.length" class="mt-3">
         <div v-for="plan in plans" :key="plan.id" class="key-value">
           <dt>{{ plan.target_energy_kwh }} kWh · {{ plan.deadline_local }} · {{ plan.strategy }}</dt>
