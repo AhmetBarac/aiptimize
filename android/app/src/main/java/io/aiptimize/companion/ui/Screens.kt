@@ -1,9 +1,12 @@
 package io.aiptimize.companion.ui
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.os.Handler
 import android.os.Looper
+import android.webkit.JsResult
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -424,6 +427,41 @@ fun ViewerScreen(
                             settings.mixedContentMode =
                                 android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
                             addJavascriptInterface(bridge, "Aiptimize")
+                            // Without a WebChromeClient the WebView answers every
+                            // window.confirm() with false, which makes delete and
+                            // other destructive actions silently do nothing.
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onJsConfirm(
+                                    view: WebView?,
+                                    url: String?,
+                                    message: String?,
+                                    result: JsResult?,
+                                ): Boolean {
+                                    val context = view?.context ?: return false
+                                    AlertDialog.Builder(context)
+                                        .setMessage(message)
+                                        .setPositiveButton(android.R.string.ok) { _, _ -> result?.confirm() }
+                                        .setNegativeButton(android.R.string.cancel) { _, _ -> result?.cancel() }
+                                        .setOnCancelListener { result?.cancel() }
+                                        .show()
+                                    return true
+                                }
+
+                                override fun onJsAlert(
+                                    view: WebView?,
+                                    url: String?,
+                                    message: String?,
+                                    result: JsResult?,
+                                ): Boolean {
+                                    val context = view?.context ?: return false
+                                    AlertDialog.Builder(context)
+                                        .setMessage(message)
+                                        .setPositiveButton(android.R.string.ok) { _, _ -> result?.confirm() }
+                                        .setOnCancelListener { result?.cancel() }
+                                        .show()
+                                    return true
+                                }
+                            }
                             webViewClient = object : WebViewClient() {
                                 override fun onReceivedError(
                                     view: WebView,
