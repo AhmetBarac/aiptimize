@@ -54,7 +54,7 @@ type Responder struct {
 	log  *slog.Logger
 	now  func() time.Time
 
-	mu     sync.Mutex
+	mu      sync.Mutex
 	replied map[netip.Addr]time.Time
 }
 
