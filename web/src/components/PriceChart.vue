@@ -89,7 +89,9 @@ function render(): void {
       grid: { left: 4, right: 12, top: 28, bottom: 4, containLabel: true },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'line', lineStyle: { color: border, type: 'dashed' } },
+        // Solid and readable: this is the line the reader follows while
+        // comparing values across the axis.
+        axisPointer: { type: 'line', lineStyle: { color: text, type: 'solid', width: 1.5, opacity: 0.6 } },
         backgroundColor: surface,
         borderColor: border,
         textStyle: { color: text, fontSize: 12 },
