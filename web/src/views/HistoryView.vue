@@ -99,7 +99,7 @@ watch(range, () => {
         :label="t('history.pv')"
         :value="kwh(totals.pv_kwh)"
         unit="kWh"
-        icon="bi-sun"
+        icon="solar-panel"
         tone="solar"
         :points="snapshot.buckets.map((bucket) => bucket.pv_kwh)"
         :hint="t('home.soFar')"

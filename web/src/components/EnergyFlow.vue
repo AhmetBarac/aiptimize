@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { TelemetrySample } from '../api/types'
 import { powerParts } from '../lib/energy'
+import SolarIcon from './SolarIcon.vue'
 
 interface FlowLabels {
   flowTitle: string
@@ -147,7 +148,7 @@ const carValue = computed(() => value(props.evPowerW))
         class="flow-node flow-solar"
         :aria-label="`${labels.solar}: ${solarValue.value} ${solarValue.unit}, ${solarHint}`"
       >
-        <span class="flow-node-label"><i class="bi bi-sun" aria-hidden="true"></i>{{ labels.solar }}</span>
+        <span class="flow-node-label"><SolarIcon />{{ labels.solar }}</span>
         <strong class="flow-value tabular">
           {{ solarValue.value }}<span v-if="solarValue.unit" class="unit">{{ solarValue.unit }}</span>
         </strong>

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { TelemetrySample } from '../api/types'
 import { houseSupply, powerParts } from '../lib/energy'
 import Sheet from './Sheet.vue'
+import SolarIcon from './SolarIcon.vue'
 
 const props = defineProps<{
   open: boolean
@@ -24,7 +25,7 @@ const emit = defineEmits<{ (event: 'update:open', value: boolean): void }>()
 
 const supply = computed(() => houseSupply(props.sample))
 const icons: Record<string, string> = {
-  solar: 'bi-sun',
+  solar: 'solar-panel',
   battery: 'bi-battery-half',
   grid: 'bi-plug',
 }
@@ -51,7 +52,8 @@ function power(value: number): string {
     <ul v-if="sample" class="supply-list">
       <li v-for="row in supply.rows" :key="row.key" class="supply-row">
         <span class="supply-icon" :class="`supply-${row.key}`">
-          <i class="bi" :class="icons[row.key]" aria-hidden="true"></i>
+          <SolarIcon v-if="icons[row.key] === 'solar-panel'" />
+          <i v-else class="bi" :class="icons[row.key]" aria-hidden="true"></i>
         </span>
         <span class="supply-name">{{ labels[row.key] }}</span>
         <span class="supply-value tabular">{{ power(row.watts) }}</span>

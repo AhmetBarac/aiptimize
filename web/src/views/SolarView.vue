@@ -93,7 +93,7 @@ const updated = computed(() => {
 
   <template v-else-if="snapshot">
     <div class="metric-grid">
-      <MetricCard :label="t('solar.current')" :value="formatPower(snapshot.current_w)" icon="bi-brightness-high" tone="solar" />
+      <MetricCard :label="t('solar.current')" :value="formatPower(snapshot.current_w)" icon="solar-panel" tone="solar" />
       <MetricCard :label="t('solar.actual')" :value="kWh(snapshot.actual_kwh)" unit="kWh" icon="bi-graph-up-arrow" tone="solar" />
       <MetricCard :label="t('solar.expected')" :value="kWh(snapshot.expected_kwh)" unit="kWh" icon="bi-cloud-sun" tone="neutral" :hint="`${kWh(snapshot.min_kwh)}–${kWh(snapshot.max_kwh)} kWh`" />
       <MetricCard :label="t('solar.accuracy')" :value="accuracy === null ? '—' : String(Math.round(accuracy))" :unit="accuracy === null ? '' : '%'" icon="bi-bullseye" tone="neutral" :hint="t('solar.accuracyHint')" />

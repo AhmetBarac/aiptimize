@@ -377,6 +377,10 @@
   font-size: 0.9rem;
 }
 
+.metric-label .solar-panel-icon {
+  font-size: 0.9rem;
+}
+
 .metric-arrow {
   color: var(--aipt-muted);
   font-size: 0.75rem;
@@ -409,7 +413,8 @@
   margin-top: 0.35rem;
 }
 
-.metric-tone-solar .metric-label i {
+.metric-tone-solar .metric-label i,
+.metric-tone-solar .metric-label .solar-panel-icon {
   color: var(--aipt-green);
 }
 
@@ -1210,6 +1215,10 @@ button.flow-node:hover {
   font-size: 0.82rem;
 }
 
+.flow-node-label .solar-panel-icon {
+  font-size: 0.82rem;
+}
+
 .flow-value {
   font-size: 1.22rem;
   font-weight: 620;
@@ -1240,6 +1249,7 @@ button.flow-node:hover {
 }
 
 .flow-solar .flow-node-label i,
+.flow-solar .flow-node-label .solar-panel-icon,
 .flow-solar .flow-value {
   color: var(--aipt-green);
 }

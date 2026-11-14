@@ -20,7 +20,7 @@
 <style scoped>
 .solar-panel-icon {
   display: block;
-  width: 1.15em;
-  height: 1.15em;
+  width: 1em;
+  height: 1em;
 }
 </style>

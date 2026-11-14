@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import Sparkline from './Sparkline.vue'
+import SolarIcon from './SolarIcon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -51,7 +52,8 @@ const sparkColor = computed(() => {
   >
     <div class="metric-top">
       <span class="metric-label">
-        <i v-if="icon" class="bi" :class="icon" aria-hidden="true"></i>
+        <SolarIcon v-if="icon === 'solar-panel'" />
+        <i v-else-if="icon" class="bi" :class="icon" aria-hidden="true"></i>
         {{ label }}
       </span>
       <i v-if="to" class="bi bi-arrow-up-right metric-arrow" aria-hidden="true"></i>
