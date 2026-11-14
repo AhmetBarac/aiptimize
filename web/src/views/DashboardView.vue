@@ -12,6 +12,7 @@ import type {
   PlanSlot,
   PlanView,
   PriceSnapshot,
+  SolarSnapshot,
   Status,
   TelemetrySample,
 } from '../api/types'
@@ -36,6 +37,7 @@ const { t, locale } = useI18n()
 const status = ref<Status | null>(null)
 const statusError = ref('')
 const forecast = ref<ForecastSnapshot | null>(null)
+const solarToday = ref<SolarSnapshot | null>(null)
 const forecastError = ref('')
 const forecastRefreshing = ref(false)
 const history = ref<HistorySnapshot | null>(null)
@@ -294,6 +296,29 @@ async function loadForecast(): Promise<void> {
   }
 }
 
+// Measured PV and load come from the solar snapshot, which buckets telemetry
+// into the same 30-minute blocks the forecast uses.
+async function loadSolar(): Promise<void> {
+  try {
+    solarToday.value = await api.get<SolarSnapshot>('/solar')
+  } catch {
+    solarToday.value = null
+  }
+}
+
+function measuredSeries(pick: (point: SolarSnapshot['points'][number]) => number | null | undefined) {
+  const byStart = new Map<string, number>()
+  for (const point of solarToday.value?.points ?? []) {
+    const value = pick(point)
+    if (value === null || value === undefined) continue
+    byStart.set(new Date(point.start).toISOString(), Math.round((value / 1000) * 100) / 100)
+  }
+  return forecastPoints.value.map((point) => byStart.get(new Date(point.start).toISOString()) ?? null)
+}
+
+const measuredPv = computed(() => measuredSeries((point) => point.actual_w))
+const measuredLoad = computed(() => measuredSeries((point) => point.actual_load_w))
+
 async function refreshForecast(): Promise<void> {
   forecastRefreshing.value = true
   forecastError.value = ''
@@ -358,6 +383,7 @@ async function loadPrices(): Promise<void> {
 onMounted(() => {
   void loadStatus()
   void loadForecast()
+  void loadSolar()
   void loadHistory()
   void loadPlan()
   void loadPrices()
@@ -374,6 +400,7 @@ onMounted(() => {
   timers = [
     setInterval(() => void loadStatus(), 10_000),
     setInterval(() => void loadForecast(), 300_000),
+    setInterval(() => void loadSolar(), 300_000),
     setInterval(() => void loadHistory(), 300_000),
     setInterval(() => void loadPlan(), 900_000),
     setInterval(() => void loadPrices(), 900_000),
@@ -552,6 +579,10 @@ watch(today, (value, previous) => {
             :locale="locale"
             :label-pv="t('forecast.pv')"
             :label-load="t('forecast.load')"
+            :label-pv-actual="t('forecast.pvActual')"
+            :label-load-actual="t('forecast.loadActual')"
+            :actual-pv="measuredPv"
+            :actual-load="measuredLoad"
             :height="220"
           />
           <div class="card-meta">

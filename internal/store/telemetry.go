@@ -113,16 +113,17 @@ func (s *Store) LoadSamplesBetween(ctx context.Context, from, to time.Time) ([]L
 	return out, rows.Err()
 }
 
-// PVSample is the minimal row needed for PV calibration.
+// PVSample is the minimal row needed for PV calibration and measured series.
 type PVSample struct {
-	TS  time.Time
-	PVW float64
+	TS    time.Time
+	PVW   float64
+	LoadW float64
 }
 
-// PVSamplesBetween returns PV samples in [from, to).
+// PVSamplesBetween returns PV and load samples in [from, to).
 func (s *Store) PVSamplesBetween(ctx context.Context, from, to time.Time) ([]PVSample, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT ts_utc, pv_w FROM telemetry WHERE ts_utc >= ? AND ts_utc < ? ORDER BY ts_utc`,
+		`SELECT ts_utc, pv_w, load_w FROM telemetry WHERE ts_utc >= ? AND ts_utc < ? ORDER BY ts_utc`,
 		formatTime(from), formatTime(to))
 	if err != nil {
 		return nil, err
@@ -132,7 +133,7 @@ func (s *Store) PVSamplesBetween(ctx context.Context, from, to time.Time) ([]PVS
 	for rows.Next() {
 		var ts string
 		var sample PVSample
-		if err := rows.Scan(&ts, &sample.PVW); err != nil {
+		if err := rows.Scan(&ts, &sample.PVW, &sample.LoadW); err != nil {
 			return nil, err
 		}
 		t, err := parseTime(ts)

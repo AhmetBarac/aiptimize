@@ -112,6 +112,8 @@
     "title": "Sol- och lastprognos",
     "pv": "Sol",
     "load": "Hushållslast",
+    "pvActual": "Sol uppmätt",
+    "loadActual": "Last uppmätt",
     "h24": "24 h",
     "h48": "48 h",
     "pvTotal": "Sol nästa {hours} h",

@@ -103,6 +103,7 @@ export interface SolarPoint {
   start: string
   end: string
   actual_w: number | null
+  actual_load_w?: number | null
   expected_w: number
   min_w: number
   max_w: number

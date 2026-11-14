@@ -12,13 +12,14 @@ import (
 
 // SolarPoint is one 30-minute production/forecast block for the solar page.
 type SolarPoint struct {
-	Start     time.Time `json:"start"`
-	End       time.Time `json:"end"`
-	ActualW   *float64  `json:"actual_w"`
-	ExpectedW float64   `json:"expected_w"`
-	MinW      float64   `json:"min_w"`
-	MaxW      float64   `json:"max_w"`
-	LoadW     float64   `json:"load_w"`
+	Start       time.Time `json:"start"`
+	End         time.Time `json:"end"`
+	ActualW     *float64  `json:"actual_w"`
+	ActualLoadW *float64  `json:"actual_load_w,omitempty"`
+	ExpectedW   float64   `json:"expected_w"`
+	MinW        float64   `json:"min_w"`
+	MaxW        float64   `json:"max_w"`
+	LoadW       float64   `json:"load_w"`
 }
 
 // SolarSnapshot combines measured production and the day's PV forecast.
@@ -68,8 +69,10 @@ func (s *SolarService) Snapshot(ctx context.Context) (SolarSnapshot, error) {
 	}
 
 	type bucket struct {
-		sum   float64
-		count int
+		sum     float64
+		count   int
+		loadSum float64
+		loadN   int
 	}
 	actual := make(map[int64]*bucket)
 	samples, err := s.st.PVSamplesBetween(ctx, dayStart, dayEnd)
@@ -90,6 +93,10 @@ func (s *SolarService) Snapshot(ctx context.Context) (SolarSnapshot, error) {
 			b.sum += sample.PVW
 		}
 		b.count++
+		if sample.LoadW >= 0 {
+			b.loadSum += sample.LoadW
+			b.loadN++
+		}
 	}
 	if latest, err := s.st.LatestTelemetry(ctx); err == nil && !latest.TS.Before(dayStart) && latest.TS.Before(dayEnd) {
 		out.CurrentW = latest.PVW
@@ -130,6 +137,10 @@ func (s *SolarService) Snapshot(ctx context.Context) (SolarSnapshot, error) {
 			avg := round1(b.sum / float64(b.count))
 			point.ActualW = &avg
 			out.ActualKWh += avg * 0.5 / 1000
+			if b.loadN > 0 {
+				load := round1(b.loadSum / float64(b.loadN))
+				point.ActualLoadW = &load
+			}
 		}
 		if f, ok := expected[key]; ok {
 			point.ExpectedW = f.PVW

@@ -112,6 +112,8 @@
     "title": "Solar & load forecast",
     "pv": "PV",
     "load": "House load",
+    "pvActual": "PV measured",
+    "loadActual": "Load measured",
     "h24": "24 h",
     "h48": "48 h",
     "pvTotal": "PV next {hours} h",

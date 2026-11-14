@@ -16,9 +16,19 @@ const props = withDefaults(
     locale: string
     labelPv: string
     labelLoad: string
+    labelPvActual?: string
+    labelLoadActual?: string
+    actualPv?: Array<number | null>
+    actualLoad?: Array<number | null>
     height?: number
   }>(),
-  { height: 260 },
+  {
+    height: 260,
+    labelPvActual: '',
+    labelLoadActual: '',
+    actualPv: () => [],
+    actualLoad: () => [],
+  },
 )
 
 const el = ref<HTMLDivElement | null>(null)
@@ -44,11 +54,73 @@ function render(): void {
   const labels = props.points.map((p) => label(p.start))
   const pv = props.points.map((p) => Math.round((p.pv_w / 1000) * 100) / 100)
   const load = props.points.map((p) => Math.round((p.load_w / 1000) * 100) / 100)
+  const measuredPv = props.actualPv
+  const measuredLoad = props.actualLoad
+  const hasMeasuredPv = measuredPv.some((value) => value !== null && value !== undefined)
+  const hasMeasuredLoad = measuredLoad.some((value) => value !== null && value !== undefined)
   const text = css('--aipt-muted', '#9a9aa2')
   const border = css('--aipt-border', 'rgba(255,255,255,.08)')
   const surface = css('--aipt-surface', '#141416')
   const warm = css('--aipt-solar-warm', '#ffd166')
+  const green = css('--aipt-green', '#32d74b')
   const blue = css('--aipt-blue', '#0a84ff')
+
+  const fmt = (value: number | null | undefined) =>
+    value === null || value === undefined ? '—' : `${value.toFixed(2)} kW`
+
+  const series: Record<string, unknown>[] = [
+    {
+      name: props.labelPv,
+      type: 'line',
+      smooth: 0.25,
+      symbol: 'none',
+      data: pv,
+      // Forecast, so dashed; the measured line below is solid.
+      lineStyle: { width: 2, color: warm, type: 'dashed' },
+      itemStyle: { color: warm },
+      areaStyle: {
+        color: new graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(255,209,102,0.22)' },
+          { offset: 1, color: 'rgba(255,209,102,0.02)' },
+        ]),
+      },
+    },
+    {
+      name: props.labelLoad,
+      type: 'line',
+      smooth: 0.25,
+      symbol: 'none',
+      data: load,
+      // Forecast load is an estimate, so it is drawn dashed.
+      lineStyle: { width: 2, color: blue, type: 'dashed' },
+      itemStyle: { color: blue },
+    },
+  ]
+
+  if (hasMeasuredPv) {
+    series.push({
+      name: props.labelPvActual || props.labelPv,
+      type: 'line',
+      smooth: 0.2,
+      symbol: 'none',
+      connectNulls: false,
+      data: measuredPv,
+      lineStyle: { width: 2.4, color: green },
+      itemStyle: { color: green },
+    })
+  }
+  if (hasMeasuredLoad) {
+    series.push({
+      name: props.labelLoadActual || props.labelLoad,
+      type: 'line',
+      smooth: 0.2,
+      symbol: 'none',
+      connectNulls: false,
+      data: measuredLoad,
+      lineStyle: { width: 2.2, color: blue },
+      itemStyle: { color: blue },
+    })
+  }
 
   chart.setOption(
     {
@@ -71,7 +143,18 @@ function render(): void {
           const list = params as Array<{ dataIndex: number }>
           if (!list.length) return ''
           const i = list[0].dataIndex
-          return `${labels[i]}<br/>${props.labelPv}: <strong>${pv[i].toFixed(2)} kW</strong><br/>${props.labelLoad}: <strong>${load[i].toFixed(2)} kW</strong>`
+          const lines = [
+            labels[i],
+            `${props.labelPv}: <strong>${fmt(pv[i])}</strong>`,
+            `${props.labelLoad}: <strong>${fmt(load[i])}</strong>`,
+          ]
+          if (hasMeasuredPv) {
+            lines.push(`${props.labelPvActual || props.labelPv}: <strong>${fmt(measuredPv[i])}</strong>`)
+          }
+          if (hasMeasuredLoad) {
+            lines.push(`${props.labelLoadActual || props.labelLoad}: <strong>${fmt(measuredLoad[i])}</strong>`)
+          }
+          return lines.join('<br/>')
         },
       },
       xAxis: {
@@ -89,33 +172,7 @@ function render(): void {
         axisLabel: { color: text, fontSize: 10, formatter: (v: number) => v.toFixed(1) },
         splitLine: { lineStyle: { color: border, type: 'dashed' } },
       },
-      series: [
-        {
-          name: props.labelPv,
-          type: 'line',
-          smooth: 0.25,
-          symbol: 'none',
-          data: pv,
-          lineStyle: { width: 2, color: warm },
-          itemStyle: { color: warm },
-          areaStyle: {
-            color: new graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(255,209,102,0.34)' },
-              { offset: 1, color: 'rgba(255,209,102,0.02)' },
-            ]),
-          },
-        },
-        {
-          name: props.labelLoad,
-          type: 'line',
-          smooth: 0.25,
-          symbol: 'none',
-          data: load,
-          // Forecast load is an estimate, so it is drawn dashed.
-          lineStyle: { width: 2, color: blue, type: 'dashed' },
-          itemStyle: { color: blue },
-        },
-      ],
+      series,
     },
     true,
   )
@@ -142,7 +199,7 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => props.points,
+  () => [props.points, props.actualPv, props.actualLoad],
   () => render(),
   { deep: true },
 )
