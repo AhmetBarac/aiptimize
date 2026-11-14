@@ -80,6 +80,17 @@ export const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// Routes are code-split, so their chunk file names change on every deploy. A
+// tab left open across an update then asks for a chunk the server no longer
+// serves, which surfaces as "nothing happens" when clicking a route that has
+// not been visited yet. Reloading picks up the current bundle.
+router.onError((error, to) => {
+  const message = String((error as Error)?.message ?? error)
+  if (/dynamically imported module|module script failed|Loading chunk/i.test(message)) {
+    window.location.assign(to.fullPath)
+  }
+})
+
 router.beforeEach(async (to) => {
   if (!session.bootstrapped) {
     await bootstrap()
