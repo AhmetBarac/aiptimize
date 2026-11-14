@@ -323,9 +323,15 @@ func (z *Zaptec) Status(ctx context.Context) (domain.ChargerStatus, error) {
 		phases = 3
 	}
 	finalStop := lookup("718") == 1
+	// Observation 710 is ChargerOperationMode: 1 = Disconnected, 2/3/5 are the
+	// plugged-in states. Fall back to live power when the charger omits it.
+	connected := power > 0 || session > 0
+	if operating := int(lookup("710")); operating > 0 {
+		connected = operating != 1
+	}
 	return domain.ChargerStatus{
 		ID: z.ID(), Type: "zaptec_cloud", Online: true,
-		Connected: power > 0 || session > 0, Charging: power > 0 && !finalStop,
+		Connected: connected, Charging: power > 0 && !finalStop,
 		PowerW: power, CurrentA: current, Phases: phases, SessionKWh: session,
 		Paused: finalStop, UpdatedAt: z.cfg.Now().UTC(),
 	}, nil

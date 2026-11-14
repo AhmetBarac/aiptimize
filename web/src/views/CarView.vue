@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
       <MetricCard :label="t('car.mode')" :value="mode.toUpperCase()" icon="bi-stars" tone="neutral" />
     </div>
 
-    <section class="aipt-card mb-3">
+    <section v-if="status.connected" class="aipt-card mb-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <h2 class="mb-0">{{ t('car.sessionTitle') }}</h2>
         <span class="badge-soft" :class="status.paused ? 'badge-warn' : 'badge-on'">
