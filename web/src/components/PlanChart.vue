@@ -90,7 +90,7 @@ function render(): void {
   chart.setOption(
     {
       animation: false,
-      grid: { left: 4, right: 64, top: 58, bottom: 4, containLabel: true },
+      grid: { left: 4, right: 12, top: 58, bottom: 4, containLabel: true },
       legend: {
         top: 0,
         left: 0,
@@ -130,9 +130,11 @@ function render(): void {
       yAxis: [
         {
           type: 'value',
-          name: 'kW',
-          nameTextStyle: { color: text, fontSize: 10 },
-          axisLabel: { color: text, fontSize: 10, formatter: (v: number) => v.toFixed(1) },
+          // Values are read from the tooltip; hiding the labels gives the
+          // curves the full width of the card.
+          axisLabel: { show: false },
+          axisTick: { show: false },
+          axisLine: { show: false },
           splitLine: { lineStyle: { color: border, type: 'dashed' } },
         },
         {
@@ -140,7 +142,7 @@ function render(): void {
           min: 0,
           max: 100,
           position: 'right',
-          axisLabel: { color: text, fontSize: 10, formatter: '{value}%' },
+          axisLabel: { show: false },
           splitLine: { show: false },
         },
         {
@@ -148,8 +150,7 @@ function render(): void {
           min: 0,
           max: maxPrice,
           position: 'right',
-          offset: 42,
-          axisLabel: { color: text, fontSize: 9, formatter: (v: number) => v.toFixed(2) },
+          axisLabel: { show: false },
           splitLine: { show: false },
         },
       ],
