@@ -229,6 +229,20 @@ onBeforeUnmount(() => {
     </div>
 
     <section class="aipt-card mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h2 class="mb-0">{{ t('car.sessionTitle') }}</h2>
+        <span class="badge-soft" :class="status.paused ? 'badge-warn' : 'badge-on'">
+          {{ status.paused ? t('car.sessionPaused') : t('car.sessionActive') }}
+        </span>
+      </div>
+      <p class="small text-muted mt-2">{{ t('car.sessionHint') }}</p>
+      <button class="btn btn-outline-secondary" type="button" :disabled="!canControl || busy" @click="pauseOrResume">
+        <i class="bi" :class="status.paused ? 'bi-play-fill' : 'bi-pause-fill'" aria-hidden="true"></i>
+        <span class="ms-1">{{ status.paused ? t('car.resume') : t('car.pause') }}</span>
+      </button>
+    </section>
+
+    <section class="aipt-card mb-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h2 class="mb-0">{{ t('car.modeTitle') }}</h2>
         <span v-if="evProvider" class="badge-soft">{{ evProvider }}</span>
@@ -266,12 +280,9 @@ onBeforeUnmount(() => {
             step="1"
           />
         </div>
-        <div class="col d-flex gap-2">
-          <button class="btn btn-outline-secondary flex-fill" type="button" :disabled="!canControl || busy" @click="setCurrent">
+        <div class="col">
+          <button class="btn btn-outline-secondary w-100" type="button" :disabled="!canControl || busy" @click="setCurrent">
             {{ t('car.applyCurrent') }}
-          </button>
-          <button class="btn btn-outline-secondary flex-fill" type="button" :disabled="!canControl || busy" @click="pauseOrResume">
-            {{ status.paused ? t('car.resume') : t('car.pause') }}
           </button>
         </div>
       </div>
