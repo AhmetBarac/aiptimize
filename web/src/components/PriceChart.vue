@@ -91,7 +91,7 @@ function render(): void {
         trigger: 'axis',
         // Solid and readable: this is the line the reader follows while
         // comparing values across the axis.
-        axisPointer: { type: 'line', lineStyle: { color: text, type: 'solid', width: 1.5, opacity: 0.6 } },
+        axisPointer: { type: 'line', lineStyle: { color: text, type: 'dashed', width: 1.5, opacity: 0.6 } },
         backgroundColor: surface,
         borderColor: border,
         textStyle: { color: text, fontSize: 12 },

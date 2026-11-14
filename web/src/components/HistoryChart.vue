@@ -64,7 +64,7 @@ function render(): void {
       },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'line', lineStyle: { color: text, type: 'solid', width: 1.5, opacity: 0.6 } },
+        axisPointer: { type: 'line', lineStyle: { color: text, type: 'dashed', width: 1.5, opacity: 0.6 } },
         backgroundColor: surface,
         borderColor: border,
         textStyle: { color: text, fontSize: 12 },
