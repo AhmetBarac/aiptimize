@@ -111,7 +111,8 @@ function render(): void {
           smooth: 0.25,
           symbol: 'none',
           data: load,
-          lineStyle: { width: 2, color: blue },
+          // Forecast load is an estimate, so it is drawn dashed.
+          lineStyle: { width: 2, color: blue, type: 'dashed' },
           itemStyle: { color: blue },
         },
       ],

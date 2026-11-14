@@ -186,7 +186,8 @@ function render(): void {
           data: load,
           symbol: 'none',
           smooth: 0.2,
-          lineStyle: { width: 1.5, color: blue },
+          // Plan load is the estimate the planner works from, not a measurement.
+          lineStyle: { width: 1.6, color: blue, type: 'dashed' },
           itemStyle: { color: blue },
         },
         {

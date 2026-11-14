@@ -60,6 +60,7 @@ function render(): void {
   const warmLight = css('--aipt-solar-warm-light', '#ffe6a3')
   const warmDim = css('--aipt-solar-warm-dim', 'rgba(255, 209, 102, 0.55)')
   const warmArea = css('--aipt-solar-warm-area', 'rgba(255, 209, 102, 0.16)')
+  const blue = css('--aipt-blue', '#0a84ff')
 
   chart.setOption(
     {
@@ -154,8 +155,9 @@ function render(): void {
           smooth: 0.2,
           symbol: 'none',
           data: load,
-          lineStyle: { width: 1.6, color: warmLight, type: [6, 3, 2, 3] },
-          itemStyle: { color: warmLight },
+          // The load on this page is the forecast estimate, not measured load.
+          lineStyle: { width: 2, color: blue, type: 'dashed' },
+          itemStyle: { color: blue },
         },
       ],
     },

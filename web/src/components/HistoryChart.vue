@@ -121,7 +121,8 @@ function render(): void {
           data: load,
           symbol: 'none',
           smooth: 0.2,
-          lineStyle: { color: blue, width: 1.8 },
+          // Measured load, so a solid line distinguishes it from the estimates.
+          lineStyle: { color: blue, width: 2 },
           itemStyle: { color: blue },
         },
         {
