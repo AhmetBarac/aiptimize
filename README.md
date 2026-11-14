@@ -90,8 +90,11 @@ Two independent gates protect hardware writes:
 1. `AIPTIMIZE_ENABLE_WRITES=true` (environment), and
 2. the in-app arming switch in **Settings → Safety**.
 
-Both are required. The same pair exists separately for EV control
-(`AIPTIMIZE_ENABLE_EV_CONTROL`). Without both, plans can still be computed and
+Both are required. EV control has a separate pair, but its environment half is
+derived automatically: it turns on once a charger is configured and its status
+polls succeed, and turns off again if polling fails. `AIPTIMIZE_ENABLE_EV_CONTROL`
+still overrides that (`true`/`on` forces it open, `false`/`off` forces it closed).
+Without an open gate and the armed switch, plans can still be computed and
 previewed but nothing is written.
 
 Set `AIPTIMIZE_SIMULATOR=true` to replace Nord Pool and (in later phases) the

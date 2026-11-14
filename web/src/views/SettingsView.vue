@@ -248,6 +248,12 @@ const takeoverBusy = ref(false)
 const takeoverDone = ref('')
 const takeoverError = ref('')
 const writesArmed = computed(() => session.meta?.gates.writes_armed === true)
+const evGateModeLabel = computed(() => {
+  const mode = session.meta?.gates.ev_control_mode ?? 'auto'
+  if (mode === 'on') return t('settings.evGateModeOn')
+  if (mode === 'off') return t('settings.evGateModeOff')
+  return t('settings.evGateModeAuto')
+})
 const canTakeControl = computed(
   () => writesArmed.value && scheduleForeign.value && !scheduleUnknown.value,
 )
@@ -1785,6 +1791,10 @@ async function importSettings(event: Event): Promise<void> {
           <div class="key-value">
             <dt>{{ t('settings.envGate') }} — {{ t('dashboard.evControl') }}</dt>
             <dd>{{ onOff(session.meta?.gates.ev_control_env) }}</dd>
+          </div>
+          <div class="key-value">
+            <dt>{{ t('settings.evGateMode') }}</dt>
+            <dd>{{ evGateModeLabel }}</dd>
           </div>
           <div class="key-value">
             <dt>{{ t('settings.effective') }}</dt>

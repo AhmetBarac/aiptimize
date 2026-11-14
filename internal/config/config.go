@@ -29,6 +29,38 @@ const (
 	CookieSecureNever  CookieSecureMode = "never"
 )
 
+// EVControlMode decides how the environment half of the EV control gate is
+// resolved. Auto derives it from the charger link: the gate opens once an
+// adapter is configured and its status polls succeed, and closes again as soon
+// as a poll fails. On/off pin it for operators who need a hard override.
+type EVControlMode string
+
+const (
+	EVControlAuto EVControlMode = "auto"
+	EVControlOn   EVControlMode = "on"
+	EVControlOff  EVControlMode = "off"
+)
+
+// Effective returns the configured mode, treating the zero value as auto.
+func (m EVControlMode) Effective() EVControlMode {
+	if m == "" {
+		return EVControlAuto
+	}
+	return m
+}
+
+// Resolve returns the effective environment gate for the given charger health.
+func (m EVControlMode) Resolve(healthy bool) bool {
+	switch m.Effective() {
+	case EVControlOn:
+		return true
+	case EVControlOff:
+		return false
+	default:
+		return healthy
+	}
+}
+
 // Config is the effective process configuration.
 type Config struct {
 	Listen           string
@@ -43,7 +75,7 @@ type Config struct {
 	CookieSecure     CookieSecureMode
 	TrustProxy       bool
 	EnableWrites     bool
-	EnableEVControl  bool
+	EVControlMode    EVControlMode
 	Simulator        bool
 	NordPoolBaseURL  string
 	OpenMeteoBaseURL string
@@ -113,7 +145,7 @@ func LoadFromEnv(getenv func(string) string) (*Config, error) {
 	if cfg.EnableWrites, err = parseBool(getenv("AIPTIMIZE_ENABLE_WRITES")); err != nil {
 		return nil, fmt.Errorf("AIPTIMIZE_ENABLE_WRITES: %w", err)
 	}
-	if cfg.EnableEVControl, err = parseBool(getenv("AIPTIMIZE_ENABLE_EV_CONTROL")); err != nil {
+	if cfg.EVControlMode, err = parseEVControlMode(getenv("AIPTIMIZE_ENABLE_EV_CONTROL")); err != nil {
 		return nil, fmt.Errorf("AIPTIMIZE_ENABLE_EV_CONTROL: %w", err)
 	}
 	if cfg.Simulator, err = parseBool(getenv("AIPTIMIZE_SIMULATOR")); err != nil {
@@ -160,6 +192,11 @@ func (c *Config) Validate() error {
 	case CookieSecureAuto, CookieSecureAlways, CookieSecureNever:
 	default:
 		return fmt.Errorf("invalid cookie secure mode %q", c.CookieSecure)
+	}
+	switch c.EVControlMode {
+	case "", EVControlAuto, EVControlOn, EVControlOff:
+	default:
+		return fmt.Errorf("invalid EV control mode %q (want auto, on or off)", c.EVControlMode)
 	}
 	if c.LogFormat != "json" && c.LogFormat != "text" {
 		return fmt.Errorf("invalid log format %q (want json or text)", c.LogFormat)
@@ -222,6 +259,28 @@ func env(getenv func(string) string, key, def string) string {
 		return v
 	}
 	return def
+}
+
+// parseEVControlMode accepts auto/on/off plus the boolean values of the
+// original opt-in variable, so existing deployments keep working. Unset means
+// auto: the gate follows the charger link.
+func parseEVControlMode(v string) (EVControlMode, error) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "auto":
+		return EVControlAuto, nil
+	case "on":
+		return EVControlOn, nil
+	case "off":
+		return EVControlOff, nil
+	}
+	b, err := parseBool(v)
+	if err != nil {
+		return EVControlAuto, fmt.Errorf("invalid value %q (want auto, true or false)", v)
+	}
+	if b {
+		return EVControlOn, nil
+	}
+	return EVControlOff, nil
 }
 
 func parseBool(v string) (bool, error) {

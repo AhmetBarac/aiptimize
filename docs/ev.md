@@ -75,8 +75,16 @@ States: `none`, `scheduled`, `active`, `target_reached`, `overrun`,
 
 ## Controller
 
-The controller evaluates every 15 seconds. It only sends commands when
-`AIPTIMIZE_ENABLE_EV_CONTROL=true` and the UI EV arm switch are both on.
+The controller evaluates every 15 seconds. It only sends commands when the EV
+environment gate and the UI EV arm switch are both on.
+
+The environment gate is automatic by default: once a charger is configured and
+a status poll succeeds (the controller polls every 15 s, the health window is
+60 s) the gate opens, and it closes again after a failed poll. The first poll
+runs at startup, so `/meta` reports the real state right away.
+`AIPTIMIZE_ENABLE_EV_CONTROL=true|on` forces the gate open and
+`false|off` forces it closed; unset means automatic. The arm switch always
+wins: with `safety.ev_control_armed_ui` off no EV command is sent.
 - `off`: pause.
 - `now`: resume and set maximum current.
 - `smart`: resume inside a plan window, pause outside; PV windows use minimum

@@ -118,7 +118,7 @@ starting again. Migrations run on startup. Keep the database and the matching
 | `AIPTIMIZE_COOKIE_SECURE` | `auto` | `auto`, `always`, `never` |
 | `AIPTIMIZE_TRUST_PROXY` | `false` | Trust `X-Forwarded-Proto`/`Host` |
 | `AIPTIMIZE_ENABLE_WRITES` | `false` | Environment write gate |
-| `AIPTIMIZE_ENABLE_EV_CONTROL` | `false` | Environment EV gate |
+| `AIPTIMIZE_ENABLE_EV_CONTROL` | `auto` | Environment EV gate: `auto`, `true`/`on`, `false`/`off` |
 | `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price and inverter simulators instead of the network/hardware |
 | `AIPTIMIZE_NORDPOOL_BASE_URL` | Data Portal endpoint | Override only for a local fixture server |
 | `AIPTIMIZE_OPENMETEO_BASE_URL` | Open-Meteo forecast endpoint | Override only for a local fixture server |
@@ -205,8 +205,10 @@ optimiser horizon, slot budget, setpoints and reserve policy. The planner
 computes a suggestion automatically 8 s after startup and every 5 minutes.
 Drafts can be edited and applied from the Plan screen. Applying requires
 `AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, so leave writes
-disarmed until the HIL checklist is complete. EV control is separate:
-`AIPTIMIZE_ENABLE_EV_CONTROL=true` plus the EV arm switch. The simulator is
+disarmed until the HIL checklist is complete. EV control is separate: it needs
+the EV arm switch, and its environment gate opens by itself once the charger is
+configured and answering (pin it with `AIPTIMIZE_ENABLE_EV_CONTROL=true` or
+`false` if you want a hard override). The simulator is
 used for demos; real Zaptec control additionally needs
 `AIPTIMIZE_ZAPTEC_USERNAME`, `AIPTIMIZE_ZAPTEC_PASSWORD`,
 `AIPTIMIZE_ZAPTEC_INSTALLATION_ID` and `AIPTIMIZE_ZAPTEC_CHARGER_ID`. Set

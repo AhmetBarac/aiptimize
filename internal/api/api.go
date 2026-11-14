@@ -251,15 +251,23 @@ func featureSet() map[string]any {
 
 func (s *Server) gates() map[string]any {
 	v := s.settings.Get()
+	evEnv := s.evControlEnv()
 	return map[string]any{
 		"writes_env":       s.cfg.EnableWrites,
 		"writes_ui":        v.Safety.WritesArmedUI,
 		"writes_armed":     s.cfg.EnableWrites && v.Safety.WritesArmedUI,
-		"ev_control_env":   s.cfg.EnableEVControl,
+		"ev_control_env":   evEnv,
+		"ev_control_mode":  string(s.cfg.EVControlMode.Effective()),
 		"ev_control_ui":    v.Safety.EVControlArmedUI,
-		"ev_control_armed": s.cfg.EnableEVControl && v.Safety.EVControlArmedUI,
+		"ev_control_armed": evEnv && v.Safety.EVControlArmedUI,
 		"simulator":        s.cfg.Simulator,
 	}
+}
+
+// evControlEnv resolves the environment half of the EV gate. In the default
+// auto mode it follows the charger link instead of an environment variable.
+func (s *Server) evControlEnv() bool {
+	return s.cfg.EVControlMode.Resolve(s.ev != nil && s.ev.Healthy())
 }
 
 func (s *Server) setupRequired(ctx context.Context) (bool, error) {
@@ -293,6 +301,7 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 			"provider":         s.evConfigPayload()["provider"],
 			"active_provider":  s.evConfigPayload()["active_provider"],
 			"restart_required": s.evConfigPayload()["restart_required"],
+			"healthy":          s.ev != nil && s.ev.Healthy(),
 		},
 		"site": map[string]any{
 			"name":            v.Site.Name,

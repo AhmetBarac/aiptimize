@@ -25,8 +25,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Timezone != "Europe/Stockholm" {
 		t.Errorf("Timezone = %q", cfg.Timezone)
 	}
-	if cfg.EnableWrites || cfg.EnableEVControl || cfg.Simulator {
-		t.Errorf("gates must default to false: %+v", cfg)
+	if cfg.EnableWrites || cfg.EVControlMode != EVControlAuto || cfg.Simulator {
+		t.Errorf("gates must default to closed: %+v", cfg)
 	}
 	if cfg.LogLevel != slog.LevelInfo {
 		t.Errorf("LogLevel = %v", cfg.LogLevel)
@@ -39,6 +39,36 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.OpenMeteoBaseURL != "https://api.open-meteo.com/v1/forecast" {
 		t.Errorf("OpenMeteoBaseURL = %q", cfg.OpenMeteoBaseURL)
+	}
+}
+
+func TestEVControlMode(t *testing.T) {
+	cases := map[string]EVControlMode{
+		"":      EVControlAuto,
+		"auto":  EVControlAuto,
+		"on":    EVControlOn,
+		"true":  EVControlOn,
+		"1":     EVControlOn,
+		"off":   EVControlOff,
+		"false": EVControlOff,
+	}
+	for in, want := range cases {
+		cfg, err := LoadFromEnv(testEnv(map[string]string{"AIPTIMIZE_ENABLE_EV_CONTROL": in}))
+		if err != nil {
+			t.Fatalf("%q: %v", in, err)
+		}
+		if cfg.EVControlMode != want {
+			t.Errorf("%q = %q, want %q", in, cfg.EVControlMode, want)
+		}
+	}
+	if _, err := LoadFromEnv(testEnv(map[string]string{"AIPTIMIZE_ENABLE_EV_CONTROL": "maybe"})); err == nil {
+		t.Error("invalid EV control mode was accepted")
+	}
+	if !EVControlAuto.Resolve(true) || EVControlAuto.Resolve(false) {
+		t.Error("auto mode must follow charger health")
+	}
+	if !EVControlOn.Resolve(false) || EVControlOff.Resolve(true) {
+		t.Error("forced modes must ignore charger health")
 	}
 }
 
