@@ -485,6 +485,7 @@
     "applyCurrent": "Set current",
     "pause": "Pause",
     "resume": "Resume",
+    "sendingCommand": "Sending…",
     "sessionTitle": "Charging session",
     "sessionHint": "Pause stops charging and holds it stopped. Resume lets the plan charge again.",
     "sessionPaused": "Paused",

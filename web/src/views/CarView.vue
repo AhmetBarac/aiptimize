@@ -15,6 +15,7 @@ const plans = ref<EVPlan[]>([])
 const preview = ref<EVPreview | null>(null)
 const loading = ref(true)
 const busy = ref(false)
+const pendingCommand = ref(false)
 const error = ref('')
 const message = ref('')
 const currentA = ref(6)
@@ -124,6 +125,7 @@ async function setCurrent(): Promise<void> {
 async function pauseOrResume(): Promise<void> {
   if (!charger.value) return
   busy.value = true
+  pendingCommand.value = true
   error.value = ''
   try {
     const action = status.value?.paused ? 'resume' : 'pause'
@@ -132,6 +134,7 @@ async function pauseOrResume(): Promise<void> {
     error.value = err instanceof Error ? err.message : String(err)
   } finally {
     busy.value = false
+    pendingCommand.value = false
   }
 }
 
@@ -236,9 +239,18 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <p class="small text-muted mt-2">{{ t('car.sessionHint') }}</p>
-      <button class="btn btn-outline-secondary" type="button" :disabled="!canControl || busy" @click="pauseOrResume">
-        <i class="bi" :class="status.paused ? 'bi-play-fill' : 'bi-pause-fill'" aria-hidden="true"></i>
-        <span class="ms-1">{{ status.paused ? t('car.resume') : t('car.pause') }}</span>
+      <button
+        class="btn btn-outline-secondary"
+        type="button"
+        :disabled="!canControl || busy"
+        :aria-busy="pendingCommand"
+        @click="pauseOrResume"
+      >
+        <i v-if="pendingCommand" class="bi bi-arrow-repeat spin" aria-hidden="true"></i>
+        <i v-else class="bi" :class="status.paused ? 'bi-play-fill' : 'bi-pause-fill'" aria-hidden="true"></i>
+        <span class="ms-1">
+          {{ pendingCommand ? t('car.sendingCommand') : status.paused ? t('car.resume') : t('car.pause') }}
+        </span>
       </button>
     </section>
 

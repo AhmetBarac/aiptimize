@@ -2897,3 +2897,16 @@ button.flow-node:hover {
     transition: none;
   }
 }
+
+/* ---------- Utilities ---------- */
+
+@keyframes aipt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  display: inline-block;
+  animation: aipt-spin 0.9s linear infinite;
+}

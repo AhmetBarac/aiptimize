@@ -486,6 +486,7 @@
     "applyCurrent": "Sätt ström",
     "pause": "Pausa",
     "resume": "Återuppta",
+    "sendingCommand": "Skickar…",
     "sessionTitle": "Laddsession",
     "sessionHint": "Paus stoppar laddningen och håller den stoppad. Återuppta låter planen ladda igen.",
     "sessionPaused": "Pausad",
