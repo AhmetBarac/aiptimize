@@ -130,6 +130,7 @@ if ($Push) {
         if (-not (& git tag -l $tag)) {
             & git tag -a $tag -m "Release $version"
         }
+        & git push --quiet origin HEAD 2>&1 | Out-Null
         & git push --quiet origin $tag 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "tagged $tag and pushed it"
