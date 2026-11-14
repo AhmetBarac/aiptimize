@@ -2898,6 +2898,16 @@ button.flow-node:hover {
   }
 }
 
+.price-controls-card {
+  padding: 0.9rem 1.05rem;
+}
+
+/* The card is only the day switch, so it needs no divider of its own. */
+.price-controls-card .plan-hero-controls {
+  padding-top: 0;
+  border-top: 0;
+}
+
 /* ---------- Utilities ---------- */
 
 @keyframes aipt-spin {

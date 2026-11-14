@@ -467,6 +467,7 @@
     "noData": "Inga priser ännu",
     "noDataHint": "Priser hämtas vid start, 13:02 lokal tid för imorgon och var sjätte timme. Använd Uppdatera för att försöka nu.",
     "pointsBlocks": "{points} punkter · {blocks} block",
+    "next48h": "48 h",
     "negative": "Negativt pris"
   },
   "car": {

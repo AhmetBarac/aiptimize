@@ -466,6 +466,7 @@
     "noData": "No prices yet",
     "noDataHint": "Prices are fetched on startup, at 13:02 local for tomorrow, and every 6 hours. Use Refresh to try now.",
     "pointsBlocks": "{points} points · {blocks} blocks",
+    "next48h": "48 h",
     "negative": "Negative price"
   },
   "car": {

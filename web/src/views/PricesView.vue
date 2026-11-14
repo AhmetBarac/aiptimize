@@ -73,12 +73,19 @@ const groups = computed<DayGroup[]>(() => {
     .map(([key, start]) => ({ key, start }))
 })
 
-const blocks = computed(() =>
-  (snapshot.value?.blocks ?? []).filter((b) => dayKey(b.start) === activeDay.value),
-)
-const points = computed(() =>
-  (snapshot.value?.points ?? []).filter((p) => dayKey(p.delivery_start) === activeDay.value),
-)
+const RANGE_48H = '48h'
+const rangeMode = computed(() => (activeDay.value === RANGE_48H ? '48h' : 'day'))
+
+const blocks = computed(() => {
+  const all = snapshot.value?.blocks ?? []
+  if (rangeMode.value === '48h') return all
+  return all.filter((b) => dayKey(b.start) === activeDay.value)
+})
+const points = computed(() => {
+  const all = snapshot.value?.points ?? []
+  if (rangeMode.value === '48h') return all
+  return all.filter((p) => dayKey(p.delivery_start) === activeDay.value)
+})
 const rawChartPoints = computed<PricePoint[]>(() => {
   if (resolution.value === '15' || points.value.length < 2) return points.value
   const hourly = new Map<string, PricePoint[]>()
@@ -222,8 +229,8 @@ const tomorrowKey = computed(() => {
   d.setUTCDate(d.getUTCDate() + 1)
   return dayKey(d.toISOString())
 })
-const dayOptions = computed(() =>
-  groups.value.map((group) => ({
+const dayOptions = computed(() => [
+  ...groups.value.map((group) => ({
     value: group.key,
     label:
       group.key === todayKey.value
@@ -232,6 +239,11 @@ const dayOptions = computed(() =>
           ? t('prices.tomorrow')
           : dayShort(group.start),
   })),
+  { value: RANGE_48H, label: t('prices.next48h') },
+])
+
+const rangeLabel = computed(() =>
+  rangeMode.value === '48h' ? `${todayKey.value} → ${tomorrowKey.value}` : activeDay.value,
 )
 
 function time(iso: string): string {
@@ -287,7 +299,8 @@ async function load(showSpinner = true): Promise<void> {
     ])
     snapshot.value = priceSnapshot
     settings.value = settingsDocument
-    if (!groups.value.some((g) => g.key === activeDay.value)) {
+    // Keep the combined range selected across refreshes.
+    if (activeDay.value !== RANGE_48H && !groups.value.some((g) => g.key === activeDay.value)) {
       activeDay.value = defaultDay()
     }
     nowIso.value = new Date().toISOString()
@@ -337,13 +350,21 @@ onMounted(() => load())
   <div v-if="loading" class="empty-state">{{ t('common.loading') }}</div>
 
   <template v-else-if="snapshot && snapshot.points.length">
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-      <span class="badge-soft" :class="stateClass(dayState)">{{ stateLabel(dayState) }}</span>
-      <span v-if="snapshot.stale" class="badge-soft badge-warn">{{ t('prices.stale') }}</span>
-      <span class="ms-auto small text-muted">
-        {{ t('prices.pointsBlocks', { points: snapshot.points.length, blocks: snapshot.blocks.length }) }}
-      </span>
-    </div>
+    <section class="aipt-card price-controls-card mb-3">
+      <div class="plan-hero-controls">
+        <div class="plan-hero-day">
+          <SegmentedControl v-model="activeDay" :options="dayOptions" :group-label="t('prices.title')" size="sm" />
+          <span class="plan-hero-date">{{ rangeLabel }}</span>
+        </div>
+        <div class="plan-status-chips">
+          <span class="badge-soft" :class="stateClass(dayState)">{{ stateLabel(dayState) }}</span>
+          <span v-if="snapshot.stale" class="badge-soft badge-warn">{{ t('prices.stale') }}</span>
+          <span class="small text-muted">
+            {{ t('prices.pointsBlocks', { points: points.length, blocks: blocks.length }) }}
+          </span>
+        </div>
+      </div>
+    </section>
 
     <section class="price-tibber-hero mb-3">
       <div
@@ -422,11 +443,6 @@ onMounted(() => load())
           <p v-else class="empty-state mb-0">{{ t('prices.min') }} —</p>
         </section>
       </div>
-    </div>
-
-    <div class="price-day-tabs mt-3">
-      <SegmentedControl v-model="activeDay" :options="dayOptions" :group-label="t('prices.title')" size="sm" />
-      <span class="badge-soft" :class="stateClass(dayState)">{{ stateLabel(dayState) }}</span>
     </div>
 
     <section class="aipt-card mt-3">
