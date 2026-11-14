@@ -2,12 +2,21 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, MarkAreaComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, LegendComponent, MarkAreaComponent, TooltipComponent, VisualMapComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { Plan } from '../api/types'
 import { formatPrice, roundPrice } from '../lib/energy'
 
-echarts.use([BarChart, LineChart, GridComponent, LegendComponent, MarkAreaComponent, TooltipComponent, CanvasRenderer])
+echarts.use([
+  BarChart,
+  LineChart,
+  GridComponent,
+  LegendComponent,
+  MarkAreaComponent,
+  TooltipComponent,
+  VisualMapComponent,
+  CanvasRenderer,
+])
 
 const props = defineProps<{
   plan: Plan
@@ -72,7 +81,6 @@ function render(): void {
   const surface = css('--aipt-surface', '#141416')
   const green = css('--aipt-green', '#32d74b')
   const blue = css('--aipt-blue', '#0a84ff')
-  const yellow = css('--aipt-yellow', '#ffd60a')
   const orange = css('--aipt-orange', '#ff9f0a')
   const accent = css('--aipt-accent', '#7c5cff')
 
@@ -119,6 +127,14 @@ function render(): void {
           ].join('<br/>')
         },
       },
+      visualMap: {
+        show: false,
+        dimension: 1,
+        min: Math.min(...price),
+        max: Math.max(...price),
+        inRange: { color: [green, '#e6c84b', orange] },
+        seriesIndex: 0,
+      },
       xAxis: {
         type: 'category',
         data: labels,
@@ -162,8 +178,9 @@ function render(): void {
           data: price,
           symbol: 'none',
           smooth: 0.15,
-          lineStyle: { width: 1.2, color: yellow },
-          itemStyle: { color: yellow },
+          // Colour comes from the visual map, so the line follows the same
+          // red-to-green price scale as the prices view.
+          lineStyle: { width: 1.6 },
           markArea: {
             silent: true,
             data: slotAreas,
