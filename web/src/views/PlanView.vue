@@ -6,6 +6,7 @@ import type { DraftSlot, Plan, PlanApplyResult, PlanSlot, PlanValidation, PlanVi
 import { loadMeta, session } from '../session'
 import PlanChart from '../components/PlanChart.vue'
 import PlanTimeline from '../components/PlanTimeline.vue'
+import SegmentedControl from '../components/SegmentedControl.vue'
 import { addDays, formatPrice, localDateKey, localTimeKey } from '../lib/energy'
 import { basePlanID, baseRevision } from '../lib/plan'
 
@@ -169,6 +170,13 @@ const tomorrowDate = computed(() => {
     localDateKey(new Date(), session.meta?.timezone ?? 'UTC')
   return addDays(base, 1)
 })
+// Same segmented control the prices view uses for its day switch.
+const dayOptions = computed(() =>
+  [
+    { value: todayDate.value, label: t('plan.today') },
+    { value: tomorrowDate.value, label: t('plan.tomorrow') },
+  ].filter((option) => Boolean(option.value)),
+)
 
 async function load(day?: string): Promise<void> {
   try {
@@ -538,24 +546,13 @@ function fmtTime(iso: string): string {
 
       <div class="plan-hero-controls">
         <div class="plan-hero-day">
-          <div class="day-tabs">
-            <button
-              class="btn btn-sm"
-              :class="view.date === todayDate ? 'btn-primary' : 'btn-outline-secondary'"
-              type="button"
-              @click="selectDay(todayDate)"
-            >
-              {{ t('plan.today') }}
-            </button>
-            <button
-              class="btn btn-sm"
-              :class="view.date === tomorrowDate ? 'btn-primary' : 'btn-outline-secondary'"
-              type="button"
-              @click="selectDay(tomorrowDate)"
-            >
-              {{ t('plan.tomorrow') }}
-            </button>
-          </div>
+          <SegmentedControl
+            :model-value="view.date"
+            :options="dayOptions"
+            :group-label="t('plan.title')"
+            size="sm"
+            @update:model-value="selectDay"
+          />
           <span class="plan-hero-date">{{ selectedDayLabel }} · {{ view.date }}</span>
         </div>
       </div>
