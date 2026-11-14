@@ -355,11 +355,11 @@ onBeforeUnmount(() => {
       <h2>{{ t('car.newPlan') }}</h2>
       <form novalidate @submit.prevent="savePlan">
         <div class="row g-3">
-          <div class="col-12 col-sm-3">
+          <div class="col-5 col-sm-3">
             <label class="form-label" for="ev-target">{{ t('car.target') }} (kWh)</label>
             <input id="ev-target" v-model.number="targetKwh" class="form-control" type="number" min="0.5" step="0.5" />
           </div>
-          <div class="col-12 col-sm-3">
+          <div class="col-7 col-sm-3">
             <label class="form-label" for="ev-deadline">{{ t('car.deadline') }}</label>
             <input id="ev-deadline" v-model="deadline" class="form-control" type="datetime-local" />
           </div>

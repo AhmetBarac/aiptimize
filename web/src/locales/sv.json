@@ -510,7 +510,7 @@
     "energy": "Energi",
     "noPlan": "Ingen aktiv Aiptimize-laddplan. Zaptec-appens scheman importeras inte.",
     "newPlan": "Ny statisk plan",
-    "deadline": "Deadline",
+    "deadline": "Avgångstid",
     "strategy": "Strategi",
     "cheapest": "Billigast",
     "continuous": "Sammanhängande",

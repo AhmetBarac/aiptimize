@@ -509,7 +509,7 @@
     "energy": "Energy",
     "noPlan": "No active Aiptimize charging plan. Zaptec app schedules are not imported.",
     "newPlan": "New static plan",
-    "deadline": "Deadline",
+    "deadline": "Departure time",
     "strategy": "Strategy",
     "cheapest": "Cheapest",
     "continuous": "Continuous",
