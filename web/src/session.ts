@@ -83,6 +83,10 @@ export async function loadSettings(): Promise<SettingsDocument> {
   return api.get<SettingsDocument>('/settings')
 }
 
-export async function patchSettings(section: string, values: unknown): Promise<void> {
-  await api.patch('/settings', { section, values })
+export async function patchSettings(
+  section: string,
+  values: unknown,
+  extra?: Record<string, unknown>,
+): Promise<void> {
+  await api.patch('/settings', { section, values, ...extra })
 }

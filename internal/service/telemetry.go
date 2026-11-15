@@ -42,12 +42,13 @@ type TelemetryPoller struct {
 
 	evPower func() float64
 
-	mu        sync.Mutex
-	reader    inverter.Reader
-	signature string
-	latest    domain.Telemetry
-	latestAt  time.Time
-	failures  int
+	mu            sync.Mutex
+	reader        inverter.Reader
+	signature     string
+	deviceIDValue string
+	latest        domain.Telemetry
+	latestAt      time.Time
+	failures      int
 }
 
 // NewTelemetryPoller builds the poller.
@@ -212,6 +213,30 @@ func (p *TelemetryPoller) poll(ctx context.Context) {
 	_, _ = p.PollOnce(ctx)
 }
 
+// deviceID names the inverter that produced a sample. The serial is preferred
+// because it survives an address change; otherwise the endpoint identifies it.
+func (p *TelemetryPoller) deviceID(ctx context.Context, reader inverter.Reader, values settings.Values) string {
+	p.mu.Lock()
+	cached := p.deviceIDValue
+	p.mu.Unlock()
+	if cached != "" {
+		return cached
+	}
+	id := strings.TrimSpace(values.Inverter.Serial)
+	if id == "" {
+		if identity, err := reader.Identity(ctx); err == nil {
+			id = strings.TrimSpace(identity.Serial)
+		}
+	}
+	if id == "" {
+		id = fmt.Sprintf("%s:%s:%d", values.Inverter.Type, values.Inverter.Host, values.Inverter.Port)
+	}
+	p.mu.Lock()
+	p.deviceIDValue = id
+	p.mu.Unlock()
+	return id
+}
+
 // PollOnce performs one poll immediately. It is used by tests and the CLI.
 func (p *TelemetryPoller) PollOnce(ctx context.Context) (domain.Telemetry, error) {
 	values := p.cfg.Get()
@@ -239,6 +264,7 @@ func (p *TelemetryPoller) PollOnce(ctx context.Context) (domain.Telemetry, error
 		LoadW:        math.Max(0, reading.LoadW-evW),
 		EVW:          evW,
 		InverterMode: reading.Mode,
+		DeviceID:     p.deviceID(ctx, reader, values),
 		Extra:        reading.Extra,
 	}
 	if sample.PVStrings == nil {
@@ -320,6 +346,7 @@ func (p *TelemetryPoller) readerFor(values settings.Values) (inverter.Reader, er
 	old := p.reader
 	p.reader = nil
 	p.signature = ""
+	p.deviceIDValue = ""
 	p.mu.Unlock()
 	if old != nil {
 		_ = old.Close()

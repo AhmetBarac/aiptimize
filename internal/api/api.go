@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/config"
+	"github.com/AhmetBarac/aiptimize/internal/domain"
+	"github.com/AhmetBarac/aiptimize/internal/inverter"
 	"github.com/AhmetBarac/aiptimize/internal/prices"
 	"github.com/AhmetBarac/aiptimize/internal/service"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
@@ -435,6 +437,10 @@ func (s *Server) registryToken() string {
 type patchSettingsRequest struct {
 	Section string          `json:"section"`
 	Values  json.RawMessage `json:"values"`
+	// ConfirmSwap acknowledges that replacing the inverter is not an ordinary
+	// settings edit: the old schedule is cleared, writes are disarmed and the
+	// plan is recomputed for the new hardware.
+	ConfirmSwap bool `json:"confirm_swap"`
 }
 
 func (s *Server) handlePatchSettings(w http.ResponseWriter, r *http.Request) {
@@ -446,6 +452,22 @@ func (s *Server) handlePatchSettings(w http.ResponseWriter, r *http.Request) {
 	if req.Section == "" || len(req.Values) == 0 {
 		writeError(w, http.StatusBadRequest, "invalid_request", "section and values are required", nil)
 		return
+	}
+	if req.Section == settings.SectionInverter {
+		swap, err := s.inverterSwap(r, req.Values)
+		if err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
+			return
+		}
+		if swap != nil && !req.ConfirmSwap {
+			writeError(w, http.StatusConflict, "inverter_swap_required",
+				"Replacing the inverter clears its schedule, disarms writes and recomputes the plan. Confirm to continue.",
+				map[string]any{"from": swap.From, "to": swap.To})
+			return
+		}
+		if swap != nil {
+			s.prepareInverterSwap(r.Context(), swap)
+		}
 	}
 	raw, err := s.settings.Patch(r.Context(), req.Section, req.Values)
 	if err != nil {
@@ -501,4 +523,95 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		events = []store.Event{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
+}
+
+// inverterIdentity names the device a settings block points at.
+type inverterIdentity struct {
+	Type   string `json:"type"`
+	Host   string `json:"host"`
+	Port   int    `json:"port"`
+	Serial string `json:"serial"`
+}
+
+func (i inverterIdentity) String() string {
+	label := i.Type
+	if i.Serial != "" {
+		return label + " · " + i.Serial
+	}
+	return label
+}
+
+type inverterSwap struct {
+	From inverterIdentity
+	To   inverterIdentity
+}
+
+// inverterSwap reports whether an inverter patch replaces the device, judged by
+// its identity rather than by any settings edit.
+func (s *Server) inverterSwap(r *http.Request, values json.RawMessage) (*inverterSwap, error) {
+	current := s.settings.Get().Inverter
+	from := inverterIdentity{
+		Type: current.Type, Host: current.Host, Port: current.Port, Serial: current.Serial,
+	}
+	var next inverterIdentity
+	next.Type = current.Type
+	next.Host = current.Host
+	next.Port = current.Port
+	next.Serial = current.Serial
+	if err := json.Unmarshal(values, &next); err != nil {
+		return nil, err
+	}
+	if from == next {
+		return nil, nil
+	}
+	// A change of limits, capacity or signs is an ordinary edit; only a change
+	// of which device is being talked to is a swap.
+	identityChanged := from.Type != next.Type || from.Host != next.Host ||
+		from.Port != next.Port || from.Serial != next.Serial
+	if !identityChanged {
+		return nil, nil
+	}
+	return &inverterSwap{From: from, To: next}, nil
+}
+
+// prepareInverterSwap runs the ceremony before settings change: clear the old
+// inverter's schedule, disarm writes and leave an event behind.
+func (s *Server) prepareInverterSwap(ctx context.Context, swap *inverterSwap) {
+	if s.telemetry != nil {
+		if reader := s.telemetry.Reader(); reader != nil {
+			if writer, ok := reader.(inverter.ScheduleWriter); ok {
+				clearCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				if _, err := writer.WriteSchedule(clearCtx, domain.Schedule{}); err != nil {
+					s.log.Warn("could not clear the old inverter schedule", "err", err)
+				}
+				cancel()
+			}
+			_ = reader.Close()
+		}
+	}
+	if s.settings != nil {
+		if _, err := s.settings.Patch(ctx, settings.SectionSafety,
+			json.RawMessage(`{"writes_armed_ui":false}`)); err != nil {
+			s.log.Warn("could not disarm writes after an inverter swap", "err", err)
+		}
+	}
+	details, _ := json.Marshal(map[string]any{"from": swap.From, "to": swap.To})
+	if err := s.st.InsertEvent(ctx, store.Event{
+		Severity: "warning", Code: "inverter_replaced",
+		Message: "Inverter replaced: " + swap.From.String() + " → " + swap.To.String(),
+		Details: details,
+	}); err != nil {
+		s.log.Warn("could not record the inverter swap", "err", err)
+	}
+	// Recompute for the new hardware once the new settings are in place.
+	if s.planner != nil {
+		go func() {
+			recomputeCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			if _, err := s.planner.Compute(recomputeCtx); err != nil {
+				s.log.Warn("recompute after an inverter swap failed", "err", err)
+			}
+		}()
+	}
+	s.log.Info("inverter replaced", "from", swap.From.String(), "to", swap.To.String())
 }

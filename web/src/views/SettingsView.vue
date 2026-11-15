@@ -828,6 +828,23 @@ async function saveInverter(): Promise<void> {
   testResult.value = null
   testError.value = ''
   try {
+    // Replacing the inverter is not an ordinary edit: the backend clears the old
+    // schedule, disarms writes and recomputes the plan.
+    const current = settings.value?.inverter
+    const swap =
+      current !== undefined &&
+      (current.type !== inverterForm.type ||
+        current.host !== inverterForm.host.trim() ||
+        current.port !== Number(inverterForm.port) ||
+        current.serial !== inverterForm.serial.trim())
+    if (swap) {
+      const from = current?.serial || current?.host || current?.type || ''
+      const to = inverterForm.serial.trim() || inverterForm.host.trim() || inverterForm.type
+      if (!window.confirm(t('settings.confirmSwap', { from, to }))) {
+        saving.value = false
+        return
+      }
+    }
     await patchSettings('inverter', {
       type: inverterForm.type,
       host: inverterForm.host.trim(),
@@ -843,7 +860,7 @@ async function saveInverter(): Promise<void> {
         grid: Number(inverterForm.signGrid),
         battery: Number(inverterForm.signBattery),
       },
-    })
+    }, swap ? { confirm_swap: true } : undefined)
     saved.value = t('settings.inverterSaved')
     await load()
   } catch (err) {

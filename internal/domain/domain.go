@@ -209,16 +209,19 @@ type PlanSync struct {
 
 // Telemetry is one inverter/meter/battery sample.
 type Telemetry struct {
-	TS           time.Time      `json:"ts"`
-	SOC          float64        `json:"soc"`
-	PVW          float64        `json:"pv_w"`
-	PVStrings    []float64      `json:"pv_strings,omitempty"`
-	GridW        float64        `json:"grid_w"`
-	BatteryW     float64        `json:"battery_w"`
-	LoadW        float64        `json:"load_w"`
-	EVW          float64        `json:"ev_w"`
-	InverterMode int            `json:"inverter_mode"`
-	Extra        map[string]any `json:"extra,omitempty"`
+	TS           time.Time `json:"ts"`
+	SOC          float64   `json:"soc"`
+	PVW          float64   `json:"pv_w"`
+	PVStrings    []float64 `json:"pv_strings,omitempty"`
+	GridW        float64   `json:"grid_w"`
+	BatteryW     float64   `json:"battery_w"`
+	LoadW        float64   `json:"load_w"`
+	EVW          float64   `json:"ev_w"`
+	InverterMode int       `json:"inverter_mode"`
+	// DeviceID identifies the inverter that produced the sample, so replacing
+	// hardware leaves a boundary in the stored history.
+	DeviceID string         `json:"device_id,omitempty"`
+	Extra    map[string]any `json:"extra,omitempty"`
 }
 
 // ScheduleSlot is one decoded hardware schedule entry.
