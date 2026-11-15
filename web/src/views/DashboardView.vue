@@ -31,6 +31,7 @@ import {
   formatMoney,
   localDateKey,
   selfPoweredPct,
+  zonedDayBounds,
 } from '../lib/energy'
 
 const { t, locale } = useI18n()
@@ -145,16 +146,36 @@ const planBadgeClass = computed(() => {
   return ''
 })
 
-const forecastPoints = computed(() => {
-  const hours = Number(horizon.value)
-  const cutoff = Date.now() + hours * 3600 * 1000
-  return (forecast.value?.points ?? []).filter((point) => Date.parse(point.start) < cutoff)
+// The chart runs from local midnight so the measured overlay has something to
+// sit on; the totals below still count only the hours ahead.
+const forecastWindowStart = computed(() => {
+  const bounds = zonedDayBounds(today.value || localDateKey(nowIso.value, timezone.value), timezone.value)
+  return bounds.start.getTime()
 })
+
+const forecastPoints = computed(() => {
+  const from = forecastWindowStart.value
+  const cutoff = from + Number(horizon.value) * 3600 * 1000
+  return (forecast.value?.points ?? []).filter((point) => {
+    const at = Date.parse(point.start)
+    return at >= from && at < cutoff
+  })
+})
+
+const forecastFuturePoints = computed(() => {
+  const now = Date.now()
+  const cutoff = now + Number(horizon.value) * 3600 * 1000
+  return (forecast.value?.points ?? []).filter((point) => {
+    const at = Date.parse(point.start)
+    return at >= now && at < cutoff
+  })
+})
+
 const forecastPvKWh = computed(
-  () => forecastPoints.value.reduce((sum, point) => sum + point.pv_w * 0.5, 0) / 1000,
+  () => forecastFuturePoints.value.reduce((sum, point) => sum + point.pv_w * 0.5, 0) / 1000,
 )
 const forecastLoadKWh = computed(
-  () => forecastPoints.value.reduce((sum, point) => sum + point.load_w * 0.5, 0) / 1000,
+  () => forecastFuturePoints.value.reduce((sum, point) => sum + point.load_w * 0.5, 0) / 1000,
 )
 const forecastUpdated = computed(() => {
   const at = forecast.value?.generated_at

@@ -107,9 +107,11 @@ func (s *ForecastService) Refresh(ctx context.Context) (forecast.Snapshot, error
 	values := s.cfg.Get()
 	loc := s.cfg.Location()
 	now := s.now().In(loc)
-	from := now.UTC().Truncate(30 * time.Minute)
-	to := from.Add(48 * time.Hour)
 	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	// Start at the beginning of the local day, not at now: the dashboard overlays
+	// measured values, and those only exist for the hours already elapsed.
+	from := dayStart.UTC()
+	to := from.Add(48 * time.Hour)
 	dayEnd := dayStart.AddDate(0, 0, 1)
 
 	specs := make([]pv.StringSpec, 0, len(values.PV.Strings))
