@@ -188,17 +188,124 @@ function blockPrice(block: PriceBlock): number {
   return fullPrice.value ? block.import_price : block.price_kwh
 }
 
-// Where the current price sits between today's cheapest and priciest block.
-const priceSlide = computed(() => {
-  const value = priceNow.value
-  const valid = priceBlocks.value.filter((block) => !block.missing).map(blockPrice)
-  if (value === null || valid.length === 0) return null
-  const min = Math.min(...valid)
-  const max = Math.max(...valid)
-  const pct = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0.5
-  const color = pct >= 0.66 ? 'var(--aipt-orange)' : pct >= 0.33 ? '#e6c84b' : 'var(--aipt-green)'
-  return { pct, color, min, max }
+// Slider over today's price blocks so past and upcoming hours can be inspected.
+const pricedBlocks = computed(() => priceBlocks.value.filter((block) => !block.missing))
+const priceHover = ref<number | null>(null)
+
+const priceBounds = computed(() => {
+  const values = pricedBlocks.value.map(blockPrice)
+  if (!values.length) return null
+  return { min: Math.min(...values), max: Math.max(...values) }
 })
+
+function priceTone(value: number): 'cheap' | 'mid' | 'expensive' {
+  const bounds = priceBounds.value
+  if (!bounds || bounds.max <= bounds.min) return 'mid'
+  const ratio = (value - bounds.min) / (bounds.max - bounds.min)
+  if (ratio >= 0.66) return 'expensive'
+  if (ratio >= 0.33) return 'mid'
+  return 'cheap'
+}
+
+const nowBlockIndex = computed(() => {
+  const at = Date.parse(nowIso.value)
+  const index = pricedBlocks.value.findIndex(
+    (block) => Date.parse(block.start) <= at && Date.parse(block.end) > at,
+  )
+  return index < 0 ? 0 : index
+})
+
+const priceFocus = computed(() => {
+  const list = pricedBlocks.value
+  if (!list.length) return null
+  const index = Math.min(priceHover.value ?? nowBlockIndex.value, list.length - 1)
+  const block = list[index]
+  const value = blockPrice(block)
+  const at = Date.parse(nowIso.value)
+  const when = Date.parse(block.end) <= at ? 'past' : Date.parse(block.start) > at ? 'upcoming' : 'now'
+  return {
+    block,
+    index,
+    count: list.length,
+    value,
+    tone: priceTone(value),
+    range: `${priceClock(block.start)}–${priceClock(block.end)}`,
+    scrubbing: priceHover.value !== null,
+    when,
+  }
+})
+
+// Geometry for the compact price line: x spans the day's blocks, y spans the
+// cheapest to priciest block, matching how the full chart plots prices.
+const PRICE_CHART_W = 100
+const PRICE_CHART_H = 26
+const PRICE_CHART_PAD = 3
+
+const priceSegments = computed(() => {
+  const list = pricedBlocks.value
+  const bounds = priceBounds.value
+  if (list.length < 2 || !bounds) return []
+  const span = bounds.max - bounds.min || 1
+  const x = (index: number): number => ((index + 0.5) / list.length) * PRICE_CHART_W
+  const y = (value: number): number =>
+    PRICE_CHART_H - PRICE_CHART_PAD - ((value - bounds.min) / span) * (PRICE_CHART_H - PRICE_CHART_PAD * 2)
+  const out: Array<{ key: string; x1: number; y1: number; x2: number; y2: number; color: string }> = []
+  for (let i = 0; i < list.length - 1; i += 1) {
+    const a = list[i]
+    const b = list[i + 1]
+    const tone = priceTone(blockPrice(b))
+    out.push({
+      key: `${a.start}-${b.start}`,
+      x1: x(i),
+      y1: y(blockPrice(a)),
+      x2: x(i + 1),
+      y2: y(blockPrice(b)),
+      color:
+        tone === 'expensive' ? 'var(--aipt-orange)' : tone === 'mid' ? '#e6c84b' : 'var(--aipt-green)',
+    })
+  }
+  return out
+})
+
+const priceFocusPoint = computed(() => {
+  const focus = priceFocus.value
+  const bounds = priceBounds.value
+  if (!focus || !bounds) return null
+  const span = bounds.max - bounds.min || 1
+  return {
+    x: ((focus.index + 0.5) / focus.count) * PRICE_CHART_W,
+    y:
+      PRICE_CHART_H -
+      PRICE_CHART_PAD -
+      ((focus.value - bounds.min) / span) * (PRICE_CHART_H - PRICE_CHART_PAD * 2),
+    color:
+      focus.tone === 'expensive'
+        ? 'var(--aipt-orange)'
+        : focus.tone === 'mid'
+          ? '#e6c84b'
+          : 'var(--aipt-green)',
+  }
+})
+
+function priceIndexFromEvent(event: PointerEvent): void {
+  const list = pricedBlocks.value
+  const el = event.currentTarget as HTMLElement | null
+  if (!el || !list.length) return
+  const rect = el.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
+  priceHover.value = Math.min(list.length - 1, Math.floor(ratio * list.length))
+}
+
+function priceStep(delta: number): void {
+  const list = pricedBlocks.value
+  if (!list.length) return
+  const base = priceHover.value ?? nowBlockIndex.value
+  priceHover.value = Math.min(list.length - 1, Math.max(0, base + delta))
+}
+
+function clearPriceHover(): void {
+  priceHover.value = null
+}
 
 const currentPriceRange = computed(() =>
   currentPriceBlock.value
@@ -617,19 +724,65 @@ watch(today, (value, previous) => {
       <section class="aipt-card home-prices price-compact">
         <header class="price-compact-head">
           <div class="price-current">
-            <span>{{ currentPriceRange }}</span>
-            <strong class="tabular">{{ money(priceNow) }}<small>{{ currency }}/kWh</small></strong>
-            <div
-              v-if="priceSlide"
-              class="price-slider"
-              :style="{ '--slider-pct': `${(priceSlide.pct * 100).toFixed(1)}%`, '--slider-color': priceSlide.color }"
-            >
-              <span class="price-slider-track" aria-hidden="true">
-                <span class="price-slider-knob"></span>
-              </span>
-              <div class="price-slider-scale">
-                <small>{{ t('home.priceCheap') }} {{ money(priceSlide.min) }}</small>
-                <small>{{ t('home.priceExpensive') }} {{ money(priceSlide.max) }}</small>
+            <span>{{ priceFocus?.range ?? currentPriceRange }}</span>
+            <strong class="tabular">{{ money(priceFocus?.value ?? priceNow) }}<small>{{ currency }}/kWh</small></strong>
+            <div v-if="priceFocus && priceFocusPoint" class="price-scrub">
+              <svg
+                class="price-scrub-chart"
+                :viewBox="`0 0 ${PRICE_CHART_W} ${PRICE_CHART_H}`"
+                preserveAspectRatio="none"
+                role="slider"
+                tabindex="0"
+                :aria-valuemin="0"
+                :aria-valuemax="priceFocus.count - 1"
+                :aria-valuenow="priceFocus.index"
+                :aria-valuetext="`${priceFocus.range} ${money(priceFocus.value)} ${currency}/kWh`"
+                @pointermove="priceIndexFromEvent"
+                @pointerdown="priceIndexFromEvent"
+                @pointerleave="clearPriceHover"
+                @blur="clearPriceHover"
+                @keydown.left.prevent="priceStep(-1)"
+                @keydown.right.prevent="priceStep(1)"
+                @keydown.escape="clearPriceHover"
+              >
+                <line
+                  v-for="segment in priceSegments"
+                  :key="segment.key"
+                  :x1="segment.x1"
+                  :y1="segment.y1"
+                  :x2="segment.x2"
+                  :y2="segment.y2"
+                  :style="{ stroke: segment.color }"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  vector-effect="non-scaling-stroke"
+                />
+                <line
+                  class="price-scrub-guide"
+                  :x1="priceFocusPoint.x"
+                  :x2="priceFocusPoint.x"
+                  y1="0"
+                  :y2="PRICE_CHART_H"
+                  vector-effect="non-scaling-stroke"
+                />
+                <circle
+                  :cx="priceFocusPoint.x"
+                  :cy="priceFocusPoint.y"
+                  r="2.6"
+                  :style="{ fill: priceFocusPoint.color }"
+                  vector-effect="non-scaling-stroke"
+                />
+              </svg>
+              <div class="price-scrub-scale">
+                <small>{{ priceClock(pricedBlocks[0].start) }}</small>
+                <span
+                  v-if="priceFocus.scrubbing"
+                  class="badge-soft"
+                  :class="priceFocus.when === 'now' ? 'badge-on' : ''"
+                >
+                  {{ t(`home.priceWhen_${priceFocus.when}`) }}
+                </span>
+                <small>{{ priceClock(pricedBlocks[pricedBlocks.length - 1].end) }}</small>
               </div>
             </div>
           </div>
