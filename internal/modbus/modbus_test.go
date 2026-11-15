@@ -1,4 +1,4 @@
-package saj
+package modbus
 
 import (
 	"context"
@@ -10,15 +10,14 @@ import (
 	"time"
 )
 
-// fakeInverter answers Modbus TCP reads from a register map, so the transport
-// can be tested without hardware.
-type fakeInverter struct {
+// fakeDevice answers reads from a register map so framing can be checked
+// without hardware.
+type fakeDevice struct {
 	regs   map[uint16]uint16
 	writes []uint16
 }
 
-func (f *fakeInverter) serve(t *testing.T, ln net.Listener) {
-	t.Helper()
+func (f *fakeDevice) serve(ln net.Listener) {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -37,15 +36,13 @@ func (f *fakeInverter) serve(t *testing.T, ln net.Listener) {
 					return
 				}
 				tx := header[0:2]
-				function := body[0]
-				switch function {
-				case fcReadHolding:
+				switch body[0] {
+				case FCReadHolding:
 					addr := binary.BigEndian.Uint16(body[1:3])
 					count := int(binary.BigEndian.Uint16(body[3:5]))
-					// Transaction id, protocol id, length, unit, function, byte count.
 					resp := make([]byte, 0, 9+count*2)
 					resp = append(resp, tx...)
-					resp = append(resp, 0, 0, 0, byte(3+count*2), 1, function, byte(count*2))
+					resp = append(resp, 0, 0, 0, byte(3+count*2), 1, FCReadHolding, byte(count*2))
 					for i := 0; i < count; i++ {
 						value := f.regs[addr+uint16(i)]
 						resp = append(resp, byte(value>>8), byte(value))
@@ -53,7 +50,7 @@ func (f *fakeInverter) serve(t *testing.T, ln net.Listener) {
 					if _, err := conn.Write(resp); err != nil {
 						return
 					}
-				case fcWriteSingle, fcWriteMulti:
+				case FCWriteSingle, FCWriteMulti:
 					addr := binary.BigEndian.Uint16(body[1:3])
 					f.writes = append(f.writes, addr)
 					resp := append([]byte{}, tx...)
@@ -70,24 +67,24 @@ func (f *fakeInverter) serve(t *testing.T, ln net.Listener) {
 	}
 }
 
-func startFake(t *testing.T, regs map[uint16]uint16) (*transport, *fakeInverter) {
+func startFake(t *testing.T, regs map[uint16]uint16) (*Client, *fakeDevice) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = ln.Close() })
-	fake := &fakeInverter{regs: regs}
-	go fake.serve(t, ln)
-	tr := newTransport(ln.Addr().String(), 1, 2*time.Second)
-	t.Cleanup(func() { _ = tr.close() })
-	return tr, fake
+	fake := &fakeDevice{regs: regs}
+	go fake.serve(ln)
+	client := New(Config{Address: ln.Addr().String(), UnitID: 1, Timeout: 2 * time.Second})
+	t.Cleanup(func() { _ = client.Close() })
+	return client, fake
 }
 
-func TestReadHoldingRegisters(t *testing.T) {
-	tr, _ := startFake(t, map[uint16]uint16{0x100: 12, 0x101: 34, 0x102: 56})
+func TestReadHolding(t *testing.T) {
+	client, _ := startFake(t, map[uint16]uint16{0x100: 12, 0x101: 34, 0x102: 56})
 
-	regs, err := tr.readHolding(context.Background(), 0x100, 3)
+	regs, err := client.ReadHolding(context.Background(), 0x100, 3)
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -99,13 +96,13 @@ func TestReadHoldingRegisters(t *testing.T) {
 	}
 }
 
-func TestWriteSingleAndMultiple(t *testing.T) {
-	tr, fake := startFake(t, map[uint16]uint16{})
+func TestWritesUseSingleAndMultiple(t *testing.T) {
+	client, fake := startFake(t, map[uint16]uint16{})
 
-	if err := tr.writeRegisters(context.Background(), 0x3247, []uint16{3}); err != nil {
+	if err := client.WriteRegisters(context.Background(), 0x3247, []uint16{3}); err != nil {
 		t.Fatalf("single write: %v", err)
 	}
-	if err := tr.writeRegisters(context.Background(), 0x3636, []uint16{2, 15}); err != nil {
+	if err := client.WriteRegisters(context.Background(), 0x3636, []uint16{2, 15}); err != nil {
 		t.Fatalf("multi write: %v", err)
 	}
 	if len(fake.writes) != 2 {
@@ -113,7 +110,7 @@ func TestWriteSingleAndMultiple(t *testing.T) {
 	}
 }
 
-func TestRejectedRequestIsReported(t *testing.T) {
+func TestRejectionIsTyped(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -133,20 +130,26 @@ func TestRejectedRequestIsReported(t *testing.T) {
 		if _, err := io.ReadFull(conn, body); err != nil {
 			return
 		}
-		// Exception response: function|0x80, illegal data address.
-		resp := []byte{header[0], header[1], 0, 0, 0, 3, 1, fcReadHolding | 0x80, 0x02}
-		_, _ = conn.Write(resp)
+		// Illegal data address.
+		_, _ = conn.Write([]byte{header[0], header[1], 0, 0, 0, 3, 1, FCReadHolding | 0x80, 0x02})
 	}()
 
-	tr := newTransport(ln.Addr().String(), 1, time.Second)
-	defer tr.close()
+	client := New(Config{Address: ln.Addr().String(), UnitID: 1, Timeout: time.Second})
+	defer client.Close()
 
-	_, err = tr.readHolding(context.Background(), 0x100, 1)
-	var modbusErr *ModbusError
-	if !errors.As(err, &modbusErr) {
-		t.Fatalf("err = %v, want ModbusError", err)
+	_, err = client.ReadHolding(context.Background(), 0x100, 1)
+	var protocolErr *ProtocolError
+	if !errors.As(err, &protocolErr) || protocolErr.Code != 0x02 {
+		t.Fatalf("err = %v, want a ProtocolError with code 2", err)
 	}
-	if modbusErr.Code != 0x02 {
-		t.Fatalf("code = %d, want 2", modbusErr.Code)
+}
+
+func TestUnreachableIsTyped(t *testing.T) {
+	client := New(Config{Address: "127.0.0.1:1", UnitID: 1, Timeout: 200 * time.Millisecond})
+	defer client.Close()
+
+	_, err := client.ReadHolding(context.Background(), 0x100, 1)
+	if !errors.Is(err, ErrUnreachable) {
+		t.Fatalf("err = %v, want ErrUnreachable", err)
 	}
 }

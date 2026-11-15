@@ -9,6 +9,7 @@ import (
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 	"github.com/AhmetBarac/aiptimize/internal/inverter"
+	"github.com/AhmetBarac/aiptimize/internal/modbus"
 )
 
 // ErrScheduleUnsupported is returned by WriteSchedule: the H1 has no weekly
@@ -32,9 +33,9 @@ type Config struct {
 // registers is the slice of the transport the client needs, so tests can stand
 // in a fake device.
 type registers interface {
-	readHolding(ctx context.Context, addr, count uint16) ([]uint16, error)
-	writeRegisters(ctx context.Context, addr uint16, values []uint16) error
-	close() error
+	ReadHolding(ctx context.Context, addr, count uint16) ([]uint16, error)
+	WriteRegisters(ctx context.Context, addr uint16, values []uint16) error
+	Close() error
 }
 
 // Client is a SAJ H1 inverter.
@@ -59,7 +60,7 @@ func New(cfg Config) *Client {
 		now = time.Now
 	}
 	return &Client{
-		regs:       newTransport(cfg.Address, unit, cfg.Timeout),
+		regs:       modbus.New(modbus.Config{Address: cfg.Address, UnitID: unit, Timeout: cfg.Timeout}),
 		now:        now,
 		timeout:    cfg.Timeout,
 		retries:    3,
@@ -90,7 +91,7 @@ func (c *Client) read(ctx context.Context, addr, count uint16) ([]uint16, error)
 			case <-time.After(c.retryDelay):
 			}
 		}
-		regs, err := c.regs.readHolding(ctx, addr, count)
+		regs, err := c.regs.ReadHolding(ctx, addr, count)
 		if err == nil {
 			return regs, nil
 		}
@@ -227,7 +228,7 @@ func (c *Client) SetWorkMode(ctx context.Context, mode int) error {
 	if mode < AppSelfUse || mode > AppPassive {
 		return fmt.Errorf("saj: unsupported app mode %d", mode)
 	}
-	return c.regs.writeRegisters(ctx, regAppMode, []uint16{uint16(mode)})
+	return c.regs.WriteRegisters(ctx, regAppMode, []uint16{uint16(mode)})
 }
 
 // SetChargeMax sets the upper SOC limit in percent.
@@ -235,7 +236,7 @@ func (c *Client) SetChargeMax(ctx context.Context, percent float64) error {
 	if percent < 50 || percent > 100 {
 		return fmt.Errorf("saj: SOC high limit %v out of range", percent)
 	}
-	return c.regs.writeRegisters(ctx, regSOCHigh, []uint16{uint16(percent)})
+	return c.regs.WriteRegisters(ctx, regSOCHigh, []uint16{uint16(percent)})
 }
 
 // BatteryConfig returns the app mode and the upper SOC limit.
@@ -264,25 +265,25 @@ func (c *Client) SetPassive(ctx context.Context, mode int, watts float64) error 
 	if watts > 5000 {
 		watts = 5000
 	}
-	if err := c.regs.writeRegisters(ctx, regAppMode, []uint16{AppPassive}); err != nil {
+	if err := c.regs.WriteRegisters(ctx, regAppMode, []uint16{AppPassive}); err != nil {
 		return err
 	}
 	reg := uint16(regPassiveCharge)
 	if mode == PassiveDischarge {
 		reg = regPassiveDischarge
 	}
-	if err := c.regs.writeRegisters(ctx, reg, []uint16{uint16(watts)}); err != nil {
+	if err := c.regs.WriteRegisters(ctx, reg, []uint16{uint16(watts)}); err != nil {
 		return err
 	}
-	return c.regs.writeRegisters(ctx, regPassiveMode, []uint16{uint16(mode)})
+	return c.regs.WriteRegisters(ctx, regPassiveMode, []uint16{uint16(mode)})
 }
 
 // SyncClock writes the inverter clock from the given time.
 func (c *Client) SyncClock(ctx context.Context, at time.Time) error {
 	words := clockWords(uint16(at.Year()), uint8(at.Month()), uint8(at.Day()),
 		uint8(at.Hour()), uint8(at.Minute()), uint8(at.Second()))
-	return c.regs.writeRegisters(ctx, 0x8020, words[:])
+	return c.regs.WriteRegisters(ctx, 0x8020, words[:])
 }
 
 // Close releases the connection.
-func (c *Client) Close() error { return c.regs.close() }
+func (c *Client) Close() error { return c.regs.Close() }

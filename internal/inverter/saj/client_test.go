@@ -19,7 +19,7 @@ type fakeRegisters struct {
 	}
 }
 
-func (f *fakeRegisters) readHolding(ctx context.Context, addr, count uint16) ([]uint16, error) {
+func (f *fakeRegisters) ReadHolding(ctx context.Context, addr, count uint16) ([]uint16, error) {
 	out := make([]uint16, count)
 	for i := uint16(0); i < count; i++ {
 		out[i] = f.regs[addr+i]
@@ -27,7 +27,7 @@ func (f *fakeRegisters) readHolding(ctx context.Context, addr, count uint16) ([]
 	return out, nil
 }
 
-func (f *fakeRegisters) writeRegisters(ctx context.Context, addr uint16, values []uint16) error {
+func (f *fakeRegisters) WriteRegisters(ctx context.Context, addr uint16, values []uint16) error {
 	f.writes = append(f.writes, struct {
 		addr   uint16
 		values []uint16
@@ -35,7 +35,7 @@ func (f *fakeRegisters) writeRegisters(ctx context.Context, addr uint16, values 
 	return nil
 }
 
-func (f *fakeRegisters) close() error { return nil }
+func (f *fakeRegisters) Close() error { return nil }
 
 // signedReg stores a signed reading in the unsigned register map.
 func signedReg(value int16) uint16 { return uint16(value) }

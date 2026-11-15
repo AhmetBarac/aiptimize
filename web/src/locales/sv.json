@@ -875,6 +875,8 @@
     "inverterType": "Växelriktartyp",
     "inverterTypeSolplanet": "Solplanet-dongel (HTTP)",
     "inverterTypeSaj": "SAJ H1 (Modbus TCP)",
+    "inverterTypeHuawei": "Huawei SUN2000 (Modbus TCP)",
+    "huaweiHint": "Huawei SUN2000 läses över Modbus TCP på port 502, enhet 1, via SDongle. Modbus TCP måste vara aktiverat för dongeln i FusionSolar-appen, och bara en klient kan vara ansluten åt gången. Drivrutinen är under utveckling — rapportera gärna problem.",
     "sajHint": "SAJ-växelriktare läses över Modbus TCP på port 502, enhet 1. Serienumret läses från växelriktaren och kan lämnas tomt. Drivrutinen är under utveckling — rapportera gärna problem.",
     "scheme": "Protokoll",
     "port": "Port",

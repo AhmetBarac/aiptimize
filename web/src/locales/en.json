@@ -874,6 +874,8 @@
     "inverterType": "Inverter type",
     "inverterTypeSolplanet": "Solplanet dongle (HTTP)",
     "inverterTypeSaj": "SAJ H1 (Modbus TCP)",
+    "inverterTypeHuawei": "Huawei SUN2000 (Modbus TCP)",
+    "huaweiHint": "Huawei SUN2000 inverters are read over Modbus TCP on port 502, unit 1, through the SDongle. Modbus TCP must be enabled for the dongle in the FusionSolar app, and only one client can be connected at a time. This driver is under development — please report issues.",
     "sajHint": "SAJ inverters are read over Modbus TCP on port 502, unit 1. The serial number is read from the inverter, so it can stay empty here. This driver is under development — please report issues.",
     "scheme": "Scheme",
     "port": "Port",

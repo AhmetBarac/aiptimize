@@ -829,7 +829,7 @@ async function takeControl(): Promise<void> {
 // The two providers listen on very different ports: the Solplanet dongle
 // speaks HTTP on 8484, an SAJ inverter speaks Modbus TCP on 502.
 function onInverterTypeChange(): void {
-  if (inverterForm.type === 'saj') {
+  if (inverterForm.type === 'saj' || inverterForm.type === 'huawei') {
     if (inverterForm.port === 8484 || inverterForm.port === 80 || inverterForm.port === 443) {
       inverterForm.port = 502
     }
@@ -1314,25 +1314,29 @@ async function importSettings(event: Event): Promise<void> {
             >
               <option value="solplanet_ai_dongle">{{ t('settings.inverterTypeSolplanet') }}</option>
               <option value="saj">{{ t('settings.inverterTypeSaj') }}</option>
+              <option value="huawei">{{ t('settings.inverterTypeHuawei') }}</option>
             </select>
           </div>
           <div class="col-12 col-sm-5">
             <label class="form-label" for="inv-host">{{ t('settings.host') }}</label>
             <input id="inv-host" v-model="inverterForm.host" class="form-control mono" type="text" placeholder="192.0.2.10" />
           </div>
-          <div v-if="inverterForm.type !== 'saj'" class="col-6 col-sm-3">
+          <div v-if="inverterForm.type !== 'saj' && inverterForm.type !== 'huawei'" class="col-6 col-sm-3">
             <label class="form-label" for="inv-scheme">{{ t('settings.scheme') }}</label>
             <select id="inv-scheme" v-model="inverterForm.scheme" class="form-select">
               <option value="http">http</option>
               <option value="https">https</option>
             </select>
           </div>
-          <div class="col-6" :class="inverterForm.type === 'saj' ? 'col-sm-3' : 'col-sm-4'">
+          <div class="col-6" :class="inverterForm.type === 'saj' || inverterForm.type === 'huawei' ? 'col-sm-3' : 'col-sm-4'">
             <label class="form-label" for="inv-port">{{ t('settings.port') }}</label>
             <input id="inv-port" v-model.number="inverterForm.port" class="form-control" type="number" min="1" max="65535" />
           </div>
           <p v-if="inverterForm.type === 'saj'" class="small text-muted mb-0">
             {{ t('settings.sajHint') }}
+          </p>
+          <p v-if="inverterForm.type === 'huawei'" class="small text-muted mb-0">
+            {{ t('settings.huaweiHint') }}
           </p>
           <div class="col-12 col-sm-6">
             <label class="form-label" for="inv-serial">{{ t('settings.serial') }}</label>
