@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { PriceBlock, PriceWindow } from '../api/types'
 import { formatPrice, localDateKey, priceShade, timelineFraction, zonedDayBounds } from '../lib/energy'
 
@@ -73,11 +73,57 @@ const summary = computed(() => {
 })
 
 const hourTicks = ['00', '06', '12', '18', '24']
+
+// The pointer follows the cursor while it is over the strip and reports the
+// block underneath, so a parent can show that hour's price. It snaps back to
+// the live position as soon as the pointer is released or leaves.
+const emit = defineEmits<{ (event: 'hover', block: PriceBlock | null): void }>()
+const pointerPct = ref<number | null>(null)
+
+function blockAt(clientX: number, el: HTMLElement): PriceBlock | null {
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0) return null
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  const at = start.value.getTime() + ratio * (end.value.getTime() - start.value.getTime())
+  return visible.value.find((block) => Date.parse(block.start) <= at && Date.parse(block.end) > at) ?? null
+}
+
+function onPointerMove(event: PointerEvent): void {
+  const el = event.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0) return
+  pointerPct.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * 100
+  emit('hover', blockAt(event.clientX, el))
+}
+
+function onPointerDown(event: PointerEvent): void {
+  const el = event.currentTarget as HTMLElement
+  el.setPointerCapture?.(event.pointerId)
+  onPointerMove(event)
+}
+
+function releasePointer(): void {
+  pointerPct.value = null
+  emit('hover', null)
+}
+
+function onPointerUp(event: PointerEvent): void {
+  const el = event.currentTarget as HTMLElement
+  if (el.hasPointerCapture?.(event.pointerId)) el.releasePointerCapture(event.pointerId)
+  releasePointer()
+}
 </script>
 
 <template>
   <div v-if="visible.length" class="price-strip-wrap" role="img" :aria-label="summary">
-    <div class="price-strip">
+    <div
+      class="price-strip"
+      @pointermove="onPointerMove"
+      @pointerdown="onPointerDown"
+      @pointerup="onPointerUp"
+      @pointercancel="releasePointer"
+      @pointerleave="releasePointer"
+    >
       <span v-if="cheapestBand" class="price-strip-band" :style="{ left: `${cheapestBand.left}%`, width: `${cheapestBand.width}%` }" aria-hidden="true"></span>
       <span
         v-for="block in visible"
@@ -89,6 +135,7 @@ const hourTicks = ['00', '06', '12', '18', '24']
       <span v-if="current" class="visually-hidden">Now {{ formatPrice(displayPrice(current), locale) }} {{ currency }}/kWh</span>
     </div>
     <span class="price-strip-now" :style="{ left: `${Math.max(0, Math.min(100, timelineFraction(now, start, end) * 100))}%` }" aria-hidden="true"></span>
+    <span v-if="pointerPct !== null" class="price-strip-pointer" :style="{ left: `${pointerPct}%` }" aria-hidden="true"></span>
     <div class="price-strip-hours" aria-hidden="true">
       <span v-for="tick in hourTicks" :key="tick">{{ tick }}</span>
     </div>

@@ -2523,6 +2523,19 @@ button.flow-node:hover {
   z-index: 3;
 }
 
+.price-strip-pointer {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--aipt-text);
+  opacity: 0.75;
+  transform: translateX(-50%);
+  z-index: 4;
+  pointer-events: none;
+}
+
 .price-strip-now::before {
   content: '';
   position: absolute;
@@ -2913,44 +2926,6 @@ button.flow-node:hover {
   border-top: 0;
 }
 
-
-/* Current price plus a compact price line over today's hours. */
-.price-scrub {
-  margin-top: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.price-scrub-chart {
-  display: block;
-  width: 100%;
-  height: 26px;
-  overflow: visible;
-  cursor: crosshair;
-  touch-action: none;
-}
-
-.price-scrub-chart:focus-visible {
-  outline: 2px solid var(--aipt-accent);
-  outline-offset: 2px;
-}
-
-.price-scrub-guide {
-  stroke: var(--aipt-muted);
-  stroke-width: 1.5;
-  stroke-dasharray: 3 3;
-  opacity: 0.6;
-}
-
-.price-scrub-scale {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  color: var(--aipt-muted);
-  font-size: 0.62rem;
-}
 
 /* ---------- Utilities ---------- */
 
