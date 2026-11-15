@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { currentLocale, setLocale, SUPPORTED_LOCALES, type Locale } from '../i18n'
-import { session, signOut } from '../session'
+import { isAdmin, session, signOut } from '../session'
 import { theme, toggleTheme } from '../theme'
 import { openMore, ui } from '../ui'
 import SolarIcon from './SolarIcon.vue'
@@ -21,7 +21,8 @@ const primary = [
 
 const secondary = [
   { name: 'history', to: '/history', icon: 'bi-bar-chart' },
-  { name: 'settings', to: '/settings', icon: 'bi-gear' },
+  // Settings is administrator-only, so the entry disappears for normal users.
+  ...(isAdmin() ? [{ name: 'settings', to: '/settings', icon: 'bi-gear' }] : []),
 ]
 
 const locale = computed(() => currentLocale())

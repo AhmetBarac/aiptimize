@@ -5,9 +5,11 @@ import { useRoute } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import type {
   EVConfig,
+  ManagedUser,
   PVStringSettings,
   PlanApplyResult,
   PlanView,
+  Role,
   SettingsDocument,
   Status,
   UpdateStatus,
@@ -17,9 +19,68 @@ import PageHead from '../components/PageHead.vue'
 import Sheet from '../components/Sheet.vue'
 
 const { t, locale } = useI18n()
+
+// Account management (administrators only): two roles, admin and user.
+const users = ref<ManagedUser[]>([])
+const userForm = reactive<{ username: string; password: string; role: Role }>({
+  username: '',
+  password: '',
+  role: 'user',
+})
+const savingUser = ref(false)
+const userError = ref('')
+const userMessage = ref('')
+
+async function loadUsers(): Promise<void> {
+  if (session.user?.role !== 'admin') return
+  try {
+    users.value = (await api.get<{ users: ManagedUser[] }>('/users')).users
+    userError.value = ''
+  } catch (err) {
+    userError.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+async function createUser(): Promise<void> {
+  savingUser.value = true
+  userError.value = ''
+  userMessage.value = ''
+  try {
+    await api.post('/users', {
+      username: userForm.username.trim(),
+      password: userForm.password,
+      role: userForm.role,
+    })
+    userForm.username = ''
+    userForm.password = ''
+    userForm.role = 'user'
+    userMessage.value = t('settings.userAdded')
+    await loadUsers()
+  } catch (err) {
+    userError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    savingUser.value = false
+  }
+}
+
+async function removeUser(item: ManagedUser): Promise<void> {
+  if (!window.confirm(t('settings.confirmRemoveUser', { name: item.username }))) return
+  savingUser.value = true
+  userError.value = ''
+  userMessage.value = ''
+  try {
+    await api.del(`/users/${item.id}`)
+    userMessage.value = t('settings.userRemoved')
+    await loadUsers()
+  } catch (err) {
+    userError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    savingUser.value = false
+  }
+}
 const route = useRoute()
 
-const sections = ['site', 'inverter', 'solar', 'load', 'plan', 'ev', 'safety', 'system'] as const
+const sections = ['site', 'inverter', 'solar', 'load', 'plan', 'ev', 'safety', 'system', 'users'] as const
 const section = computed(() => {
   const value = String(route.params.section ?? 'site')
   return (sections as readonly string[]).includes(value) ? value : 'site'
@@ -1818,6 +1879,77 @@ async function importSettings(event: Event): Promise<void> {
           <span v-if="saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           {{ saving ? t('common.saving') : t('settings.saveSafety') }}
         </button>
+      </form>
+    </section>
+
+    <section v-else-if="section === 'users'" class="aipt-card">
+      <h2>{{ t('settings.sections.users') }}</h2>
+      <p class="text-muted small">{{ t('settings.usersIntro') }}</p>
+
+      <div v-if="userError" class="alert alert-danger py-2 small" role="alert">{{ userError }}</div>
+      <div v-if="userMessage" class="alert alert-success py-2 small" role="status">{{ userMessage }}</div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-3">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('settings.userName') }}</th>
+              <th scope="col">{{ t('settings.userRole') }}</th>
+              <th scope="col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in users" :key="item.id">
+              <td>{{ item.username }}</td>
+              <td>
+                <span class="badge-soft" :class="item.role === 'admin' ? 'badge-on' : ''">
+                  {{ t(`settings.roles.${item.role}`) }}
+                </span>
+              </td>
+              <td class="text-end">
+                <button
+                  class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  :disabled="savingUser || item.id === session.user?.id"
+                  @click="removeUser(item)"
+                >
+                  {{ t('car.delete') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <form novalidate @submit.prevent="createUser">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-sm-4">
+            <label class="form-label" for="user-name">{{ t('settings.userName') }}</label>
+            <input id="user-name" v-model="userForm.username" class="form-control" autocomplete="off" />
+          </div>
+          <div class="col-12 col-sm-4">
+            <label class="form-label" for="user-password">{{ t('settings.userPassword') }}</label>
+            <input
+              id="user-password"
+              v-model="userForm.password"
+              class="form-control"
+              type="password"
+              autocomplete="new-password"
+            />
+          </div>
+          <div class="col-6 col-sm-2">
+            <label class="form-label" for="user-role">{{ t('settings.userRole') }}</label>
+            <select id="user-role" v-model="userForm.role" class="form-select">
+              <option value="user">{{ t('settings.roles.user') }}</option>
+              <option value="admin">{{ t('settings.roles.admin') }}</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-2">
+            <button class="btn btn-primary w-100" type="submit" :disabled="savingUser">
+              {{ t('settings.addUser') }}
+            </button>
+          </div>
+        </div>
       </form>
     </section>
 

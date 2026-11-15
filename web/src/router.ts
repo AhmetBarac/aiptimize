@@ -108,5 +108,10 @@ router.beforeEach(async (to) => {
   if (!session.user) {
     return { name: 'login', query: { next: to.fullPath } }
   }
+  // Settings is administrator-only; sending a normal user home is clearer than
+  // letting the page render and every request fail with 403.
+  if (to.name === 'settings' && session.user.role !== 'admin') {
+    return { name: 'home' }
+  }
   return true
 })

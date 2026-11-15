@@ -26,7 +26,11 @@ type authInfo struct {
 type storeUser struct {
 	ID       int64
 	Username string
+	Role     string
 }
+
+// isAdmin reports whether the authenticated account may change settings.
+func (u storeUser) isAdmin() bool { return u.Role == "admin" }
 
 type sessionInfo struct {
 	ID        string
@@ -242,7 +246,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			_ = s.st.TouchSession(ctx, hash, now, now.Add(sessionTTL))
 		}
 		info := authInfo{
-			User:    storeUser{ID: user.ID, Username: user.Username},
+			User:    storeUser{ID: user.ID, Username: user.Username, Role: user.Role},
 			Session: sessionInfo{ID: hash, ExpiresAt: ses.ExpiresAt},
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyAuth, info)))
@@ -258,6 +262,18 @@ func (s *Server) requireAuth(h http.HandlerFunc) http.HandlerFunc {
 		}
 		h(w, r)
 	}
+}
+
+// requireAdmin wraps a handler that only administrators may reach.
+func (s *Server) requireAdmin(h http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		a, ok := authFrom(r.Context())
+		if !ok || !a.User.isAdmin() {
+			writeError(w, http.StatusForbidden, "forbidden", "Administrator access is required.", nil)
+			return
+		}
+		h(w, r)
+	})
 }
 
 func authFrom(ctx context.Context) (authInfo, bool) {

@@ -371,7 +371,7 @@ func seedAdmin(ctx context.Context, cfg *config.Config, st *store.Store, logger 
 	if err != nil {
 		return err
 	}
-	user, err := st.CreateUser(ctx, cfg.AdminUsername, hash)
+	user, err := st.CreateUser(ctx, cfg.AdminUsername, hash, store.RoleAdmin)
 	if err != nil {
 		return err
 	}

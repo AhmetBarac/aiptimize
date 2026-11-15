@@ -32,9 +32,19 @@ export interface Meta {
   }
 }
 
+export type Role = 'admin' | 'user'
+
 export interface User {
   id: number
   username: string
+  role: Role
+}
+
+export interface ManagedUser {
+  id: number
+  username: string
+  role: Role
+  created_at: string
 }
 
 export interface TelemetrySample {

@@ -46,7 +46,7 @@ func TestUserLifecycle(t *testing.T) {
 	if n, err := st.UserCount(ctx); err != nil || n != 0 {
 		t.Fatalf("initial count = %d, %v", n, err)
 	}
-	u, err := st.CreateUser(ctx, "admin", "hash")
+	u, err := st.CreateUser(ctx, "admin", "hash", RoleAdmin)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestUserLifecycle(t *testing.T) {
 func TestSessionLifecycle(t *testing.T) {
 	st := openTest(t)
 	ctx := context.Background()
-	u, err := st.CreateUser(ctx, "admin", "hash")
+	u, err := st.CreateUser(ctx, "admin", "hash", RoleAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}

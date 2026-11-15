@@ -4,7 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import Sheet from './Sheet.vue'
 import { currentLocale, setLocale, SUPPORTED_LOCALES, type Locale } from '../i18n'
-import { session, signOut } from '../session'
+import { isAdmin, session, signOut } from '../session'
 import { theme, toggleTheme } from '../theme'
 import { ui } from '../ui'
 
@@ -24,7 +24,9 @@ const links = [
   { to: '/history', icon: 'bi-bar-chart', key: 'nav.history', hint: 'more.historyHint' },
   { to: '/prices', icon: 'bi-graph-up', key: 'nav.prices', hint: 'more.pricesHint' },
   { to: '/system', icon: 'bi-activity', key: 'system.title', hint: 'more.systemHint' },
-  { to: '/settings', icon: 'bi-gear', key: 'nav.settings', hint: 'more.settingsHint' },
+  ...(isAdmin()
+    ? [{ to: '/settings', icon: 'bi-gear', key: 'nav.settings', hint: 'more.settingsHint' }]
+    : []),
 ]
 
 // The companion app injects a native bridge so the web UI can hand control back

@@ -26,6 +26,7 @@ type setupRequest struct {
 type userResponse struct {
 	ID       int64  `json:"id"`
 	Username string `json:"username"`
+	Role     string `json:"role"`
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +78,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Could not create the user.", nil)
 		return
 	}
-	user, err := s.st.CreateUser(r.Context(), req.Username, hash)
+	user, err := s.st.CreateUser(r.Context(), req.Username, hash, store.RoleAdmin)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
 			writeError(w, http.StatusConflict, "already_initialized", "Setup has already been completed.", nil)
@@ -178,7 +179,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user": userResponse{ID: a.User.ID, Username: a.User.Username},
+		"user": userResponse{ID: a.User.ID, Username: a.User.Username, Role: a.User.Role},
 		"session": map[string]any{
 			"expires_at": a.Session.ExpiresAt,
 		},

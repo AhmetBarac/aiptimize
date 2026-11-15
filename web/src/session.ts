@@ -9,6 +9,9 @@ interface SessionState {
   error: string | null
 }
 
+/** Administrators are the only accounts that may open Settings. */
+export const isAdmin = (): boolean => session.user?.role === 'admin'
+
 export const session = reactive<SessionState>({
   bootstrapped: false,
   meta: null,
