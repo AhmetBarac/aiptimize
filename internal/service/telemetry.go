@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 	"github.com/AhmetBarac/aiptimize/internal/inverter"
+	"github.com/AhmetBarac/aiptimize/internal/inverter/saj"
 	"github.com/AhmetBarac/aiptimize/internal/inverter/simulator"
 	"github.com/AhmetBarac/aiptimize/internal/inverter/solplanet"
 	"github.com/AhmetBarac/aiptimize/internal/settings"
@@ -333,6 +336,14 @@ func (p *TelemetryPoller) readerFor(values settings.Values) (inverter.Reader, er
 	return reader, nil
 }
 
+// Reader returns the inverter connection currently in use. It may be replaced
+// when settings change, so callers should ask each time rather than cache it.
+func (p *TelemetryPoller) Reader() inverter.Reader {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.reader
+}
+
 func (p *TelemetryPoller) buildReader(values settings.Values) (inverter.Reader, error) {
 	if p.opts.NewReader != nil {
 		return p.opts.NewReader(values)
@@ -360,6 +371,15 @@ func (p *TelemetryPoller) buildReader(values settings.Values) (inverter.Reader, 
 	inv := values.Inverter
 	if strings.TrimSpace(inv.Host) == "" {
 		return nil, errors.New("inverter host is not configured")
+	}
+	// SAJ inverters speak Modbus TCP rather than the Solplanet HTTP API.
+	if strings.EqualFold(strings.TrimSpace(inv.Type), "saj") {
+		address := net.JoinHostPort(inv.Host, strconv.Itoa(inv.Port))
+		return saj.New(saj.Config{
+			Address: address,
+			UnitID:  1,
+			Timeout: 5 * time.Second,
+		}), nil
 	}
 	return solplanet.New(solplanet.Config{
 		Scheme:    inv.Scheme,

@@ -269,6 +269,18 @@ func runServe() int {
 	go service.NewPricePoller(priceSvc, settingsSvc, logger, broker).Run(ctx)
 	go telemetryPoller.Run(ctx)
 	go forecastSvc.Run(ctx)
+	// A passive-mode inverter has no slot table, so the plan is followed while it
+	// runs: a controller nudges the battery to the active slot every half minute.
+	if _, ok := telemetryPoller.Reader().(service.PassiveDriver); ok {
+		passive := service.NewPassiveController(settingsSvc.Get, plannerSvc.Latest,
+			func() service.PassiveDriver {
+				current, _ := telemetryPoller.Reader().(service.PassiveDriver)
+				return current
+			}, logger, time.Now)
+		passive.SetWriteGate(cfg.EnableWrites)
+		go passive.Run(ctx)
+		logger.Info("passive-mode controller started")
+	}
 	go plannerSvc.Run(ctx)
 	go plannerSvc.RunWatchdog(ctx)
 	go plannerSvc.RunSlotPower(ctx)
