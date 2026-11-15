@@ -21,14 +21,17 @@ const open = computed({
   },
 })
 
-const links = [
+// Computed, not a plain array: the session is restored asynchronously, and an
+// array built once at setup would miss the administrator flag and hide Settings
+// until the whole app is reloaded.
+const links = computed(() => [
   { to: '/history', icon: 'bi-bar-chart', key: 'nav.history', hint: 'more.historyHint' },
   { to: '/prices', icon: 'bi-graph-up', key: 'nav.prices', hint: 'more.pricesHint' },
   { to: '/system', icon: 'bi-activity', key: 'system.title', hint: 'more.systemHint' },
   ...(isAdmin()
     ? [{ to: '/settings', icon: 'bi-gear', key: 'nav.settings', hint: 'more.settingsHint' }]
     : []),
-]
+])
 
 // The companion app injects a native bridge so the web UI can hand control back
 // to it (switch to the server list, or reload the page). Absent in a browser.

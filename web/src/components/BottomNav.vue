@@ -19,11 +19,12 @@ const primary = [
   { name: 'car', to: '/car', icon: 'bi-ev-station' },
 ]
 
-const secondary = [
+// Computed so the administrator flag is read after the session is restored.
+const secondary = computed(() => [
   { name: 'history', to: '/history', icon: 'bi-bar-chart' },
   // Settings is administrator-only, so the entry disappears for normal users.
   ...(isAdmin() ? [{ name: 'settings', to: '/settings', icon: 'bi-gear' }] : []),
-]
+])
 
 const locale = computed(() => currentLocale())
 const moreActive = computed(() =>
