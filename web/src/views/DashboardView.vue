@@ -638,7 +638,7 @@ watch(today, (value, previous) => {
               class="badge-soft"
               :class="priceFocus.when === 'now' ? 'badge-on' : ''"
             >
-              {{ t(home.priceWhen_) }}
+              {{ t(`home.priceWhen_${priceFocus.when}`) }}
             </span>
           </div>
           <RouterLink to="/prices" class="card-link">{{ t('home.todayPrices') }} →</RouterLink>
