@@ -1007,12 +1007,17 @@
   min-width: 0;
 }
 
+/* Visual order: flow + prices on the first row, plan + forecast below it. */
 .home-prices {
   order: 1;
 }
 
-.home-forecast {
+.home-plan {
   order: 2;
+}
+
+.home-forecast {
+  order: 3;
 }
 
 @media (min-width: 992px) {
