@@ -2913,6 +2913,43 @@ button.flow-node:hover {
   border-top: 0;
 }
 
+
+/* Current price position between today's cheapest and priciest hour. */
+.price-slider {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.price-slider-track {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--aipt-green) 0%, #e6c84b 50%, var(--aipt-orange) 100%);
+  opacity: 0.65;
+}
+
+.price-slider-knob {
+  position: absolute;
+  top: 50%;
+  left: var(--slider-pct, 50%);
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--aipt-bg);
+  border-radius: 50%;
+  background: var(--slider-color, var(--aipt-text));
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px var(--aipt-border);
+}
+
+.price-slider-scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--aipt-muted);
+  font-size: 0.62rem;
+}
 /* ---------- Utilities ---------- */
 
 @keyframes aipt-spin {

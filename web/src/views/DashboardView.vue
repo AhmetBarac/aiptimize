@@ -11,6 +11,7 @@ import type {
   Plan,
   PlanSlot,
   PlanView,
+  PriceBlock,
   PriceSnapshot,
   SolarSnapshot,
   Status,
@@ -181,6 +182,22 @@ const currentPriceBlock = computed(() => {
   return priceBlocks.value.find(
     (block) => Date.parse(block.start) <= at && Date.parse(block.end) > at,
   ) ?? null
+})
+
+function blockPrice(block: PriceBlock): number {
+  return fullPrice.value ? block.import_price : block.price_kwh
+}
+
+// Where the current price sits between today's cheapest and priciest block.
+const priceSlide = computed(() => {
+  const value = priceNow.value
+  const valid = priceBlocks.value.filter((block) => !block.missing).map(blockPrice)
+  if (value === null || valid.length === 0) return null
+  const min = Math.min(...valid)
+  const max = Math.max(...valid)
+  const pct = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0.5
+  const color = pct >= 0.66 ? 'var(--aipt-orange)' : pct >= 0.33 ? '#e6c84b' : 'var(--aipt-green)'
+  return { pct, color, min, max }
 })
 
 const currentPriceRange = computed(() =>
@@ -602,6 +619,19 @@ watch(today, (value, previous) => {
           <div class="price-current">
             <span>{{ currentPriceRange }}</span>
             <strong class="tabular">{{ money(priceNow) }}<small>{{ currency }}/kWh</small></strong>
+            <div
+              v-if="priceSlide"
+              class="price-slider"
+              :style="{ '--slider-pct': `${(priceSlide.pct * 100).toFixed(1)}%`, '--slider-color': priceSlide.color }"
+            >
+              <span class="price-slider-track" aria-hidden="true">
+                <span class="price-slider-knob"></span>
+              </span>
+              <div class="price-slider-scale">
+                <small>{{ t('home.priceCheap') }} {{ money(priceSlide.min) }}</small>
+                <small>{{ t('home.priceExpensive') }} {{ money(priceSlide.max) }}</small>
+              </div>
+            </div>
           </div>
           <RouterLink to="/prices" class="card-link">{{ t('home.todayPrices') }} →</RouterLink>
         </header>

@@ -70,6 +70,8 @@
     "nextHours": "Next {hours} hours",
     "pricesNext": "Next 24 hours",
     "todayPrices": "Today's prices",
+    "priceCheap": "Cheapest",
+    "priceExpensive": "Priciest",
     "allPrices": "All prices",
     "exported": "· {value} kWh exported",
     "supplyTitle": "Home is running on",

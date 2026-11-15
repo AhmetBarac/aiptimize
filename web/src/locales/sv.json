@@ -70,6 +70,8 @@
     "nextHours": "Nästa {hours} timmar",
     "pricesNext": "Nästa 24 timmar",
     "todayPrices": "Dagens priser",
+    "priceCheap": "Billigast",
+    "priceExpensive": "Dyrast",
     "allPrices": "Alla priser",
     "exported": "· {value} kWh exporterat",
     "supplyTitle": "Huset drivs av",
