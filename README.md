@@ -207,6 +207,7 @@ docs/                architecture, API, safety, deployment; docs/chargers for pe
 - [HTTP API](docs/api.md)
 - [Safety](docs/safety.md)
 - [Deployment](docs/deployment.md)
+- [System requirements](SYSTEM_REQUIREMENTS.md)
 - [Development plan](DEVELOPMENT_PLAN.MD)
 
 ## License

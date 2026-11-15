@@ -1,5 +1,9 @@
 # Deployment
 
+Hardware, disk, network and client requirements are collected in
+[SYSTEM_REQUIREMENTS.md](../SYSTEM_REQUIREMENTS.md).
+
+
 ## Container image
 
 The application host does not build anything. Images are built on a workstation
