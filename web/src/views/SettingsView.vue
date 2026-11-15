@@ -285,6 +285,7 @@ const timezoneOptions = computed(() => {
 })
 
 const inverterForm = reactive({
+  type: 'solplanet_ai_dongle',
   host: '',
   scheme: 'http',
   port: 8484,
@@ -634,6 +635,7 @@ async function load(): Promise<void> {
     siteForm.showFullPrice = doc.site.show_full_price === true
     siteForm.license = ''
     licenseSet.value = doc.site.license_set === true
+    inverterForm.type = doc.inverter.type || 'solplanet_ai_dongle'
     inverterForm.host = doc.inverter.host
     inverterForm.scheme = doc.inverter.scheme
     inverterForm.port = doc.inverter.port
@@ -805,6 +807,20 @@ async function takeControl(): Promise<void> {
   }
 }
 
+// The two providers listen on very different ports: the Solplanet dongle
+// speaks HTTP on 8484, an SAJ inverter speaks Modbus TCP on 502.
+function onInverterTypeChange(): void {
+  if (inverterForm.type === 'saj') {
+    if (inverterForm.port === 8484 || inverterForm.port === 80 || inverterForm.port === 443) {
+      inverterForm.port = 502
+    }
+    return
+  }
+  if (inverterForm.port === 502) {
+    inverterForm.port = 8484
+  }
+}
+
 async function saveInverter(): Promise<void> {
   saving.value = true
   error.value = ''
@@ -813,6 +829,7 @@ async function saveInverter(): Promise<void> {
   testError.value = ''
   try {
     await patchSettings('inverter', {
+      type: inverterForm.type,
       host: inverterForm.host.trim(),
       scheme: inverterForm.scheme,
       port: Number(inverterForm.port),
@@ -1232,21 +1249,36 @@ async function importSettings(event: Event): Promise<void> {
       <p class="text-muted small">{{ t('settings.inverterIntro') }}</p>
       <form novalidate @submit.prevent="saveInverter">
         <div class="row g-3">
+          <div class="col-12 col-sm-4">
+            <label class="form-label" for="inv-type">{{ t('settings.inverterType') }}</label>
+            <select
+              id="inv-type"
+              v-model="inverterForm.type"
+              class="form-select"
+              @change="onInverterTypeChange"
+            >
+              <option value="solplanet_ai_dongle">{{ t('settings.inverterTypeSolplanet') }}</option>
+              <option value="saj">{{ t('settings.inverterTypeSaj') }}</option>
+            </select>
+          </div>
           <div class="col-12 col-sm-5">
             <label class="form-label" for="inv-host">{{ t('settings.host') }}</label>
             <input id="inv-host" v-model="inverterForm.host" class="form-control mono" type="text" placeholder="192.0.2.10" />
           </div>
-          <div class="col-6 col-sm-3">
+          <div v-if="inverterForm.type !== 'saj'" class="col-6 col-sm-3">
             <label class="form-label" for="inv-scheme">{{ t('settings.scheme') }}</label>
             <select id="inv-scheme" v-model="inverterForm.scheme" class="form-select">
               <option value="http">http</option>
               <option value="https">https</option>
             </select>
           </div>
-          <div class="col-6 col-sm-4">
+          <div class="col-6" :class="inverterForm.type === 'saj' ? 'col-sm-3' : 'col-sm-4'">
             <label class="form-label" for="inv-port">{{ t('settings.port') }}</label>
             <input id="inv-port" v-model.number="inverterForm.port" class="form-control" type="number" min="1" max="65535" />
           </div>
+          <p v-if="inverterForm.type === 'saj'" class="small text-muted mb-0">
+            {{ t('settings.sajHint') }}
+          </p>
           <div class="col-12 col-sm-6">
             <label class="form-label" for="inv-serial">{{ t('settings.serial') }}</label>
             <input id="inv-serial" v-model="inverterForm.serial" class="form-control mono" type="text" />

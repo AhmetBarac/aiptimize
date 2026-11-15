@@ -147,7 +147,9 @@ func validateInverter(v *Inverter) error {
 	if v.Type == "" {
 		return invalid(SectionInverter, "type", "must not be empty")
 	}
-	if v.Scheme != "http" && v.Scheme != "https" {
+	// SAJ inverters speak Modbus TCP, which has no scheme.
+	if !strings.EqualFold(strings.TrimSpace(v.Type), "saj") &&
+		v.Scheme != "http" && v.Scheme != "https" {
 		return invalid(SectionInverter, "scheme", "must be http or https")
 	}
 	if v.Port < 1 || v.Port > 65535 {
