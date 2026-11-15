@@ -859,6 +859,7 @@
     "safetySaved": "Safety settings saved.",
     "systemIntro": "Build and connectivity information.",
     "usersIntro": "Administrators can open Settings; users get every other page of the app.",
+    "noUsers": "No accounts yet.",
     "userName": "Username",
     "userPassword": "Password",
     "userRole": "Role",

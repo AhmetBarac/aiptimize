@@ -860,6 +860,7 @@
     "safetySaved": "Säkerhetsinställningarna sparades.",
     "systemIntro": "Bygg- och anslutningsinformation.",
     "usersIntro": "Administratörer kan öppna Inställningar; användare ser alla andra sidor i appen.",
+    "noUsers": "Inga konton ännu.",
     "userName": "Användarnamn",
     "userPassword": "Lösenord",
     "userRole": "Roll",

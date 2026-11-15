@@ -32,7 +32,6 @@ const userError = ref('')
 const userMessage = ref('')
 
 async function loadUsers(): Promise<void> {
-  if (session.user?.role !== 'admin') return
   try {
     users.value = (await api.get<{ users: ManagedUser[] }>('/users')).users
     userError.value = ''
@@ -610,7 +609,19 @@ const evForm = reactive({
   feedInLimit: '' as number | '',
 })
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (section.value === 'users') void loadUsers()
+})
+
+// The section is a route parameter, so reload the list on every visit rather
+// than trusting whatever was cached when the view was created.
+watch(
+  () => section.value,
+  (value) => {
+    if (value === 'users') void loadUsers()
+  },
+)
 
 // After an in-app update the container is replaced; retry briefly so a restart
 // window does not surface as an error banner.
@@ -2120,7 +2131,7 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <div class="col-6 col-sm-2">
             <label class="form-label" for="user-role">{{ t('settings.userRole') }}</label>
-            <select id="user-role" v-model="userForm.role" class="form-select">
+            <select id="user-role" v-model="userForm.role" class="form-select" required>
               <option value="user">{{ t('settings.roles.user') }}</option>
               <option value="admin">{{ t('settings.roles.admin') }}</option>
             </select>
