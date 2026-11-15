@@ -444,6 +444,7 @@ export interface EVConfig {
   credentials: {
     zaptec: boolean
     easee: boolean
+    wallbox: boolean
     ocpp_token: boolean
   }
 }
