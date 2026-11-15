@@ -475,6 +475,18 @@
     "next48h": "48 h",
     "negative": "Negativt pris"
   },
+  "account": {
+    "title": "Konto",
+    "change": "Byt lösenord",
+    "subtitle": "Ditt eget inloggningslösenord.",
+    "current": "Nuvarande lösenord",
+    "next": "Nytt lösenord",
+    "confirm": "Repetera nytt lösenord",
+    "submit": "Uppdatera lösenord",
+    "changed": "Lösenordet uppdaterades.",
+    "mismatch": "De nya lösenorden stämmer inte överens.",
+    "tooShort": "Det nya lösenordet måste vara minst 8 tecken."
+  },
   "car": {
     "title": "Bil",
     "subtitle": "Zaptec-laddning",
@@ -839,6 +851,8 @@
     "userRole": "Roll",
     "roles": {"admin": "Administratör", "user": "Användare"},
     "addUser": "Lägg till",
+    "resetPassword": "Återställ lösenord",
+    "passwordReset": "Lösenordet återställdes för {name}.",
     "userAdded": "Användaren skapades.",
     "userRemoved": "Användaren togs bort.",
     "confirmRemoveUser": "Ta bort {name}?",

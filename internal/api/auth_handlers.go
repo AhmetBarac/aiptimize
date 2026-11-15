@@ -186,6 +186,50 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleChangePassword lets the signed-in account replace its own password.
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	a, ok := authFrom(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Authentication required.", nil)
+		return
+	}
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
+	if len(req.NewPassword) < auth.MinPasswordLength {
+		writeError(w, http.StatusUnprocessableEntity, "weak_password", "Password is too short.", nil)
+		return
+	}
+	user, err := s.st.UserByID(r.Context(), a.User.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not read the account.", nil)
+		return
+	}
+	okCurrent, err := auth.VerifyPassword(user.PasswordHash, req.CurrentPassword)
+	if err != nil || !okCurrent {
+		writeError(w, http.StatusForbidden, "invalid_password", "The current password is incorrect.", nil)
+		return
+	}
+	hash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not hash the password.", nil)
+		return
+	}
+	if err := s.st.UpdateUserPassword(r.Context(), user.ID, hash); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not update the password.", nil)
+		return
+	}
+	// Any other session opened with the old password ends here; the caller keeps
+	// the session it made this request with.
+	_ = s.st.DeleteOtherSessions(r.Context(), user.ID, a.Session.ID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if a, ok := authFrom(r.Context()); ok {
 		if err := s.st.DeleteSession(r.Context(), a.Session.ID); err != nil {

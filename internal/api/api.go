@@ -124,11 +124,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
 	s.mux.HandleFunc("POST /api/v1/auth/logout", s.requireAuth(s.handleLogout))
 	s.mux.HandleFunc("GET /api/v1/auth/me", s.handleMe)
+	s.mux.HandleFunc("POST /api/v1/auth/password", s.requireAuth(s.handleChangePassword))
 
 	// Account management is administrator-only: the two roles are admin and user.
 	s.mux.HandleFunc("GET /api/v1/users", s.requireAdmin(s.handleListUsers))
 	s.mux.HandleFunc("POST /api/v1/users", s.requireAdmin(s.handleCreateUser))
 	s.mux.HandleFunc("DELETE /api/v1/users/{id}", s.requireAdmin(s.handleDeleteUser))
+	s.mux.HandleFunc("POST /api/v1/users/{id}/password", s.requireAdmin(s.handleResetPassword))
 
 	s.mux.HandleFunc("GET /api/v1/status", s.requireAuth(s.handleStatus))
 	s.mux.HandleFunc("GET /api/v1/prices", s.requireAuth(s.handlePrices))

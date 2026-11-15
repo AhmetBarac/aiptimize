@@ -474,6 +474,18 @@
     "next48h": "48 h",
     "negative": "Negative price"
   },
+  "account": {
+    "title": "Account",
+    "change": "Change password",
+    "subtitle": "Your own sign-in password.",
+    "current": "Current password",
+    "next": "New password",
+    "confirm": "Repeat new password",
+    "submit": "Update password",
+    "changed": "Password updated.",
+    "mismatch": "The new passwords do not match.",
+    "tooShort": "The new password must be at least 8 characters."
+  },
   "car": {
     "title": "Car",
     "subtitle": "Zaptec charging",
@@ -838,6 +850,8 @@
     "userRole": "Role",
     "roles": {"admin": "Administrator", "user": "User"},
     "addUser": "Add user",
+    "resetPassword": "Reset password",
+    "passwordReset": "Password reset for {name}.",
     "userAdded": "User created.",
     "userRemoved": "User removed.",
     "confirmRemoveUser": "Remove {name}?",

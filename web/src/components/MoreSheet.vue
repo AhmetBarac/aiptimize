@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import Sheet from './Sheet.vue'
+import { api } from '../api/client'
 import { currentLocale, setLocale, SUPPORTED_LOCALES, type Locale } from '../i18n'
 import { isAdmin, session, signOut } from '../session'
 import { theme, toggleTheme } from '../theme'
@@ -47,6 +48,46 @@ function companionReload(): void {
 function changeLocale(event: Event): void {
   const value = (event.target as HTMLSelectElement).value
   if (value === 'en' || value === 'sv') setLocale(value as Locale)
+}
+
+// Password change is available to every account, not just administrators.
+const passwordOpen = ref(false)
+const passwordBusy = ref(false)
+const passwordError = ref('')
+const passwordMessage = ref('')
+const passwordForm = ref({ current: '', next: '', confirm: '' })
+
+function openPassword(): void {
+  passwordForm.value = { current: '', next: '', confirm: '' }
+  passwordError.value = ''
+  passwordMessage.value = ''
+  passwordOpen.value = true
+}
+
+async function changePassword(): Promise<void> {
+  passwordError.value = ''
+  passwordMessage.value = ''
+  if (passwordForm.value.next.length < 8) {
+    passwordError.value = t('account.tooShort')
+    return
+  }
+  if (passwordForm.value.next !== passwordForm.value.confirm) {
+    passwordError.value = t('account.mismatch')
+    return
+  }
+  passwordBusy.value = true
+  try {
+    await api.post('/auth/password', {
+      current_password: passwordForm.value.current,
+      new_password: passwordForm.value.next,
+    })
+    passwordOpen.value = false
+    passwordMessage.value = t('account.changed')
+  } catch (err) {
+    passwordError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    passwordBusy.value = false
+  }
 }
 
 async function logout(): Promise<void> {
@@ -115,5 +156,20 @@ async function logout(): Promise<void> {
     </div>
 
     <p class="more-version">{{ t('more.version', { version }) }}</p>
+  </Sheet>
+
+  <Sheet v-model:open="passwordOpen" :title="t('account.change')" :subtitle="t('account.subtitle')" size="sm">
+    <div v-if="passwordError" class="alert alert-danger py-2 small" role="alert">{{ passwordError }}</div>
+    <label class="form-label" for="pw-current">{{ t('account.current') }}</label>
+    <input id="pw-current" v-model="passwordForm.current" class="form-control mb-2" type="password" autocomplete="current-password" />
+    <label class="form-label" for="pw-next">{{ t('account.next') }}</label>
+    <input id="pw-next" v-model="passwordForm.next" class="form-control mb-2" type="password" autocomplete="new-password" />
+    <label class="form-label" for="pw-confirm">{{ t('account.confirm') }}</label>
+    <input id="pw-confirm" v-model="passwordForm.confirm" class="form-control" type="password" autocomplete="new-password" />
+    <template #footer>
+      <button class="btn btn-primary w-100" type="button" :disabled="passwordBusy" @click="changePassword">
+        {{ passwordBusy ? t('common.saving') : t('account.submit') }}
+      </button>
+    </template>
   </Sheet>
 </template>

@@ -77,6 +77,42 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleResetPassword sets a new password for another account. Administrator only.
+func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "User id is required.", nil)
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		return
+	}
+	if len(req.Password) < auth.MinPasswordLength {
+		writeError(w, http.StatusUnprocessableEntity, "weak_password", "Password is too short.", nil)
+		return
+	}
+	if _, err := s.st.UserByID(r.Context(), id); err != nil {
+		writeError(w, http.StatusNotFound, "user_not_found", "Unknown user.", nil)
+		return
+	}
+	hash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not hash the password.", nil)
+		return
+	}
+	if err := s.st.UpdateUserPassword(r.Context(), id, hash); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Could not update the password.", nil)
+		return
+	}
+	// The account has to sign in again with the new password.
+	_ = s.st.DeleteSessionsForUser(r.Context(), id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleDeleteUser removes an account. Administrator only, and the last
 // administrator can never be removed.
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {

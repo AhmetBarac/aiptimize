@@ -66,6 +66,13 @@ func (s *Store) DeleteSession(ctx context.Context, id string) error {
 }
 
 // DeleteSessionsForUser revokes all sessions of a user.
+// DeleteOtherSessions signs an account out everywhere except the given session.
+func (s *Store) DeleteOtherSessions(ctx context.Context, userID int64, keep string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM sessions WHERE user_id = ? AND id <> ?`, userID, keep)
+	return err
+}
+
 func (s *Store) DeleteSessionsForUser(ctx context.Context, userID int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
 	return err

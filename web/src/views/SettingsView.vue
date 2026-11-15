@@ -63,6 +63,34 @@ async function createUser(): Promise<void> {
   }
 }
 
+const resetTarget = ref<ManagedUser | null>(null)
+const resetOpen = ref(false)
+const resetPassword = ref('')
+const resetting = ref(false)
+
+function openReset(item: ManagedUser): void {
+  resetTarget.value = item
+  resetPassword.value = ''
+  resetOpen.value = true
+}
+
+async function submitReset(): Promise<void> {
+  const target = resetTarget.value
+  if (!target) return
+  resetting.value = true
+  userError.value = ''
+  userMessage.value = ''
+  try {
+    await api.post(`/users/${target.id}/password`, { password: resetPassword.value })
+    resetOpen.value = false
+    userMessage.value = t('settings.passwordReset', { name: target.username })
+  } catch (err) {
+    userError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    resetting.value = false
+  }
+}
+
 async function removeUser(item: ManagedUser): Promise<void> {
   if (!window.confirm(t('settings.confirmRemoveUser', { name: item.username }))) return
   savingUser.value = true
@@ -1907,14 +1935,19 @@ async function importSettings(event: Event): Promise<void> {
                 </span>
               </td>
               <td class="text-end">
-                <button
-                  class="btn btn-sm btn-outline-secondary"
-                  type="button"
-                  :disabled="savingUser || item.id === session.user?.id"
-                  @click="removeUser(item)"
-                >
-                  {{ t('car.delete') }}
-                </button>
+                <div class="d-flex gap-1 justify-content-end">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" :disabled="savingUser" @click="openReset(item)">
+                    {{ t('settings.resetPassword') }}
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-secondary"
+                    type="button"
+                    :disabled="savingUser || item.id === session.user?.id"
+                    @click="removeUser(item)"
+                  >
+                    {{ t('car.delete') }}
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -1951,6 +1984,16 @@ async function importSettings(event: Event): Promise<void> {
           </div>
         </div>
       </form>
+
+      <Sheet v-model:open="resetOpen" :title="t('settings.resetPassword')" :subtitle="resetTarget?.username" size="sm">
+        <label class="form-label" for="reset-password">{{ t('settings.userPassword') }}</label>
+        <input id="reset-password" v-model="resetPassword" class="form-control" type="password" autocomplete="new-password" />
+        <template #footer>
+          <button class="btn btn-primary w-100" type="button" :disabled="resetting || resetPassword.length < 8" @click="submitReset">
+            {{ resetting ? t('common.saving') : t('settings.resetPassword') }}
+          </button>
+        </template>
+      </Sheet>
     </section>
 
     <section v-else class="aipt-card">
