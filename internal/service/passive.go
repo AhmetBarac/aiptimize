@@ -20,6 +20,14 @@ type PassiveDriver interface {
 	SetPassive(ctx context.Context, mode int, watts float64) error
 }
 
+// PassiveWindowDriver is implemented by inverters whose passive command expires
+// after a while (Huawei's forcible charge takes a duration in minutes). The
+// controller passes the remaining slot time so the inverter's own timer matches
+// the plan, and renews before it runs out.
+type PassiveWindowDriver interface {
+	SetPassiveFor(ctx context.Context, mode int, watts float64, window time.Duration) error
+}
+
 // Passive modes, matching the values the SAJ accepts on register 0x3636.
 const (
 	passiveStandby   = 0
@@ -43,8 +51,12 @@ type PassiveController struct {
 
 	writesEnv bool
 
-	mu   sync.Mutex
-	last string
+	mu     sync.Mutex
+	last   string
+	lastAt time.Time
+	// refresh re-sends an unchanged state so a command with an expiry never
+	// lapses while its slot is still running.
+	refresh time.Duration
 }
 
 // NewPassiveController builds the controller. driver is a getter because the
@@ -63,12 +75,13 @@ func NewPassiveController(
 		now = time.Now
 	}
 	return &PassiveController{
-		values: values,
-		latest: latest,
-		driver: driver,
-		now:    now,
-		log:    log,
-		step:   30 * time.Second,
+		values:  values,
+		latest:  latest,
+		driver:  driver,
+		now:     now,
+		log:     log,
+		step:    30 * time.Second,
+		refresh: 10 * time.Minute,
 	}
 }
 
@@ -117,32 +130,41 @@ func (c *PassiveController) apply(ctx context.Context) {
 		}
 		// The inverter reports power in whole watts and clamps internally; keep
 		// the request inside the configured battery limits anyway.
+		remaining := slot.End.Sub(now)
 		watts := slot.PowerW
 		if slot.Direction == domain.DirectionCharge {
 			watts = math.Min(watts, values.Inverter.MaxChargeW)
-			c.set(ctx, driver, passiveCharge, math.Max(0, watts))
+			c.setWindow(ctx, driver, passiveCharge, math.Max(0, watts), remaining)
 			return
 		}
 		watts = math.Min(watts, values.Inverter.MaxDischargeW)
-		c.set(ctx, driver, passiveDischarge, math.Max(0, watts))
+		c.setWindow(ctx, driver, passiveDischarge, math.Max(0, watts), remaining)
 		return
 	}
 	c.set(ctx, driver, passiveStandby, 0)
 }
 
 // set only writes when the requested state changed, so the inverter is not
-// rewitten every tick.
+// rewritten every tick.
 func (c *PassiveController) set(ctx context.Context, driver PassiveDriver, mode int, watts float64) {
+	c.setWindow(ctx, driver, mode, watts, 0)
+}
+
+// setWindow writes the state, and also renews an unchanged one once the refresh
+// interval has passed so a command with an expiry does not lapse mid-slot.
+func (c *PassiveController) setWindow(ctx context.Context, driver PassiveDriver, mode int, watts float64, window time.Duration) {
 	state := stateKey(mode, watts)
 	c.mu.Lock()
-	if state == c.last {
+	if state == c.last && c.now().Sub(c.lastAt) < c.refresh {
 		c.mu.Unlock()
 		return
 	}
 	c.last = state
+	c.lastAt = c.now()
 	c.mu.Unlock()
 
-	if err := driver.SetPassive(ctx, mode, watts); err != nil {
+	err := c.write(ctx, driver, mode, watts, window)
+	if err != nil {
 		// Forget the state so the next tick retries.
 		c.mu.Lock()
 		c.last = ""
@@ -150,7 +172,17 @@ func (c *PassiveController) set(ctx context.Context, driver PassiveDriver, mode 
 		c.log.Warn("passive mode update failed", "mode", mode, "watts", watts, "err", err)
 		return
 	}
-	c.log.Info("passive mode applied", "mode", mode, "watts", watts)
+	c.log.Info("passive mode applied", "mode", mode, "watts", watts, "window", window)
+}
+
+// write picks the driver method that can carry an expiry.
+func (c *PassiveController) write(ctx context.Context, driver PassiveDriver, mode int, watts float64, window time.Duration) error {
+	if window > 0 {
+		if timed, ok := driver.(PassiveWindowDriver); ok {
+			return timed.SetPassiveFor(ctx, mode, watts, window)
+		}
+	}
+	return driver.SetPassive(ctx, mode, watts)
 }
 
 func stateKey(mode int, watts float64) string {

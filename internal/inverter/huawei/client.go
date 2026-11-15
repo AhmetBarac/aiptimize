@@ -327,10 +327,10 @@ func (c *Client) BatteryConfig(ctx context.Context) (int, float64, error) {
 	return mode, soc, nil
 }
 
-// SetPassive drives the battery with a forcible charge or discharge. The energy
+// setPassive drives the battery with a forcible charge or discharge. The energy
 // management registers require the mode and duration to be set before the
 // command, so the order below matters: a half-applied sequence does nothing.
-func (c *Client) SetPassive(ctx context.Context, mode int, watts float64) error {
+func (c *Client) setPassive(ctx context.Context, mode int, watts float64, minutes int) error {
 	switch mode {
 	case 0: // standby: stop any forcible action and clear the setpoints
 		if err := c.regs.WriteRegisters(ctx, regForcibleCmd, []uint16{ForcibleStop}); err != nil {
@@ -367,13 +367,33 @@ func (c *Client) SetPassive(ctx context.Context, mode int, watts float64) error 
 	if err := c.regs.WriteRegisters(ctx, powerReg, []uint16{high, low}); err != nil {
 		return err
 	}
-	if err := c.regs.WriteRegisters(ctx, regForcibleDur, []uint16{60}); err != nil {
+	if err := c.regs.WriteRegisters(ctx, regForcibleDur, []uint16{uint16(minutes)}); err != nil {
 		return err
 	}
 	if err := c.regs.WriteRegisters(ctx, regForcibleMode, []uint16{0}); err != nil {
 		return err
 	}
 	return c.regs.WriteRegisters(ctx, regForcibleCmd, []uint16{command})
+}
+
+// SetPassiveFor runs a forcible charge or discharge for the given window. The
+// inverter takes whole minutes, so the duration is rounded up and clamped to the
+// supported 1..1440 range.
+func (c *Client) SetPassiveFor(ctx context.Context, mode int, watts float64, window time.Duration) error {
+	minutes := int((window + time.Minute - 1) / time.Minute)
+	if minutes < 1 {
+		minutes = 1
+	}
+	if minutes > 1440 {
+		minutes = 1440
+	}
+	return c.setPassive(ctx, mode, watts, minutes)
+}
+
+// SetPassive runs a forcible charge or discharge with the default one-hour
+// window.
+func (c *Client) SetPassive(ctx context.Context, mode int, watts float64) error {
+	return c.setPassive(ctx, mode, watts, 60)
 }
 
 // Close releases the connection.
