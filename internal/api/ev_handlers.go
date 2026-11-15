@@ -28,6 +28,7 @@ func (s *Server) evConfigPayload() map[string]any {
 		"credentials": map[string]bool{
 			"zaptec":     (ev.ZaptecUsername != "" || s.cfg.Zaptec.Username != "") && (ev.ZaptecPassword != "" || s.cfg.Zaptec.Password != ""),
 			"easee":      ev.EaseeUsername != "" && ev.EaseePassword != "",
+			"wallbox":    ev.WallboxEmail != "" && ev.WallboxPassword != "",
 			"ocpp_token": false,
 		},
 		"active_provider":  "",
@@ -50,19 +51,21 @@ func (s *Server) handleUpdateEVConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Provider       string `json:"provider"`
-		ChargerID      string `json:"charger_id"`
-		InstallationID string `json:"installation_id"`
-		ZaptecUsername string `json:"zaptec_username"`
-		ZaptecPassword string `json:"zaptec_password"`
-		EaseeUsername  string `json:"easee_username"`
-		EaseePassword  string `json:"easee_password"`
+		Provider        string `json:"provider"`
+		ChargerID       string `json:"charger_id"`
+		InstallationID  string `json:"installation_id"`
+		ZaptecUsername  string `json:"zaptec_username"`
+		ZaptecPassword  string `json:"zaptec_password"`
+		EaseeUsername   string `json:"easee_username"`
+		EaseePassword   string `json:"easee_password"`
+		WallboxEmail    string `json:"wallbox_email"`
+		WallboxPassword string `json:"wallbox_password"`
 	}
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
-	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID, req.ZaptecUsername, req.ZaptecPassword, req.EaseeUsername, req.EaseePassword)
+	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID, req.ZaptecUsername, req.ZaptecPassword, req.EaseeUsername, req.EaseePassword, req.WallboxEmail, req.WallboxPassword)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "ev_config_invalid", err.Error(), nil)
 		return

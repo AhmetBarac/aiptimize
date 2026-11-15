@@ -582,6 +582,8 @@ const evForm = reactive({
   zaptecPassword: '',
   easeeUsername: '',
   easeePassword: '',
+  wallboxEmail: '',
+  wallboxPassword: '',
   mode: 'off',
   minCurrent: 6,
   maxCurrent: 16,
@@ -687,6 +689,8 @@ async function load(): Promise<void> {
     evForm.zaptecPassword = ''
   evForm.easeeUsername = doc.ev.easee_username || ''
   evForm.easeePassword = ''
+  evForm.wallboxEmail = doc.ev.wallbox_email || ''
+  evForm.wallboxPassword = ''
     evForm.minCurrent = doc.ev.min_current_a
     evForm.maxCurrent = doc.ev.max_current_a
     evForm.phases = doc.ev.phases
@@ -1055,6 +1059,13 @@ async function applyEVProvider(): Promise<void> {
     error.value = t('settings.evCredentialsMissing')
     return
   }
+  const hasWallboxCredentials =
+    evConfig.value?.credentials.wallbox === true ||
+    (evForm.wallboxEmail.trim() !== '' && evForm.wallboxPassword !== '')
+  if (evForm.provider === 'wallbox' && !hasWallboxCredentials) {
+    error.value = t('settings.evCredentialsMissing')
+    return
+  }
   if (!window.confirm(t('settings.evProviderRestartConfirm'))) return
   evProviderBusy.value = true
   error.value = ''
@@ -1068,6 +1079,8 @@ async function applyEVProvider(): Promise<void> {
       zaptec_password: evForm.zaptecPassword,
       easee_username: evForm.easeeUsername.trim(),
       easee_password: evForm.easeePassword,
+      wallbox_email: evForm.wallboxEmail.trim(),
+      wallbox_password: evForm.wallboxPassword,
     })
     saved.value = t('settings.evProviderReady')
     if (evConfig.value?.restart_required) {
@@ -1758,6 +1771,7 @@ async function importSettings(event: Event): Promise<void> {
             <select id="ev-provider" v-model="evForm.provider" class="form-select">
               <option value="zaptec">Zaptec</option>
               <option value="easee">Easee</option>
+              <option value="wallbox">Wallbox</option>
               <option value="simulator">{{ t('settings.evSimulator') }}</option>
             </select>
           </div>
@@ -1790,6 +1804,24 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <p v-if="evForm.provider === 'easee'" class="small text-muted mb-0">
             {{ t('settings.evEaseeHint') }}
+          </p>
+          <div v-if="evForm.provider === 'wallbox'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-wallbox-email">{{ t('settings.evWallboxEmail') }}</label>
+            <input id="ev-wallbox-email" v-model="evForm.wallboxEmail" class="form-control" type="email" autocomplete="username" />
+          </div>
+          <div v-if="evForm.provider === 'wallbox'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-wallbox-password">{{ t('settings.evWallboxPassword') }}</label>
+            <input
+              id="ev-wallbox-password"
+              v-model="evForm.wallboxPassword"
+              class="form-control"
+              type="password"
+              autocomplete="current-password"
+              :placeholder="evConfig?.wallbox_password_set ? t('settings.evPasswordKeep') : ''"
+            />
+          </div>
+          <p v-if="evForm.provider === 'wallbox'" class="small text-muted mb-0">
+            {{ t('settings.evWallboxHint') }}
           </p>
           <div v-if="evForm.provider === 'zaptec'" class="col-12 col-sm-6">
             <label class="form-label" for="ev-zaptec-password">{{ t('settings.evZaptecPassword') }}</label>

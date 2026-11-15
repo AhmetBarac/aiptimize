@@ -406,6 +406,8 @@ export interface EVSettings {
   zaptec_password?: string
   easee_username?: string
   easee_password?: string
+  wallbox_email?: string
+  wallbox_password?: string
   enabled: boolean
   mode: string
   default_mode: string
@@ -435,6 +437,8 @@ export interface EVConfig {
   zaptec_password_set: boolean
   easee_username?: string
   easee_password_set?: boolean
+  wallbox_email?: string
+  wallbox_password_set?: boolean
   active_provider: string
   restart_required: boolean
   credentials: {

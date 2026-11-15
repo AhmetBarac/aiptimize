@@ -166,6 +166,8 @@ type EV struct {
 	ZaptecPassword          string         `json:"zaptec_password,omitempty"`
 	EaseeUsername           string         `json:"easee_username"`
 	EaseePassword           string         `json:"easee_password,omitempty"`
+	WallboxEmail            string         `json:"wallbox_email"`
+	WallboxPassword         string         `json:"wallbox_password,omitempty"`
 	Enabled                 bool           `json:"enabled"`
 	Mode                    string         `json:"mode"`
 	DefaultMode             string         `json:"default_mode"`

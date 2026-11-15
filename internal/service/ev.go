@@ -266,16 +266,17 @@ func (s *EVService) StopForReconfigure(ctx context.Context) error {
 
 // ApplyProviderConfig stops any active session, persists the selected adapter
 // configuration and marks a restart as required.
-func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID, zaptecUsername, zaptecPassword, easeeUsername, easeePassword string) (settings.EV, error) {
+func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID, zaptecUsername, zaptecPassword, easeeUsername, easeePassword, wallboxEmail, wallboxPassword string) (settings.EV, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	chargerID = strings.TrimSpace(chargerID)
 	installationID = strings.TrimSpace(installationID)
 	zaptecUsername = strings.TrimSpace(zaptecUsername)
 	easeeUsername = strings.TrimSpace(easeeUsername)
+	wallboxEmail = strings.TrimSpace(wallboxEmail)
 	switch provider {
-	case "zaptec", "easee", "simulator":
+	case "zaptec", "easee", "wallbox", "simulator":
 	default:
-		return settings.EV{}, fmt.Errorf("provider must be zaptec, easee or simulator")
+		return settings.EV{}, fmt.Errorf("provider must be zaptec, easee, wallbox or simulator")
 	}
 	values := map[string]string{
 		"provider":        provider,
@@ -287,6 +288,10 @@ func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID
 		values["zaptec_password"] = zaptecPassword
 	}
 	values["easee_username"] = easeeUsername
+	values["wallbox_email"] = wallboxEmail
+	if wallboxPassword != "" {
+		values["wallbox_password"] = wallboxPassword
+	}
 	if easeePassword != "" {
 		values["easee_password"] = easeePassword
 	}

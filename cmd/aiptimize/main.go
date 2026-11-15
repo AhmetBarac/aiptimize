@@ -198,6 +198,22 @@ func runServe() int {
 			adapter, cfg.EVControlMode, time.Now)
 		logger.Info("EV adapter selected", "provider", "easee", "charger_id", chargerID,
 			"has_credentials", username != "" && password != "")
+	case provider == "wallbox":
+		email := evSettings.WallboxEmail
+		password := evSettings.WallboxPassword
+		chargerID := strings.TrimSpace(evSettings.ChargerID)
+		adapter := ev.NewWallbox(ev.WallboxConfig{
+			BaseURL:   ev.DefaultWallboxBaseURL,
+			Email:     email,
+			Password:  password,
+			ChargerID: chargerID,
+			UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
+			Now:       time.Now,
+		})
+		evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
+			adapter, cfg.EVControlMode, time.Now)
+		logger.Info("EV adapter selected", "provider", "wallbox", "charger_id", chargerID,
+			"has_credentials", email != "" && password != "")
 	case provider == "zaptec":
 		chargerID := evSettings.ChargerID
 		if chargerID == "" {
