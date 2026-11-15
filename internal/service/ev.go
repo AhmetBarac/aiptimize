@@ -551,7 +551,9 @@ func (s *EVService) computePlan(ctx context.Context, plan domain.EVPlan, publish
 	loc := s.cfg.Location()
 	now := s.now().In(loc)
 	minW, maxW := s.PowerLimits()
-	priceSnap, err := s.prices.Snapshot(ctx, now, deadline)
+	// Start at the current quarter hour, not at now: the slot that is already
+	// delivering energy must reach the optimiser so it can pin it.
+	priceSnap, err := s.prices.Snapshot(ctx, now.Truncate(15*time.Minute), deadline)
 	if err != nil {
 		return domain.EVPlanPreview{}, err
 	}
