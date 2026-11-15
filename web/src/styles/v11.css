@@ -2513,6 +2513,7 @@ button.flow-node:hover {
 
 .price-strip-now {
   position: absolute;
+  pointer-events: none;
   top: 0;
   width: 3px;
   height: 24px;
@@ -2553,6 +2554,8 @@ button.flow-node:hover {
   position: relative;
   margin-top: 0.55rem;
   padding-top: 8px;
+  cursor: crosshair;
+  touch-action: pan-y;
 }
 
 .price-strip-hours {

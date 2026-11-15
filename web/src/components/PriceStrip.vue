@@ -79,27 +79,36 @@ const hourTicks = ['00', '06', '12', '18', '24']
 // the live position as soon as the pointer is released or leaves.
 const emit = defineEmits<{ (event: 'hover', block: PriceBlock | null): void }>()
 const pointerPct = ref<number | null>(null)
+const stripEl = ref<HTMLElement | null>(null)
 
-function blockAt(clientX: number, el: HTMLElement): PriceBlock | null {
-  const rect = el.getBoundingClientRect()
-  if (rect.width <= 0) return null
-  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+// x is measured against the bar, but the whole wrap listens so the pointer can
+// be dragged anywhere over the block, as an axis pointer behaves in a chart.
+function ratioFrom(clientX: number): number | null {
+  const rect = stripEl.value?.getBoundingClientRect()
+  if (!rect || rect.width <= 0) return null
+  return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+}
+
+function blockAt(ratio: number): PriceBlock | null {
   const at = start.value.getTime() + ratio * (end.value.getTime() - start.value.getTime())
   return visible.value.find((block) => Date.parse(block.start) <= at && Date.parse(block.end) > at) ?? null
 }
 
+function track(clientX: number): void {
+  const ratio = ratioFrom(clientX)
+  if (ratio === null) return
+  pointerPct.value = ratio * 100
+  emit('hover', blockAt(ratio))
+}
+
 function onPointerMove(event: PointerEvent): void {
-  const el = event.currentTarget as HTMLElement
-  const rect = el.getBoundingClientRect()
-  if (rect.width <= 0) return
-  pointerPct.value = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * 100
-  emit('hover', blockAt(event.clientX, el))
+  track(event.clientX)
 }
 
 function onPointerDown(event: PointerEvent): void {
   const el = event.currentTarget as HTMLElement
   el.setPointerCapture?.(event.pointerId)
-  onPointerMove(event)
+  track(event.clientX)
 }
 
 function releasePointer(): void {
@@ -115,15 +124,18 @@ function onPointerUp(event: PointerEvent): void {
 </script>
 
 <template>
-  <div v-if="visible.length" class="price-strip-wrap" role="img" :aria-label="summary">
-    <div
-      class="price-strip"
-      @pointermove="onPointerMove"
-      @pointerdown="onPointerDown"
-      @pointerup="onPointerUp"
-      @pointercancel="releasePointer"
-      @pointerleave="releasePointer"
-    >
+  <div
+    v-if="visible.length"
+    class="price-strip-wrap"
+    role="img"
+    :aria-label="summary"
+    @pointermove="onPointerMove"
+    @pointerdown="onPointerDown"
+    @pointerup="onPointerUp"
+    @pointercancel="releasePointer"
+    @pointerleave="releasePointer"
+  >
+    <div ref="stripEl" class="price-strip">
       <span v-if="cheapestBand" class="price-strip-band" :style="{ left: `${cheapestBand.left}%`, width: `${cheapestBand.width}%` }" aria-hidden="true"></span>
       <span
         v-for="block in visible"
