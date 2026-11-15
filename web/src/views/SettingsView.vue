@@ -1827,14 +1827,23 @@ async function importSettings(event: Event): Promise<void> {
               :placeholder="evConfig?.easee_password_set ? t('settings.evPasswordKeep') : ''"
             />
           </div>
-          <p v-if="evForm.provider === 'easee'" class="small text-muted mb-0">
-            {{ t('settings.evEaseeHint') }}
-          </p>
-          <div v-if="evForm.provider === 'wallbox'" class="col-12 col-sm-6">
-            <label class="form-label" for="ev-wallbox-email">{{ t('settings.evWallboxEmail') }}</label>
-            <input id="ev-wallbox-email" v-model="evForm.wallboxEmail" class="form-control" type="email" autocomplete="username" />
+          <div v-if="evForm.provider === 'easee'" class="col-12">
+            <p class="small text-muted mb-0">{{ t('settings.evEaseeHint') }}</p>
           </div>
-          <div v-if="evForm.provider === 'wallbox'" class="col-12 col-sm-6">
+          <div v-if="evForm.provider === 'wallbox'" class="col-12">
+            <label class="form-label" for="ev-wallbox-email">{{ t('settings.evWallboxEmail') }}</label>
+            <input
+              id="ev-wallbox-email"
+              v-model="evForm.wallboxEmail"
+              class="form-control"
+              type="text"
+              inputmode="email"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </div>
+          <div v-if="evForm.provider === 'wallbox'" class="col-12">
             <label class="form-label" for="ev-wallbox-password">{{ t('settings.evWallboxPassword') }}</label>
             <input
               id="ev-wallbox-password"
@@ -1845,9 +1854,9 @@ async function importSettings(event: Event): Promise<void> {
               :placeholder="evConfig?.wallbox_password_set ? t('settings.evPasswordKeep') : ''"
             />
           </div>
-          <p v-if="evForm.provider === 'wallbox'" class="small text-muted mb-0">
-            {{ t('settings.evWallboxHint') }}
-          </p>
+          <div v-if="evForm.provider === 'wallbox'" class="col-12">
+            <p class="small text-muted mb-0">{{ t('settings.evWallboxHint') }}</p>
+          </div>
           <div v-if="evForm.provider === 'zaptec'" class="col-12 col-sm-6">
             <label class="form-label" for="ev-zaptec-password">{{ t('settings.evZaptecPassword') }}</label>
             <input
