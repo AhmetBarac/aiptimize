@@ -36,6 +36,10 @@ The application host runs that container from
 new build and restarts only when the image digest changed. See
 [docs/deployment.md](docs/deployment.md).
 
+Each supported charger has its own page under
+[docs/chargers/](docs/chargers/README.md) — protocol, authentication, what is read
+and controlled, configuration and known limitations.
+
 Open <http://localhost:8080> and complete the first-run setup. If
 `AIPTIMIZE_ADMIN_PASSWORD` is set, the admin user is seeded at startup and the
 setup screen is skipped.
