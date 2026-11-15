@@ -152,6 +152,9 @@ func validateInverter(v *Inverter) error {
 		v.Scheme != "http" && v.Scheme != "https" {
 		return invalid(SectionInverter, "scheme", "must be http or https")
 	}
+	if v.UnitID < 0 || v.UnitID > 255 {
+		return invalid(SectionInverter, "unit_id", "must be between 0 and 255")
+	}
 	if v.Port < 1 || v.Port > 65535 {
 		return invalid(SectionInverter, "port", "must be between 1 and 65535")
 	}

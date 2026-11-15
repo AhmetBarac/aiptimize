@@ -641,6 +641,7 @@ export interface InverterSettings {
   scheme: string
   port: number
   serial: string
+  unit_id?: number
   max_charge_w: number
   max_discharge_w: number
   capacity_kwh: number

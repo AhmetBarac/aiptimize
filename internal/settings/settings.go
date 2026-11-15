@@ -72,11 +72,14 @@ type SignOverrides struct {
 
 // Inverter describes the battery inverter and its limits.
 type Inverter struct {
-	Type                string        `json:"type"`
-	Host                string        `json:"host"`
-	Scheme              string        `json:"scheme"`
-	Port                int           `json:"port"`
-	Serial              string        `json:"serial"`
+	Type   string `json:"type"`
+	Host   string `json:"host"`
+	Scheme string `json:"scheme"`
+	Port   int    `json:"port"`
+	Serial string `json:"serial"`
+	// UnitID is the Modbus station address for Modbus inverters; 0 means the
+	// adapter's default.
+	UnitID              int           `json:"unit_id"`
 	MaxChargeW          float64       `json:"max_charge_w"`
 	MaxDischargeW       float64       `json:"max_discharge_w"`
 	CapacityKWh         float64       `json:"capacity_kwh"`

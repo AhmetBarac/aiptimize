@@ -14,6 +14,7 @@ import (
 
 	"github.com/AhmetBarac/aiptimize/internal/domain"
 	"github.com/AhmetBarac/aiptimize/internal/inverter"
+	"github.com/AhmetBarac/aiptimize/internal/inverter/huawei"
 	"github.com/AhmetBarac/aiptimize/internal/inverter/saj"
 	"github.com/AhmetBarac/aiptimize/internal/inverter/simulator"
 	"github.com/AhmetBarac/aiptimize/internal/inverter/solplanet"
@@ -419,6 +420,20 @@ func (p *TelemetryPoller) buildReader(values settings.Values) (inverter.Reader, 
 	inv := values.Inverter
 	if strings.TrimSpace(inv.Host) == "" {
 		return nil, errors.New("inverter host is not configured")
+	}
+	// Huawei inverters speak Modbus TCP through the SDongle.
+	if strings.EqualFold(strings.TrimSpace(inv.Type), "huawei") {
+		address := net.JoinHostPort(inv.Host, strconv.Itoa(inv.Port))
+		unit := byte(0)
+		if inv.UnitID > 0 && inv.UnitID < 256 {
+			unit = byte(inv.UnitID)
+		}
+		return huawei.New(huawei.Config{
+			Address: address,
+			UnitID:  unit,
+			Timeout: 5 * time.Second,
+			Signs:   signs(values),
+		}), nil
 	}
 	// SAJ inverters speak Modbus TCP rather than the Solplanet HTTP API.
 	if strings.EqualFold(strings.TrimSpace(inv.Type), "saj") {

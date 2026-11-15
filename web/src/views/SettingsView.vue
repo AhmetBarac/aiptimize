@@ -290,6 +290,7 @@ const inverterForm = reactive({
   scheme: 'http',
   port: 8484,
   serial: '',
+  unitId: 0,
   maxCharge: 6000,
   maxDischarge: 3000,
   capacity: 15.36,
@@ -655,6 +656,7 @@ async function load(): Promise<void> {
     inverterForm.scheme = doc.inverter.scheme
     inverterForm.port = doc.inverter.port
     inverterForm.serial = doc.inverter.serial
+    inverterForm.unitId = doc.inverter.unit_id ?? 0
     inverterForm.maxCharge = doc.inverter.max_charge_w
     inverterForm.maxDischarge = doc.inverter.max_discharge_w
     inverterForm.capacity = doc.inverter.capacity_kwh
@@ -870,6 +872,7 @@ async function saveInverter(): Promise<void> {
       scheme: inverterForm.scheme,
       port: Number(inverterForm.port),
       serial: inverterForm.serial.trim(),
+      unit_id: Number(inverterForm.unitId) || 0,
       max_charge_w: Math.round(Number(inverterForm.maxCharge)),
       max_discharge_w: Math.round(Number(inverterForm.maxDischarge)),
       capacity_kwh: Number(inverterForm.capacity),
@@ -1341,6 +1344,13 @@ async function importSettings(event: Event): Promise<void> {
           <div class="col-12 col-sm-6">
             <label class="form-label" for="inv-serial">{{ t('settings.serial') }}</label>
             <input id="inv-serial" v-model="inverterForm.serial" class="form-control mono" type="text" />
+          </div>
+          <div
+            v-if="inverterForm.type === 'saj' || inverterForm.type === 'huawei'"
+            class="col-6 col-sm-3"
+          >
+            <label class="form-label" for="inv-unit">{{ t('settings.unitId') }}</label>
+            <input id="inv-unit" v-model.number="inverterForm.unitId" class="form-control" type="number" min="0" max="255" />
           </div>
           <div class="col-6 col-sm-3">
             <label class="form-label" for="inv-capacity">{{ t('settings.batteryCapacity') }}</label>

@@ -8,7 +8,8 @@ slots per local day, writes them to the inverter, and lets you edit and resubmit
 the plan — all from a mobile-first web UI.
 
 Support for other makes is **present for testing, not yet supported**. SAJ H1
-hybrid inverters (Modbus TCP), Easee chargers and Wallbox chargers are implemented
+hybrid inverters (Modbus TCP), Huawei SUN2000 inverters (Modbus TCP), Easee chargers and
+Wallbox chargers are implemented
 and covered by tests against fake servers, but none of them has been proven on a
 live installation. They are marked *under development* in Settings so nobody
 mistakes them for finished drivers.
@@ -17,7 +18,7 @@ mistakes them for finished drivers.
 
 | Role | Supported | Under development (test at your own risk) |
 |---|---|---|
-| Inverter / battery | Solplanet ASW08kH-T2 (AI-Dongle) | SAJ H1 series over Modbus TCP |
+| Inverter / battery | Solplanet ASW08kH-T2 (AI-Dongle) | SAJ H1 and Huawei SUN2000 over Modbus TCP |
 | EV charger | Zaptec (cloud API) | Easee, Wallbox (both cloud APIs) |
 | No hardware | inverter and charger simulators | — |
 
@@ -202,6 +203,7 @@ docs/                architecture, API, safety, deployment; docs/chargers for pe
 - [Security review](docs/security.md)
 - [Telemetry](docs/telemetry.md)
 - [Solplanet dongle](docs/solplanet.md)
+- [Huawei SUN2000](docs/huawei.md)
 - [HTTP API](docs/api.md)
 - [Safety](docs/safety.md)
 - [Deployment](docs/deployment.md)

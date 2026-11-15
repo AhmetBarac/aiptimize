@@ -881,6 +881,7 @@
     "scheme": "Protokoll",
     "port": "Port",
     "serial": "Serienummer",
+    "unitId": "Modbus-enhets-id",
     "minSoc": "Minsta SOC (%)",
     "maxSoc": "Högsta SOC (%)",
     "reserveSoc": "Reserv-SOC (%)",

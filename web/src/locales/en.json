@@ -880,6 +880,7 @@
     "scheme": "Scheme",
     "port": "Port",
     "serial": "Serial number",
+    "unitId": "Modbus unit id",
     "minSoc": "Minimum SOC (%)",
     "maxSoc": "Maximum SOC (%)",
     "reserveSoc": "Reserve SOC (%)",
