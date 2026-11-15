@@ -237,6 +237,27 @@ func (p *TelemetryPoller) deviceID(ctx context.Context, reader inverter.Reader, 
 	return id
 }
 
+// Healthy reports whether the inverter answered recently. It is the input to
+// the automatic write gate: once a read succeeds the gate can open, and it
+// closes again when polls stop succeeding.
+func (p *TelemetryPoller) Healthy() bool {
+	p.mu.Lock()
+	last := p.latestAt
+	p.mu.Unlock()
+	if last.IsZero() {
+		return false
+	}
+	interval := time.Duration(p.cfg.Get().Inverter.TelemetryIntervalS) * time.Second
+	if interval < 5*time.Second {
+		interval = 30 * time.Second
+	}
+	if interval > time.Hour {
+		interval = time.Hour
+	}
+	// Two missed polls plus a margin: one flaky read should not disarm writes.
+	return p.now().Sub(last) <= 2*interval+30*time.Second
+}
+
 // PollOnce performs one poll immediately. It is used by tests and the CLI.
 func (p *TelemetryPoller) PollOnce(ctx context.Context) (domain.Telemetry, error) {
 	values := p.cfg.Get()

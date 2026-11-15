@@ -1,5 +1,6 @@
 export interface Gates {
   writes_env: boolean
+  writes_mode?: string
   writes_ui: boolean
   writes_armed: boolean
   ev_control_env: boolean

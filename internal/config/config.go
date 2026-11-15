@@ -63,18 +63,24 @@ func (m EVControlMode) Resolve(healthy bool) bool {
 
 // Config is the effective process configuration.
 type Config struct {
-	Listen            string
-	DataDir           string
-	DatabasePath      string
-	LogLevel          slog.Level
-	LogFormat         string
-	Timezone          string
-	AdminUsername     string
-	AdminPassword     string
-	SessionSecret     string
-	CookieSecure      CookieSecureMode
-	TrustProxy        bool
-	EnableWrites      bool
+	Listen        string
+	DataDir       string
+	DatabasePath  string
+	LogLevel      slog.Level
+	LogFormat     string
+	Timezone      string
+	AdminUsername string
+	AdminPassword string
+	SessionSecret string
+	CookieSecure  CookieSecureMode
+	TrustProxy    bool
+	// EnableWrites pins the environment half of the inverter write gate on. It
+	// is derived from WriteMode and kept for callers that only care about the
+	// pinned case.
+	EnableWrites bool
+	// WriteMode decides how the environment half of the inverter gate is
+	// resolved: auto follows the inverter link, on/off pin it.
+	WriteMode         EVControlMode
 	EVControlMode     EVControlMode
 	Simulator         bool
 	NordPoolBaseURL   string
@@ -142,10 +148,11 @@ func LoadFromEnv(getenv func(string) string) (*Config, error) {
 	}
 	cfg.LogLevel = level
 
-	if cfg.EnableWrites, err = parseBool(getenv("AIPTIMIZE_ENABLE_WRITES")); err != nil {
+	if cfg.WriteMode, err = parseGateMode(getenv("AIPTIMIZE_ENABLE_WRITES")); err != nil {
 		return nil, fmt.Errorf("AIPTIMIZE_ENABLE_WRITES: %w", err)
 	}
-	if cfg.EVControlMode, err = parseEVControlMode(getenv("AIPTIMIZE_ENABLE_EV_CONTROL")); err != nil {
+	cfg.EnableWrites = cfg.WriteMode.Effective() == EVControlOn
+	if cfg.EVControlMode, err = parseGateMode(getenv("AIPTIMIZE_ENABLE_EV_CONTROL")); err != nil {
 		return nil, fmt.Errorf("AIPTIMIZE_ENABLE_EV_CONTROL: %w", err)
 	}
 	if cfg.Simulator, err = parseBool(getenv("AIPTIMIZE_SIMULATOR")); err != nil {
@@ -261,10 +268,22 @@ func env(getenv func(string) string, key, def string) string {
 	return def
 }
 
-// parseEVControlMode accepts auto/on/off plus the boolean values of the
-// original opt-in variable, so existing deployments keep working. Unset means
-// auto: the gate follows the charger link.
-func parseEVControlMode(v string) (EVControlMode, error) {
+// WritesEnv resolves the environment half of the inverter write gate. The
+// pinned value wins; otherwise the gate follows whether the inverter answered
+// recently, so configuring a working inverter is enough to allow writes.
+func (c *Config) WritesEnv(healthy bool) bool {
+	if c.EnableWrites {
+		return true
+	}
+	if c.WriteMode.Effective() == EVControlOff {
+		return false
+	}
+	return healthy
+}
+
+// parseGateMode accepts auto/on/off plus the boolean values of the original
+// opt-in variables, so existing deployments keep working. Unset means auto.
+func parseGateMode(v string) (EVControlMode, error) {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "", "auto":
 		return EVControlAuto, nil

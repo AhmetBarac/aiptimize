@@ -22,7 +22,9 @@ describes the safety model and what phase 0 actually does.
 
 Hardware writes require **both**:
 
-1. the environment gate, e.g. `AIPTIMIZE_ENABLE_WRITES=true`, and
+1. the environment gate, which is automatic by default: it opens once the
+   inverter answers and closes when it stops (`AIPTIMIZE_ENABLE_WRITES=on`
+   pins it open, `=off` pins it closed), and
 2. the in-app arming switch in **Settings → Safety** (`safety.writes_armed_ui`).
 
 The effective state shown by `/meta` and `/status` is
@@ -39,7 +41,7 @@ off. `/meta` reports the resolved state in `gates.ev_control_env`, the override
 in `gates.ev_control_mode` and the link state in `ev.healthy`.
 
 The inverter environment gate stays a plain opt-in
-(`AIPTIMIZE_ENABLE_WRITES=true`), because a wrong inverter write is not visible
+(leave `AIPTIMIZE_ENABLE_WRITES=off`), because a wrong inverter write is not visible
 as a missing link health signal.
 
 Restarting with the environment gate off disarms writes regardless of the

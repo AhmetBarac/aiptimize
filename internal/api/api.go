@@ -263,15 +263,24 @@ func (s *Server) gates() map[string]any {
 	v := s.settings.Get()
 	evEnv := s.evControlEnv()
 	return map[string]any{
-		"writes_env":       s.cfg.EnableWrites,
+		"writes_env":       s.writesEnv(),
+		"writes_mode":      string(s.cfg.WriteMode.Effective()),
 		"writes_ui":        v.Safety.WritesArmedUI,
-		"writes_armed":     s.cfg.EnableWrites && v.Safety.WritesArmedUI,
+		"writes_armed":     s.writesEnv() && v.Safety.WritesArmedUI,
 		"ev_control_env":   evEnv,
 		"ev_control_mode":  string(s.cfg.EVControlMode.Effective()),
 		"ev_control_ui":    v.Safety.EVControlArmedUI,
 		"ev_control_armed": evEnv && v.Safety.EVControlArmedUI,
 		"simulator":        s.cfg.Simulator,
 	}
+}
+
+// writesEnv resolves the environment half of the inverter write gate. In auto
+// mode it follows the inverter link, so a configured and reachable inverter
+// needs no environment flag; the UI arming switch still has the final say.
+func (s *Server) writesEnv() bool {
+	healthy := s.telemetry != nil && s.telemetry.Healthy()
+	return s.cfg.WritesEnv(healthy)
 }
 
 // evControlEnv resolves the environment half of the EV gate. In the default

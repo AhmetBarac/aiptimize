@@ -67,7 +67,7 @@ Two files are the whole installation: `deploy/server/aiptimize.service` and
 mkdir -p /opt/aiptimize
 install -m 644 deploy/server/aiptimize.service /etc/systemd/system/aiptimize.service
 install -m 755 deploy/server/aiptimize-update.sh /usr/local/bin/aiptimize-update
-printf 'AIPTIMIZE_ENABLE_WRITES=false\n' > /opt/aiptimize/app.env
+printf 'AIPTIMIZE_ENABLE_WRITES=auto\n' > /opt/aiptimize/app.env
 systemctl daemon-reload
 systemctl enable --now aiptimize
 ```
@@ -119,7 +119,7 @@ starting again. Migrations run on startup. Keep the database and the matching
 | `AIPTIMIZE_SESSION_SECRET` | — | Reserved; 32+ characters |
 | `AIPTIMIZE_COOKIE_SECURE` | `auto` | `auto`, `always`, `never` |
 | `AIPTIMIZE_TRUST_PROXY` | `false` | Trust `X-Forwarded-Proto`/`Host` |
-| `AIPTIMIZE_ENABLE_WRITES` | `false` | Environment write gate |
+| `AIPTIMIZE_ENABLE_WRITES` | `auto` | Inverter write gate: `auto` follows the inverter link, `on`/`off` pin it. The UI arm switch still applies |
 | `AIPTIMIZE_ENABLE_EV_CONTROL` | `auto` | Environment EV gate: `auto`, `true`/`on`, `false`/`off` |
 | `AIPTIMIZE_SIMULATOR` | `false` | Use the deterministic price and inverter simulators instead of the network/hardware |
 | `AIPTIMIZE_NORDPOOL_BASE_URL` | Data Portal endpoint | Override only for a local fixture server |
@@ -206,7 +206,7 @@ daily house energy and measured-profile blending. **Settings → Plan** sets the
 optimiser horizon, slot budget, setpoints and reserve policy. The planner
 computes a suggestion automatically 8 s after startup and every 5 minutes.
 Drafts can be edited and applied from the Plan screen. Applying requires
-`AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, so leave writes
+`auto` (the default) **and** the UI arm switch, so leave writes
 disarmed until the HIL checklist is complete. EV control is separate: it needs
 the EV arm switch, and its environment gate opens by itself once the charger is
 configured and answering (pin it with `AIPTIMIZE_ENABLE_EV_CONTROL=true` or

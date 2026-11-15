@@ -247,7 +247,7 @@ func runServe() int {
 	}
 	plannerSvc := service.NewPlannerService(st, settingsSvc, priceSvc, forecastSvc, telemetryPoller, logger, broker.Publish)
 	plannerSvc.SetEVProvider(evSvc)
-	plannerSvc.SetWriteGate(cfg.EnableWrites)
+	plannerSvc.SetWriteGate(cfg.WritesEnv(false))
 	if evSvc != nil {
 		evSvc.SetBatteryHold(plannerSvc)
 		telemetryPoller.SetEVPowerProvider(evSvc.PowerW)
@@ -303,16 +303,43 @@ func runServe() int {
 	go forecastSvc.Run(ctx)
 	// A passive-mode inverter has no slot table, so the plan is followed while it
 	// runs: a controller nudges the battery to the active slot every half minute.
+	var passive *service.PassiveController
 	if _, ok := telemetryPoller.Reader().(service.PassiveDriver); ok {
-		passive := service.NewPassiveController(settingsSvc.Get, plannerSvc.Latest,
+		passive = service.NewPassiveController(settingsSvc.Get, plannerSvc.Latest,
 			func() service.PassiveDriver {
 				current, _ := telemetryPoller.Reader().(service.PassiveDriver)
 				return current
 			}, logger, time.Now)
-		passive.SetWriteGate(cfg.EnableWrites)
+		passive.SetWriteGate(cfg.WritesEnv(false))
 		go passive.Run(ctx)
 		logger.Info("passive-mode controller started")
 	}
+	// The inverter write gate follows the link in auto mode: it opens once the
+	// inverter answers and closes when polls stop succeeding. The UI arming flag
+	// remains a separate, user-controlled block.
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		last := false
+		for {
+			env := cfg.WritesEnv(telemetryPoller.Healthy())
+			plannerSvc.SetWriteGate(env)
+			if passive != nil {
+				passive.SetWriteGate(env)
+			}
+			if env != last {
+				logger.Info("inverter write gate changed", "env", env,
+					"mode", string(cfg.WriteMode.Effective()), "inverter_healthy", telemetryPoller.Healthy())
+				last = env
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+
 	go plannerSvc.Run(ctx)
 	go plannerSvc.RunWatchdog(ctx)
 	go plannerSvc.RunSlotPower(ctx)

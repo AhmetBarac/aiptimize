@@ -409,11 +409,22 @@ const preconditions = computed<Precondition[]>(() => {
     ownerDetail = t('settings.preconditionForeignFailed')
   }
 
+  // The inverter gate is automatic unless the environment pins it: explain
+  // which of the three is in force instead of just on/off.
+  function envGateDetail(): string {
+    const mode = gates?.writes_mode ?? 'auto'
+    if (mode === 'on') return t('settings.preconditionEnvPinnedOn')
+    if (mode === 'off') return t('settings.preconditionEnvPinnedOff')
+    return gates?.writes_env
+      ? t('settings.preconditionEnvAutoOpen')
+      : t('settings.preconditionEnvAutoClosed')
+  }
+
   return [
     {
       key: 'env',
       label: t('settings.preconditionEnv'),
-      detail: gates?.writes_env ? t('settings.preconditionEnvOn') : t('settings.preconditionEnvOff'),
+      detail: envGateDetail(),
       status: gates?.writes_env ? 'success' : 'failed',
     },
     {

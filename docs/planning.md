@@ -168,7 +168,8 @@ manual day and the adjacent automatic day are populated; all other days are
 explicitly zeroed. Pin/Pout come from the plan settings. Slots are encoded with
 the dongle's packed format and validated for duration, overlap and midnight.
 
-Writes require `AIPTIMIZE_ENABLE_WRITES=true` **and** the UI arm switch, plus
+Writes require the environment gate (`AIPTIMIZE_ENABLE_WRITES`, automatic by
+ default once the inverter answers) **and** the UI arm switch, plus
 `confirm: true`. A write is skipped when the inverter already matches. Writes
 are rate-limited to one per 60 seconds. The readback is stored in
 `schedule_writes` and shown in the UI; a mismatch is a warning, not a failed

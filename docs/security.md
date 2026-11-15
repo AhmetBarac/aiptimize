@@ -21,7 +21,8 @@
 
 ## Gates and audit
 
-- Inverter writes require `AIPTIMIZE_ENABLE_WRITES=true` and the UI arm switch.
+- Inverter writes require the environment gate (automatic once the inverter
+  answers, pinnable with `AIPTIMIZE_ENABLE_WRITES=on|off`) and the UI arm switch.
 - EV control requires its UI arm switch. Its environment half is automatic: it
   follows the charger link and is only forced by
   `AIPTIMIZE_ENABLE_EV_CONTROL=true|false`.
