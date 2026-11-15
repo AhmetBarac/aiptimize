@@ -86,26 +86,34 @@ func Optimize(in PlanInputs) domain.EVPlanPreview {
 		preview.Warnings = append(preview.Warnings, "Charging power is zero.")
 		return preview
 	}
-	required := int(math.Ceil(remaining / energyPerSlot))
-	preview.RequiredMin = required * 15
-
+	// A slot that is already delivering energy is pinned into the plan, clamped
+	// to now. Dropping it because a recompute ranked it differently would tell
+	// the controller that no window is active and stop a charge mid-session.
+	var running []Slot
+	runningEnergy := 0.0
 	eligible := make([]Slot, 0, len(in.Slots))
 	for _, slot := range in.Slots {
 		if !slot.End.After(in.Now) || !slot.Start.Before(in.Deadline) {
 			continue
 		}
-		// A slot that is already running stays in the plan, clamped to now:
-		// dropping it on the next recompute would tell the controller that no
-		// window is active and stop a charge that has only just started.
 		if slot.Start.Before(in.Now) {
-			slot.Start = in.Now
+			clamped := slot
+			clamped.Start = in.Now
+			running = append(running, clamped)
+			runningEnergy += in.PowerW * clamped.End.Sub(clamped.Start).Hours() / 1000
+			continue
 		}
 		if !in.GridAllowed && slot.PVSurplusW < in.MinPowerW {
 			continue
 		}
 		eligible = append(eligible, slot)
 	}
-	if len(eligible) == 0 {
+	if runningEnergy > remaining {
+		runningEnergy = remaining
+	}
+	required := int(math.Ceil(math.Max(0, remaining-runningEnergy) / energyPerSlot))
+	preview.RequiredMin = required*15 + int(math.Round(runningEnergy/in.PowerW*1000*60))
+	if len(eligible) == 0 && len(running) == 0 {
 		preview.State = domain.EVStateUnreachable
 		preview.Warnings = append(preview.Warnings, "No eligible charging slots before the deadline.")
 		return preview
@@ -116,7 +124,7 @@ func Optimize(in PlanInputs) domain.EVPlanPreview {
 			"Not enough time or PV surplus to reach the target; a partial plan is shown.")
 		required = len(eligible)
 	}
-	partial := len(eligible) < int(math.Ceil(remaining/energyPerSlot))
+	partial := len(eligible)+len(running) < int(math.Ceil(remaining/energyPerSlot))
 	var forced []Slot
 	remainingRequired := required
 	if in.PreconditionMin > 0 {
@@ -146,6 +154,7 @@ func Optimize(in PlanInputs) domain.EVPlanPreview {
 	}
 	selected := selectSlots(pool, remainingRequired, in.Strategy, in.GridAllowed, in.PowerW)
 	selected = append(selected, forced...)
+	selected = append(selected, running...)
 	sort.Slice(selected, func(i, j int) bool { return selected[i].Start.Before(selected[j].Start) })
 	if len(selected) < required {
 		partial = true

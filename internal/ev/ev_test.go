@@ -137,3 +137,38 @@ func TestOptimizeKeepsRunningSlot(t *testing.T) {
 		t.Fatalf("energy %v suggests the elapsed minutes were counted", first.EnergyKWh)
 	}
 }
+
+func TestOptimizePinsRunningSlotEvenWhenPricier(t *testing.T) {
+	// The cheapest strategy would happily skip the slot it is already charging
+	// in, which is what used to stop the car a minute after it started.
+	slotStart := time.Date(2026, 11, 15, 9, 30, 0, 0, time.UTC)
+	now := slotStart.Add(5 * time.Minute)
+	slots := make([]Slot, 0, 8)
+	for i := 0; i < 8; i++ {
+		start := slotStart.Add(time.Duration(i) * 15 * time.Minute)
+		price := 0.1
+		if i == 0 {
+			price = 5.0 // the running slot is by far the most expensive
+		}
+		slots = append(slots, Slot{
+			Start: start, End: start.Add(15 * time.Minute), ImportPrice: price,
+		})
+	}
+
+	preview := Optimize(PlanInputs{
+		Now: now, Deadline: now.Add(2 * time.Hour), TargetKWh: 2,
+		PowerW: 11040, MinPowerW: 4140, GridAllowed: true, Strategy: "cheapest",
+		Slots: slots,
+	})
+
+	covered := false
+	for _, window := range preview.Windows {
+		if !window.Start.After(now) && window.End.After(now) {
+			covered = true
+			break
+		}
+	}
+	if !covered {
+		t.Fatalf("running slot was not pinned, windows = %+v", preview.Windows)
+	}
+}
