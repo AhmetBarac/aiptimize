@@ -859,6 +859,7 @@
     "saveSafety": "Spara säkerhetsinställningar",
     "safetySaved": "Säkerhetsinställningarna sparades.",
     "systemIntro": "Bygg- och anslutningsinformation.",
+    "unknownSection": "Avsnittet hittades inte.",
     "usersIntro": "Administratörer kan öppna Inställningar; användare ser alla andra sidor i appen.",
     "noUsers": "Inga konton ännu.",
     "userName": "Användarnamn",

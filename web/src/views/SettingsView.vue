@@ -2181,10 +2181,11 @@ async function importSettings(event: Event): Promise<void> {
       </Sheet>
     </section>
 
-    <section v-else class="aipt-card">
+    <section v-else-if="section === 'system'" class="aipt-card">
       <h2>{{ t('settings.sections.system') }}</h2>
       <p class="text-muted small">{{ t('settings.systemIntro') }}</p>
-      <dl class="mb-0">
+      <p v-if="!settings" class="text-muted small mb-0">{{ t('common.loading') }}</p>
+      <dl v-if="settings" class="mb-0">
         <div class="key-value">
           <dt>{{ t('common.version') }}</dt>
           <dd class="mono">{{ session.meta?.version ?? '—' }}</dd>
@@ -2203,33 +2204,33 @@ async function importSettings(event: Event): Promise<void> {
         </div>
         <div class="key-value">
           <dt>{{ t('settings.inverter') }}</dt>
-          <dd>{{ settings.inverter.type }}</dd>
+          <dd>{{ settings?.inverter?.type || t('settings.notConfigured') }}</dd>
         </div>
         <div class="key-value">
           <dt>{{ t('settings.host') }}</dt>
           <dd class="mono">
-            {{ settings.inverter.host || t('settings.notConfigured') }}:{{ settings.inverter.port }}
+            {{ settings?.inverter?.host || t('settings.notConfigured') }}:{{ settings?.inverter?.port }}
           </dd>
         </div>
         <div class="key-value">
           <dt>{{ t('settings.batteryCapacity') }}</dt>
-          <dd>{{ settings.inverter.capacity_kwh }} kWh</dd>
+          <dd>{{ settings?.inverter?.capacity_kwh }} kWh</dd>
         </div>
         <div class="key-value">
           <dt>{{ t('settings.maxCharge') }}</dt>
-          <dd>{{ settings.inverter.max_charge_w }} W</dd>
+          <dd>{{ settings?.inverter?.max_charge_w }} W</dd>
         </div>
         <div class="key-value">
           <dt>{{ t('settings.maxDischarge') }}</dt>
-          <dd>{{ settings.inverter.max_discharge_w }} W</dd>
+          <dd>{{ settings?.inverter?.max_discharge_w }} W</dd>
         </div>
         <div class="key-value">
           <dt>{{ t('settings.area') }}</dt>
-          <dd>{{ settings.price.area }} · {{ settings.price.currency }}</dd>
+          <dd>{{ settings?.price?.area }} · {{ settings?.price?.currency }}</dd>
         </div>
       </dl>
 
-      <div class="update-card mt-4">
+      <div v-if="settings" class="update-card mt-4">
         <div class="update-head">
           <div>
             <div class="update-title">{{ t('settings.updates') }}</div>
@@ -2297,6 +2298,10 @@ async function importSettings(event: Event): Promise<void> {
           <input class="d-none" type="file" accept="application/json" @change="importSettings" />
         </label>
       </div>
+    </section>
+    <section v-else class="aipt-card">
+      <h2>{{ t('settings.title') }}</h2>
+      <p class="text-muted small mb-0">{{ t('settings.unknownSection') }}</p>
     </section>
   </template>
 

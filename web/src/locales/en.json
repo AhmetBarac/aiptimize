@@ -858,6 +858,7 @@
     "saveSafety": "Save safety settings",
     "safetySaved": "Safety settings saved.",
     "systemIntro": "Build and connectivity information.",
+    "unknownSection": "Section not found.",
     "usersIntro": "Administrators can open Settings; users get every other page of the app.",
     "noUsers": "No accounts yet.",
     "userName": "Username",
