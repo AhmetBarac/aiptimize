@@ -580,6 +580,8 @@ const evForm = reactive({
   installationID: '',
   zaptecUsername: '',
   zaptecPassword: '',
+  easeeUsername: '',
+  easeePassword: '',
   mode: 'off',
   minCurrent: 6,
   maxCurrent: 16,
@@ -683,6 +685,8 @@ async function load(): Promise<void> {
     evForm.installationID = doc.ev.installation_id || ''
     evForm.zaptecUsername = doc.ev.zaptec_username || ''
     evForm.zaptecPassword = ''
+  evForm.easeeUsername = doc.ev.easee_username || ''
+  evForm.easeePassword = ''
     evForm.minCurrent = doc.ev.min_current_a
     evForm.maxCurrent = doc.ev.max_current_a
     evForm.phases = doc.ev.phases
@@ -1037,9 +1041,17 @@ async function saveEV(): Promise<void> {
 
 async function applyEVProvider(): Promise<void> {
   const hasCredentials =
-    evConfig.value?.credentials.zaptec === true ||
-    (evForm.zaptecUsername.trim() !== '' && evForm.zaptecPassword !== '')
+    (evConfig.value?.credentials.zaptec === true ||
+      (evForm.zaptecUsername.trim() !== '' && evForm.zaptecPassword !== '')) &&
+    evForm.provider === 'zaptec'
+  const hasEaseeCredentials =
+    evConfig.value?.credentials.easee === true ||
+    (evForm.easeeUsername.trim() !== '' && evForm.easeePassword !== '')
   if (evForm.provider === 'zaptec' && !hasCredentials) {
+    error.value = t('settings.evCredentialsMissing')
+    return
+  }
+  if (evForm.provider === 'easee' && !hasEaseeCredentials) {
     error.value = t('settings.evCredentialsMissing')
     return
   }
@@ -1054,6 +1066,8 @@ async function applyEVProvider(): Promise<void> {
       installation_id: evForm.installationID.trim(),
       zaptec_username: evForm.zaptecUsername.trim(),
       zaptec_password: evForm.zaptecPassword,
+      easee_username: evForm.easeeUsername.trim(),
+      easee_password: evForm.easeePassword,
     })
     saved.value = t('settings.evProviderReady')
     if (evConfig.value?.restart_required) {
@@ -1743,6 +1757,7 @@ async function importSettings(event: Event): Promise<void> {
             <label class="form-label" for="ev-provider">{{ t('settings.evProvider') }}</label>
             <select id="ev-provider" v-model="evForm.provider" class="form-select">
               <option value="zaptec">Zaptec</option>
+              <option value="easee">Easee</option>
               <option value="simulator">{{ t('settings.evSimulator') }}</option>
             </select>
           </div>
@@ -1758,6 +1773,24 @@ async function importSettings(event: Event): Promise<void> {
             <label class="form-label" for="ev-zaptec-username">{{ t('settings.evZaptecUsername') }}</label>
             <input id="ev-zaptec-username" v-model="evForm.zaptecUsername" class="form-control" type="text" autocomplete="username" />
           </div>
+          <div v-if="evForm.provider === 'easee'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-easee-username">{{ t('settings.evEaseeUsername') }}</label>
+            <input id="ev-easee-username" v-model="evForm.easeeUsername" class="form-control" type="text" autocomplete="username" />
+          </div>
+          <div v-if="evForm.provider === 'easee'" class="col-12 col-sm-6">
+            <label class="form-label" for="ev-easee-password">{{ t('settings.evEaseePassword') }}</label>
+            <input
+              id="ev-easee-password"
+              v-model="evForm.easeePassword"
+              class="form-control"
+              type="password"
+              autocomplete="current-password"
+              :placeholder="evConfig?.easee_password_set ? t('settings.evPasswordKeep') : ''"
+            />
+          </div>
+          <p v-if="evForm.provider === 'easee'" class="small text-muted mb-0">
+            {{ t('settings.evEaseeHint') }}
+          </p>
           <div v-if="evForm.provider === 'zaptec'" class="col-12 col-sm-6">
             <label class="form-label" for="ev-zaptec-password">{{ t('settings.evZaptecPassword') }}</label>
             <input

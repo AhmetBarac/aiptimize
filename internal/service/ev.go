@@ -266,15 +266,16 @@ func (s *EVService) StopForReconfigure(ctx context.Context) error {
 
 // ApplyProviderConfig stops any active session, persists the selected adapter
 // configuration and marks a restart as required.
-func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID, zaptecUsername, zaptecPassword string) (settings.EV, error) {
+func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID, installationID, zaptecUsername, zaptecPassword, easeeUsername, easeePassword string) (settings.EV, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	chargerID = strings.TrimSpace(chargerID)
 	installationID = strings.TrimSpace(installationID)
 	zaptecUsername = strings.TrimSpace(zaptecUsername)
+	easeeUsername = strings.TrimSpace(easeeUsername)
 	switch provider {
-	case "zaptec", "simulator":
+	case "zaptec", "easee", "simulator":
 	default:
-		return settings.EV{}, fmt.Errorf("provider must be zaptec or simulator")
+		return settings.EV{}, fmt.Errorf("provider must be zaptec, easee or simulator")
 	}
 	values := map[string]string{
 		"provider":        provider,
@@ -284,6 +285,10 @@ func (s *EVService) ApplyProviderConfig(ctx context.Context, provider, chargerID
 	}
 	if zaptecPassword != "" {
 		values["zaptec_password"] = zaptecPassword
+	}
+	values["easee_username"] = easeeUsername
+	if easeePassword != "" {
+		values["easee_password"] = easeePassword
 	}
 	patch, err := json.Marshal(values)
 	if err != nil {

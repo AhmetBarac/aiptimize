@@ -182,6 +182,22 @@ func runServe() int {
 		evSvc = service.NewEVService(settingsSvc, st, priceSvc, forecastSvc, logger,
 			true, cfg.EVControlMode, time.Now)
 		logger.Info("EV adapter selected", "provider", "simulator")
+	case provider == "easee":
+		username := evSettings.EaseeUsername
+		password := evSettings.EaseePassword
+		chargerID := strings.TrimSpace(evSettings.ChargerID)
+		adapter := ev.NewEasee(ev.EaseeConfig{
+			BaseURL:   ev.DefaultEaseeBaseURL,
+			UserName:  username,
+			Password:  password,
+			ChargerID: chargerID,
+			UserAgent: "aiptimize/" + cfg.Version + " (+https://github.com/AhmetBarac/aiptimize)",
+			Now:       time.Now,
+		})
+		evSvc = service.NewEVServiceWithCharger(settingsSvc, st, priceSvc, forecastSvc, logger,
+			adapter, cfg.EVControlMode, time.Now)
+		logger.Info("EV adapter selected", "provider", "easee", "charger_id", chargerID,
+			"has_credentials", username != "" && password != "")
 	case provider == "zaptec":
 		chargerID := evSettings.ChargerID
 		if chargerID == "" {

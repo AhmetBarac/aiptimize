@@ -23,9 +23,11 @@ func (s *Server) evConfigPayload() map[string]any {
 		"installation_id":     ev.InstallationID,
 		"zaptec_username":     ev.ZaptecUsername,
 		"zaptec_password_set": ev.ZaptecPassword != "" || s.cfg.Zaptec.Password != "",
+		"easee_username":      ev.EaseeUsername,
+		"easee_password_set":  ev.EaseePassword != "",
 		"credentials": map[string]bool{
 			"zaptec":     (ev.ZaptecUsername != "" || s.cfg.Zaptec.Username != "") && (ev.ZaptecPassword != "" || s.cfg.Zaptec.Password != ""),
-			"easee":      false,
+			"easee":      ev.EaseeUsername != "" && ev.EaseePassword != "",
 			"ocpp_token": false,
 		},
 		"active_provider":  "",
@@ -53,12 +55,14 @@ func (s *Server) handleUpdateEVConfig(w http.ResponseWriter, r *http.Request) {
 		InstallationID string `json:"installation_id"`
 		ZaptecUsername string `json:"zaptec_username"`
 		ZaptecPassword string `json:"zaptec_password"`
+		EaseeUsername  string `json:"easee_username"`
+		EaseePassword  string `json:"easee_password"`
 	}
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
-	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID, req.ZaptecUsername, req.ZaptecPassword)
+	cfg, err := s.ev.ApplyProviderConfig(r.Context(), req.Provider, req.ChargerID, req.InstallationID, req.ZaptecUsername, req.ZaptecPassword, req.EaseeUsername, req.EaseePassword)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, "ev_config_invalid", err.Error(), nil)
 		return

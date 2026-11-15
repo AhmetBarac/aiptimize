@@ -164,6 +164,8 @@ type EV struct {
 	InstallationID          string         `json:"installation_id"`
 	ZaptecUsername          string         `json:"zaptec_username"`
 	ZaptecPassword          string         `json:"zaptec_password,omitempty"`
+	EaseeUsername           string         `json:"easee_username"`
+	EaseePassword           string         `json:"easee_password,omitempty"`
 	Enabled                 bool           `json:"enabled"`
 	Mode                    string         `json:"mode"`
 	DefaultMode             string         `json:"default_mode"`

@@ -340,16 +340,20 @@ func validateEV(v *EV) error {
 	v.ChargerID = strings.TrimSpace(v.ChargerID)
 	v.InstallationID = strings.TrimSpace(v.InstallationID)
 	v.ZaptecUsername = strings.TrimSpace(v.ZaptecUsername)
+	v.EaseeUsername = strings.TrimSpace(v.EaseeUsername)
 	if v.Provider == "" {
 		v.Provider = "zaptec"
 	}
 	switch v.Provider {
-	case "zaptec", "simulator":
+	case "zaptec", "easee", "simulator":
 	default:
-		return invalid(SectionEV, "provider", "must be zaptec or simulator")
+		return invalid(SectionEV, "provider", "must be zaptec, easee or simulator")
 	}
 	if len(v.ChargerID) > 120 || len(v.InstallationID) > 120 {
 		return invalid(SectionEV, "charger_id", "must be at most 120 characters")
+	}
+	if len(v.EaseeUsername) > 200 || len(v.EaseePassword) > 500 {
+		return invalid(SectionEV, "easee_username", "credentials are too long")
 	}
 	if len(v.ZaptecUsername) > 200 || len(v.ZaptecPassword) > 500 {
 		return invalid(SectionEV, "zaptec_credentials", "credentials are too long")
