@@ -111,6 +111,10 @@
     "usernameHint": "3–64 tecken: bokstäver, siffror, punkt, bindestreck eller understreck.",
     "firstRun": "Första starten",
     "adminSection": "Administratör",
+    "inverterSection": "Växelriktare",
+    "inverterHint": "Valfritt — du kan också ange detta senare i Inställningar. Lämna värden tomma för att hoppa över.",
+    "inverterPortHintHuawei": "Huawei-donglar lyssnar på 502, eller 6607 på viss firmware; den andra porten provas automatiskt.",
+    "inverterPortHintSaj": "SAJ svarar på port 502, enhets-id 1.",
     "siteSection": "Anläggning"
   },
   "forecast": {

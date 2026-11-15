@@ -30,8 +30,24 @@ const siteName = ref('Home')
 const timezone = ref(detected && detected !== 'UTC' ? detected : 'Europe/Stockholm')
 const latitude = ref(59.3293)
 const longitude = ref(18.0686)
+// Inverter connection: the Modbus port belongs in first-run setup, because a
+// wrong port is the most common reason a new installation reads nothing.
+const inverterType = ref('solplanet_ai_dongle')
+const inverterHost = ref('')
+const inverterPort = ref(8484)
+const inverterUnit = ref(0)
 const busy = ref(false)
 const error = ref('')
+
+// The two families listen on very different ports; move to the new default when
+// the type changes and the port is still on the old one.
+function onInverterTypeChange(): void {
+  if (inverterType.value === 'solplanet_ai_dongle') {
+    if (inverterPort.value === 502 || inverterPort.value === 6607) inverterPort.value = 8484
+    return
+  }
+  if (inverterPort.value === 8484) inverterPort.value = 502
+}
 
 async function submit(): Promise<void> {
   busy.value = true
@@ -46,6 +62,17 @@ async function submit(): Promise<void> {
         latitude: Number(latitude.value),
         longitude: Number(longitude.value),
       },
+      ...(inverterHost.value.trim()
+        ? {
+            inverter: {
+              type: inverterType.value,
+              host: inverterHost.value.trim(),
+              port: Number(inverterPort.value),
+              unit_id: Number(inverterUnit.value) || 0,
+              scheme: inverterType.value === 'solplanet_ai_dongle' ? 'http' : 'http',
+            },
+          }
+        : {}),
     })
     await router.replace('/')
   } catch (err) {
@@ -147,6 +174,62 @@ async function submit(): Promise<void> {
                 required
               />
             </div>
+          </div>
+
+          <h2 class="section-title">{{ t('auth.inverterSection') }}</h2>
+          <p class="text-muted small">{{ t('auth.inverterHint') }}</p>
+          <div class="row g-3">
+            <div class="col-12 col-sm-5">
+              <label class="form-label" for="setup-inverter-type">{{ t('settings.inverterType') }}</label>
+              <select
+                id="setup-inverter-type"
+                v-model="inverterType"
+                class="form-select"
+                @change="onInverterTypeChange"
+              >
+                <option value="solplanet_ai_dongle">{{ t('settings.inverterTypeSolplanet') }}</option>
+                <option value="saj">{{ t('settings.inverterTypeSaj') }}</option>
+                <option value="huawei">{{ t('settings.inverterTypeHuawei') }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-sm-4">
+              <label class="form-label" for="setup-inverter-host">{{ t('settings.host') }}</label>
+              <input
+                id="setup-inverter-host"
+                v-model="inverterHost"
+                class="form-control mono"
+                type="text"
+                placeholder="192.0.2.10"
+              />
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label" for="setup-inverter-port">{{ t('settings.port') }}</label>
+              <input
+                id="setup-inverter-port"
+                v-model.number="inverterPort"
+                class="form-control"
+                type="number"
+                min="1"
+                max="65535"
+              />
+            </div>
+            <div v-if="inverterType !== 'solplanet_ai_dongle'" class="col-6 col-sm-3">
+              <label class="form-label" for="setup-inverter-unit">{{ t('settings.unitId') }}</label>
+              <input
+                id="setup-inverter-unit"
+                v-model.number="inverterUnit"
+                class="form-control"
+                type="number"
+                min="0"
+                max="255"
+              />
+            </div>
+            <p v-if="inverterType === 'huawei'" class="small text-muted mb-0">
+              {{ t('auth.inverterPortHintHuawei') }}
+            </p>
+            <p v-else-if="inverterType === 'saj'" class="small text-muted mb-0">
+              {{ t('auth.inverterPortHintSaj') }}
+            </p>
           </div>
 
           <div v-if="error" class="alert alert-danger py-2 small mt-3" role="alert">{{ error }}</div>

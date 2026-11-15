@@ -111,6 +111,10 @@
     "usernameHint": "3–64 letters, digits, dot, dash or underscore.",
     "firstRun": "First run",
     "adminSection": "Administrator",
+    "inverterSection": "Inverter",
+    "inverterHint": "Optional — you can also set this later in Settings. Leave the host empty to skip it for now.",
+    "inverterPortHintHuawei": "Huawei dongles listen on 502, or 6607 on some firmware; the other port is tried automatically.",
+    "inverterPortHintSaj": "SAJ answers on port 502, unit id 1.",
     "siteSection": "Site"
   },
   "forecast": {

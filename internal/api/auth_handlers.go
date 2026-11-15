@@ -21,6 +21,9 @@ type setupRequest struct {
 	Username string          `json:"username"`
 	Password string          `json:"password"`
 	Site     json.RawMessage `json:"site,omitempty"`
+	// Inverter configures the inverter during first run, so a Modbus port or
+	// dongle address is not something to discover later in Settings.
+	Inverter json.RawMessage `json:"inverter,omitempty"`
 }
 
 type userResponse struct {
@@ -45,6 +48,20 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "validation_failed",
 			fmt.Sprintf("Password must be at least %d characters.", auth.MinPasswordLength), nil)
 		return
+	}
+	if len(req.Inverter) > 0 {
+		if _, err := s.settings.Patch(r.Context(), settings.SectionInverter, req.Inverter); err != nil {
+			var verr *settings.ValidationError
+			if errors.As(err, &verr) {
+				writeError(w, http.StatusUnprocessableEntity, "validation_failed", verr.Message, map[string]any{
+					"section": verr.Section,
+					"field":   verr.Field,
+				})
+				return
+			}
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+			return
+		}
 	}
 	if len(req.Site) > 0 {
 		if _, err := s.settings.Patch(r.Context(), settings.SectionSite, req.Site); err != nil {

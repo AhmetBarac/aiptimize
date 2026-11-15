@@ -29,6 +29,10 @@ var ErrScheduleUnsupported = errors.New(
 type Config struct {
 	// Address is the Modbus TCP endpoint, for example 192.168.0.50:502.
 	Address string
+	// FallbackAddress is tried when Address cannot be reached. Huawei dongles
+	// listen on 502 or 6607 depending on firmware and plant configuration, so
+	// the adapter switches over once and remembers which one answered.
+	FallbackAddress string
 	// UnitID is the station address; 0 is the default, 100 the SDongle fast path.
 	UnitID byte
 	// Timeout bounds one request.
@@ -51,6 +55,9 @@ type Client struct {
 	regs     registers
 	now      func() time.Time
 	signs    inverter.Signs
+	cfg      Config
+	address  string
+	fallback string
 	strings  int
 	cachedID *inverter.Identity
 	cachedAt time.Time
@@ -73,9 +80,12 @@ func New(cfg Config) *Client {
 		signs.Battery = 1
 	}
 	return &Client{
-		regs:  modbus.New(modbus.Config{Address: cfg.Address, UnitID: cfg.UnitID, Timeout: cfg.Timeout}),
-		now:   now,
-		signs: signs,
+		regs:     modbus.New(modbus.Config{Address: cfg.Address, UnitID: cfg.UnitID, Timeout: cfg.Timeout}),
+		now:      now,
+		signs:    signs,
+		cfg:      cfg,
+		address:  cfg.Address,
+		fallback: cfg.FallbackAddress,
 	}
 }
 
@@ -89,10 +99,27 @@ func newWithRegisters(regs registers, now func() time.Time) *Client {
 // readSpan fetches registers and reindexes them from base.
 func (c *Client) readSpan(ctx context.Context, base, count uint16) ([]uint16, error) {
 	regs, err := c.regs.ReadHolding(ctx, base, count)
+	if err != nil && c.switchPort(err) {
+		if retry, retryErr := c.regs.ReadHolding(ctx, base, count); retryErr == nil {
+			return retry, nil
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("huawei: read 0x%04x: %w", base, err)
 	}
 	return regs, nil
+}
+
+// switchPort moves the connection to the other known Modbus port after an
+// unreachable error. It reports whether a retry makes sense.
+func (c *Client) switchPort(err error) bool {
+	if c.fallback == "" || !errors.Is(err, modbus.ErrUnreachable) {
+		return false
+	}
+	_ = c.regs.Close()
+	c.regs = modbus.New(modbus.Config{Address: c.fallback, UnitID: c.cfg.UnitID, Timeout: c.cfg.Timeout})
+	c.address, c.fallback = c.fallback, c.address
+	return true
 }
 
 // stringCount reads how many PV strings the model reports, cached afterwards.

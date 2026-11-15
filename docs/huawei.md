@@ -12,6 +12,76 @@ Everything below is what the library actually puts on the wire: register number
 first** for 32-bit values, all data in holding registers (FC03 read, FC06/FC16
 write). Addresses are given as Huawei register number and hex.
 
+## Using it in Aiptimize
+
+Settings → Inverter → type **Huawei SUN2000 (Modbus TCP)**.
+
+| Field | Value |
+|---|---|
+| Host | the SDongle's IP address; give it a DHCP reservation |
+| Port | **502**, or **6607** on some firmware and plant setups |
+| Unit id | **0** by default; **100** is the SDongle fast path; some plants answer on 1 |
+| Serial | optional — the adapter reads it from the inverter |
+| Sign overrides | use the grid override if import and export appear swapped (see below) |
+
+The adapter tries the configured port first and **falls back to the other one**
+of 502/6607 when the connection is refused, then keeps using whichever answered.
+A read failure caused by an unreachable port is retried once on the alternative
+instead of failing the poll.
+
+What Aiptimize does with the inverter:
+
+- **Reads** every telemetry interval: PV per string, DC input power, AC output,
+  meter power, SOC, battery charge/discharge power and the daily energy counters.
+- **Controls** through a *forcible charge or discharge*: the active plan slot is
+  written as `mode + power + duration`, and the command is re-sent every ten
+  minutes so it cannot lapse while the slot runs. If Aiptimize stops, the command
+  expires within an hour and the battery goes idle — a bounded, safe stop.
+- **Does not** write a time-of-use schedule yet, and never writes the telemetry
+  or battery-configuration ranges. See sections 4 and 5 for the registers that
+  would be involved if that changes.
+- Everything passes the two write gates (`AIPTIMIZE_ENABLE_WRITES=auto` plus the
+  UI arm switch).
+
+## Getting the inverter ready
+
+1. **Enable Modbus TCP for the dongle.** In the FusionSolar app: *Device →
+   Communication → SDongle → Modbus TCP*, and make sure the inverter firmware is
+   recent. Without this the port is closed and every poll fails.
+2. **Give the dongle a fixed address** in your router. The host name is not
+   resolved, only an IP literal works reliably.
+3. **Allow only one Modbus client.** The SDongle serves a single connection at a
+   time: close FusionSolar's own integrations, Home Assistant's Huawei
+   integration, or anything else that polls it, or Aiptimize's polls will
+   interleave and time out.
+4. **For writes, log in as installer.** Writes need installer-level access; the
+   default installer password is `00000a`. Without it the inverter answers with
+   exception code `0x80`, "permission denied".
+5. **Start read-only.** Leave the write gate on `auto` but keep the UI arm
+   switch off until the first readings match FusionSolar, then arm.
+
+## Ports and unit ids
+
+- **Port 502** is the Modbus standard and the usual default.
+- **Port 6607** appears on some firmware and plant configurations. If a poll
+  fails with "connection refused", try 6607 before assuming the address is wrong;
+  the adapter already does this for you.
+- **Unit 0** is the library default, **100** the SDongle fast path, and some
+  installations answer on **1**. The unit id goes in Settings; a wrong unit id
+  produces timeouts rather than a clear error.
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| Every poll times out | Modbus TCP not enabled, wrong IP, or another client is connected | Enable it for the dongle, fix the IP, stop the other client |
+| Connection refused on 502 | Firmware uses 6607 | Set 6607, or let the fallback find it |
+| Reads work, writes fail with `0x80` | Not logged in as installer | Log in with installer credentials in FusionSolar |
+| Grid power shows the wrong sign | CT orientation differs per site | Flip the grid sign override in Settings |
+| SOC reads as 0 | Invalid marker `0xFFFF` on that firmware | Check the battery is online in FusionSolar |
+| Values differ from FusionSolar by small amounts | FusionSolar smooths and time-averages | Compare the same instant, not an average |
+| First poll after start fails, later ones work | Dongle still opening the socket | Transient; the next tick recovers |
+
 ## 1. Transport and mechanics
 
 | Item | Value |

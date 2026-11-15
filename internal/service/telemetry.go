@@ -423,16 +423,22 @@ func (p *TelemetryPoller) buildReader(values settings.Values) (inverter.Reader, 
 	}
 	// Huawei inverters speak Modbus TCP through the SDongle.
 	if strings.EqualFold(strings.TrimSpace(inv.Type), "huawei") {
-		address := net.JoinHostPort(inv.Host, strconv.Itoa(inv.Port))
+		// Huawei dongles listen on 502 or 6607; offer the other one as fallback.
+		port := inv.Port
+		alternate := 6607
+		if port == 6607 {
+			alternate = 502
+		}
 		unit := byte(0)
 		if inv.UnitID > 0 && inv.UnitID < 256 {
 			unit = byte(inv.UnitID)
 		}
 		return huawei.New(huawei.Config{
-			Address: address,
-			UnitID:  unit,
-			Timeout: 5 * time.Second,
-			Signs:   signs(values),
+			Address:         net.JoinHostPort(inv.Host, strconv.Itoa(port)),
+			FallbackAddress: net.JoinHostPort(inv.Host, strconv.Itoa(alternate)),
+			UnitID:          unit,
+			Timeout:         5 * time.Second,
+			Signs:           signs(values),
 		}), nil
 	}
 	// SAJ inverters speak Modbus TCP rather than the Solplanet HTTP API.
