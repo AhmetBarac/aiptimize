@@ -104,3 +104,36 @@ func TestSimulatorStatusAndControl(t *testing.T) {
 		t.Fatalf("paused status = %+v", status)
 	}
 }
+
+func TestOptimizeKeepsRunningSlot(t *testing.T) {
+	// A recompute that happens a few minutes into a charging slot must keep that
+	// slot, clamped to now, instead of dropping it and stranding the controller.
+	slotStart := time.Date(2026, 11, 15, 9, 30, 0, 0, time.UTC)
+	now := slotStart.Add(7 * time.Minute)
+	slots := testSlots(slotStart, 8)
+
+	preview := Optimize(PlanInputs{
+		Now: now, Deadline: now.Add(4 * time.Hour), TargetKWh: 10,
+		PowerW: 11040, MinPowerW: 4140, GridAllowed: true, Strategy: "cheapest",
+		Slots: slots,
+	})
+
+	if len(preview.Windows) == 0 {
+		t.Fatal("running slot was dropped from the plan")
+	}
+	first := preview.Windows[0]
+	if first.Start.After(now) {
+		t.Fatalf("window starts at %s, after now %s", first.Start, now)
+	}
+	if !first.End.After(now) {
+		t.Fatalf("window ends at %s, before now %s", first.End, now)
+	}
+	if first.Start.Before(slotStart) {
+		t.Fatalf("window start %s precedes the slot", first.Start)
+	}
+	// The elapsed part of the slot is not counted as deliverable energy.
+	full := 11040.0 * 0.25 / 1000
+	if first.EnergyKWh >= full*float64(len(preview.Windows)) {
+		t.Fatalf("energy %v suggests the elapsed minutes were counted", first.EnergyKWh)
+	}
+}

@@ -529,6 +529,16 @@ func (s *EVService) DeletePlan(ctx context.Context, id int64) error {
 
 // ComputePlan builds a preview for a stored plan.
 func (s *EVService) ComputePlan(ctx context.Context, plan domain.EVPlan) (domain.EVPlanPreview, error) {
+	return s.computePlan(ctx, plan, true)
+}
+
+// PreviewPlan computes without saving, so asking for a preview never replaces
+// the plan the controller is following.
+func (s *EVService) PreviewPlan(ctx context.Context, plan domain.EVPlan) (domain.EVPlanPreview, error) {
+	return s.computePlan(ctx, plan, false)
+}
+
+func (s *EVService) computePlan(ctx context.Context, plan domain.EVPlan, publish bool) (domain.EVPlanPreview, error) {
 	status, err := s.Status(ctx)
 	if err != nil {
 		return domain.EVPlanPreview{}, err
@@ -555,7 +565,9 @@ func (s *EVService) ComputePlan(ctx context.Context, plan domain.EVPlan) (domain
 	}
 	slots := make([]ev.Slot, 0, len(priceSnap.Points))
 	for _, point := range priceSnap.Points {
-		if point.DeliveryStart.Before(now) || !point.DeliveryStart.Before(deadline) {
+		// Keep a slot that has already begun but not finished; the optimizer
+		// clamps it to now.
+		if !point.DeliveryEnd.After(now) || !point.DeliveryStart.Before(deadline) {
 			continue
 		}
 		surplus := pvByHalf[point.DeliveryStart.UTC().Truncate(30*time.Minute).Unix()]
@@ -584,6 +596,9 @@ func (s *EVService) ComputePlan(ctx context.Context, plan domain.EVPlan) (domain
 	if !cfg.GridChargeAllowed {
 		preview.Warnings = append(preview.Warnings, "Grid charging is disabled; the plan uses PV surplus only.")
 	}
+	if !publish {
+		return preview, nil
+	}
 	planID := plan.ID
 	if err := s.st.SaveEVPlanRun(ctx, &planID, preview); err != nil {
 		s.log.Warn("save EV plan run failed", "err", err)
@@ -592,11 +607,6 @@ func (s *EVService) ComputePlan(ctx context.Context, plan domain.EVPlan) (domain
 	s.latest = &preview
 	s.mu.Unlock()
 	return preview, nil
-}
-
-// PreviewPlan computes without saving.
-func (s *EVService) PreviewPlan(ctx context.Context, plan domain.EVPlan) (domain.EVPlanPreview, error) {
-	return s.ComputePlan(ctx, plan)
 }
 
 func (s *EVService) planDeadline(plan domain.EVPlan) (time.Time, error) {
@@ -833,7 +843,14 @@ func (s *EVService) tick(ctx context.Context) {
 		if status.Paused {
 			_ = s.charger.Resume(ctx)
 		}
-		if preview.Windows[0].Source == "pv" {
+		source := preview.Windows[0].Source
+		for _, window := range preview.Windows {
+			if !now.Before(window.Start) && now.Before(window.End) {
+				source = window.Source
+				break
+			}
+		}
+		if source == "pv" {
 			s.setCurrentLimited(ctx, cfg.EV.MinCurrentA)
 		} else {
 			s.setCurrentLimited(ctx, cfg.EV.MaxCurrentA)

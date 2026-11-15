@@ -91,12 +91,19 @@ func Optimize(in PlanInputs) domain.EVPlanPreview {
 
 	eligible := make([]Slot, 0, len(in.Slots))
 	for _, slot := range in.Slots {
-		if !slot.Start.Before(in.Now) && slot.Start.Before(in.Deadline) {
-			if !in.GridAllowed && slot.PVSurplusW < in.MinPowerW {
-				continue
-			}
-			eligible = append(eligible, slot)
+		if !slot.End.After(in.Now) || !slot.Start.Before(in.Deadline) {
+			continue
 		}
+		// A slot that is already running stays in the plan, clamped to now:
+		// dropping it on the next recompute would tell the controller that no
+		// window is active and stop a charge that has only just started.
+		if slot.Start.Before(in.Now) {
+			slot.Start = in.Now
+		}
+		if !in.GridAllowed && slot.PVSurplusW < in.MinPowerW {
+			continue
+		}
+		eligible = append(eligible, slot)
 	}
 	if len(eligible) == 0 {
 		preview.State = domain.EVStateUnreachable
@@ -222,7 +229,13 @@ func mergeWindows(slots []Slot, powerW float64, gridAllowed bool) []domain.EVWin
 		if !gridAllowed || slot.PVSurplusW >= powerW {
 			source = "pv"
 		}
-		energy := powerW * 0.25 / 1000
+		// Derive the energy from the slot's real span so a clamped in-progress
+		// slot only counts the time that is left in it.
+		hours := slot.End.Sub(slot.Start).Hours()
+		if hours <= 0 {
+			continue
+		}
+		energy := powerW * hours / 1000
 		cost := 0.0
 		if source == "grid" {
 			cost = energy * slot.ImportPrice
