@@ -31,6 +31,14 @@ const savingUser = ref(false)
 const userError = ref('')
 const userMessage = ref('')
 
+// Never show a raw translation key in the role column or the picker.
+function roleLabel(role: string): string {
+  const key = `settings.roles.${role}`
+  const text = t(key)
+  if (text !== key) return text
+  return role === 'admin' ? 'Administrator' : 'User'
+}
+
 async function loadUsers(): Promise<void> {
   try {
     users.value = (await api.get<{ users: ManagedUser[] }>('/users')).users
@@ -2090,7 +2098,7 @@ async function importSettings(event: Event): Promise<void> {
               <td>{{ item.username }}</td>
               <td>
                 <span class="badge-soft" :class="item.role === 'admin' ? 'badge-on' : ''">
-                  {{ t(`settings.roles.${item.role}`) }}
+                  {{ roleLabel(item.role) }}
                 </span>
               </td>
               <td class="text-end">
@@ -2131,10 +2139,28 @@ async function importSettings(event: Event): Promise<void> {
           </div>
           <div class="col-6 col-sm-2">
             <label class="form-label" for="user-role">{{ t('settings.userRole') }}</label>
-            <select id="user-role" v-model="userForm.role" class="form-select" required>
-              <option value="user">{{ t('settings.roles.user') }}</option>
-              <option value="admin">{{ t('settings.roles.admin') }}</option>
-            </select>
+            <div class="d-flex flex-column gap-1 pt-1">
+              <div class="form-check">
+                <input
+                  id="user-role-user"
+                  v-model="userForm.role"
+                  class="form-check-input"
+                  type="radio"
+                  value="user"
+                />
+                <label class="form-check-label" for="user-role-user">{{ roleLabel('user') }}</label>
+              </div>
+              <div class="form-check">
+                <input
+                  id="user-role-admin"
+                  v-model="userForm.role"
+                  class="form-check-input"
+                  type="radio"
+                  value="admin"
+                />
+                <label class="form-check-label" for="user-role-admin">{{ roleLabel('admin') }}</label>
+              </div>
+            </div>
           </div>
           <div class="col-6 col-sm-2">
             <button class="btn btn-primary w-100" type="submit" :disabled="savingUser">
