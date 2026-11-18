@@ -348,6 +348,17 @@ func (s *EVService) Status(ctx context.Context) (domain.ChargerStatus, error) {
 	}
 	status.Mode = s.cfg.Get().EV.Mode
 	s.rememberPower(status.PowerW)
+	// A charger that can report its eco state tells us straight away, rather
+	// than waiting for the next refused current change.
+	if reader, ok := s.charger.(ev.EcoModeReader); ok {
+		if active, ecoErr := reader.EcoMode(ctx); ecoErr == nil {
+			if active {
+				s.noteBlocked("eco_mode")
+			} else {
+				s.clearBlocked()
+			}
+		}
+	}
 	return status, nil
 }
 

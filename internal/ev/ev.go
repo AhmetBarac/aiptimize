@@ -27,6 +27,13 @@ type Capabilities struct {
 // retrying and to tell the user what to change.
 var ErrEcoMode = errors.New("charger is in eco mode")
 
+// EcoModeReader is implemented by chargers whose vendor cloud reports whether
+// the eco/surplus mode is active. Eco mode blocks remote current control, so the
+// EV service surfaces it before the next refused command.
+type EcoModeReader interface {
+	EcoMode(ctx context.Context) (bool, error)
+}
+
 // Charger is the adapter contract.
 type Charger interface {
 	ID() string

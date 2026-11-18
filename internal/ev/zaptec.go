@@ -35,6 +35,8 @@ type Zaptec struct {
 	expires     time.Time
 	lastCurrent time.Time
 	resolvedID  string
+	ecoActive   bool
+	ecoAt       time.Time
 }
 
 // NewZaptec builds the adapter.
@@ -287,6 +289,37 @@ func (z *Zaptec) request(ctx context.Context, method, path string, payload any, 
 		}
 	}
 	return nil
+}
+
+// EcoMode reports whether the installation runs in Zaptec's surplus (eco) mode,
+// which refuses every remote current change. The answer is cached briefly: the
+// status poll runs often and the installation rarely changes.
+func (z *Zaptec) EcoMode(ctx context.Context) (bool, error) {
+	if z.cfg.InstallationID == "" {
+		return false, nil
+	}
+	z.mu.Lock()
+	if !z.ecoAt.IsZero() && z.cfg.Now().Sub(z.ecoAt) < time.Minute {
+		active := z.ecoActive
+		z.mu.Unlock()
+		return active, nil
+	}
+	z.mu.Unlock()
+
+	var out struct {
+		SurplusMode struct {
+			Active bool `json:"Active"`
+		} `json:"SurplusMode"`
+	}
+	path := "/api/installation/" + url.PathEscape(z.cfg.InstallationID)
+	if err := z.request(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return false, err
+	}
+	z.mu.Lock()
+	z.ecoActive = out.SurplusMode.Active
+	z.ecoAt = z.cfg.Now()
+	z.mu.Unlock()
+	return out.SurplusMode.Active, nil
 }
 
 // Status implements Charger.
