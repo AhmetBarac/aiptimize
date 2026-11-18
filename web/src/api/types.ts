@@ -453,6 +453,8 @@ export interface EVConfig {
 export interface ChargerPayload {
   id: string
   type: string
+  /** Why remote control is refused, e.g. "eco_mode". */
+  control_blocked?: string
   capabilities: ChargerCapabilities
   status: ChargerStatus
   config: EVSettings

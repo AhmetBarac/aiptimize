@@ -491,6 +491,7 @@
     "tooShort": "The new password must be at least 8 characters."
   },
   "car": {
+    "ecoModeBlocked": "The charger is in eco mode, which blocks remote current control, so Aiptimize cannot start or stop a charge. Turn eco mode off for this charger in the Zaptec app.",
     "title": "Car",
     "subtitle": "Zaptec charging",
     "state": "State",

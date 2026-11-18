@@ -205,6 +205,18 @@ func (z *Zaptec) accessToken(ctx context.Context) (string, error) {
 	return token.AccessToken, nil
 }
 
+// zaptecCode extracts the business-rule code from an error body, or 0 when the
+// body is not the usual Code/Details object.
+func zaptecCode(raw []byte) int {
+	var problem struct {
+		Code int `json:"Code"`
+	}
+	if err := json.Unmarshal(raw, &problem); err != nil {
+		return 0
+	}
+	return problem.Code
+}
+
 // zaptecFailure turns an error response into something actionable. Zaptec
 // reports business-rule rejections as HTTP 500 with a Code/Details body, e.g.
 // {Code:527, Details:"Cannot update installation when using eco mode"}.
@@ -261,7 +273,13 @@ func (z *Zaptec) request(ctx context.Context, method, path string, payload any, 
 		return fmt.Errorf("zaptec %s: unauthorized", path)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("zaptec %s: %s", path, zaptecFailure(resp.StatusCode, raw))
+		err := fmt.Errorf("zaptec %s: %s", path, zaptecFailure(resp.StatusCode, raw))
+		if zaptecCode(raw) == 527 {
+			// Eco mode blocks every current change; callers back off instead of
+			// retrying on the next tick.
+			err = fmt.Errorf("%w: %s", ErrEcoMode, err)
+		}
+		return err
 	}
 	if out != nil {
 		if err := json.Unmarshal(raw, out); err != nil {

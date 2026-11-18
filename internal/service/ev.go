@@ -55,6 +55,10 @@ type EVService struct {
 	provider        string
 	restartRequired bool
 	reconfiguring   bool
+
+	// blockedReason explains why remote control is refused, e.g. eco mode.
+	blockedReason string
+	blockedAt     time.Time
 }
 
 // NewEVService builds the EV service. The simulator is used when configured;
@@ -396,8 +400,12 @@ func (s *EVService) SetCurrent(ctx context.Context, amps float64) (domain.Charge
 		return domain.ChargerStatus{}, fmt.Errorf("current must be between %.0f and %.0f A", cfg.MinCurrentA, cfg.MaxCurrentA)
 	}
 	if err := s.charger.SetCurrent(ctx, amps); err != nil {
+		if errors.Is(err, ev.ErrEcoMode) {
+			s.noteBlocked("eco_mode")
+		}
 		return domain.ChargerStatus{}, err
 	}
+	s.clearBlocked()
 	s.mu.Lock()
 	s.lastSet = s.now()
 	s.mu.Unlock()
@@ -870,6 +878,28 @@ func (s *EVService) tick(ctx context.Context) {
 	}
 }
 
+// ControlBlocked reports why charger control is refused, and since when. An
+// empty reason means control is available.
+func (s *EVService) ControlBlocked() (string, time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.blockedReason, s.blockedAt
+}
+
+func (s *EVService) noteBlocked(reason string) {
+	s.mu.Lock()
+	s.blockedReason = reason
+	s.blockedAt = s.now()
+	s.mu.Unlock()
+}
+
+func (s *EVService) clearBlocked() {
+	s.mu.Lock()
+	s.blockedReason = ""
+	s.blockedAt = time.Time{}
+	s.mu.Unlock()
+}
+
 func (s *EVService) setCurrentLimited(ctx context.Context, amps float64) {
 	s.mu.Lock()
 	if !s.lastSet.IsZero() && s.now().Sub(s.lastSet) < 15*time.Minute {
@@ -879,6 +909,13 @@ func (s *EVService) setCurrentLimited(ctx context.Context, amps float64) {
 	s.lastSet = s.now()
 	s.mu.Unlock()
 	if err := s.charger.SetCurrent(ctx, amps); err != nil {
+		if errors.Is(err, ev.ErrEcoMode) {
+			s.noteBlocked("eco_mode")
+			s.log.Warn("EV current change blocked by eco mode", "err", err)
+			return
+		}
 		s.log.Warn("EV current change failed", "err", err)
+		return
 	}
+	s.clearBlocked()
 }

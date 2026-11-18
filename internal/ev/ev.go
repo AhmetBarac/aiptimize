@@ -3,6 +3,7 @@ package ev
 
 import (
 	"context"
+	"errors"
 	"math"
 	"sort"
 	"time"
@@ -20,6 +21,11 @@ type Capabilities struct {
 	SupportsPhases bool          `json:"supports_phases"`
 	ControlLatency time.Duration `json:"control_latency"`
 }
+
+// ErrEcoMode marks a refusal caused by the charger running in eco mode, where
+// the vendor cloud blocks remote current control. Callers can use it to stop
+// retrying and to tell the user what to change.
+var ErrEcoMode = errors.New("charger is in eco mode")
 
 // Charger is the adapter contract.
 type Charger interface {

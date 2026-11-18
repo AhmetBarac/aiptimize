@@ -111,6 +111,7 @@ func (s *Server) evControlArmed(w http.ResponseWriter) bool {
 }
 
 func (s *Server) evPayload(ctx context.Context) (map[string]any, error) {
+	blockedReason, _ := s.ev.ControlBlocked()
 	status, err := s.ev.Status(ctx)
 	if err != nil {
 		return nil, err
@@ -121,7 +122,8 @@ func (s *Server) evPayload(ctx context.Context) (map[string]any, error) {
 	return map[string]any{
 		"id": s.ev.ID(), "type": s.ev.Charger().Type(),
 		"capabilities": s.ev.Charger().Capabilities(), "status": status,
-		"config": config, "preview": preview,
+		"control_blocked": blockedReason,
+		"config":          config, "preview": preview,
 	}, nil
 }
 

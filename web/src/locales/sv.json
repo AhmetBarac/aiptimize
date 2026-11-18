@@ -492,6 +492,7 @@
     "tooShort": "Det nya lösenordet måste vara minst 8 tecken."
   },
   "car": {
+    "ecoModeBlocked": "Laddaren kör i ekoläge, vilket blockerar fjärrstyrning av strömmen, så Aiptimize kan inte starta eller stoppa laddningen. Stäng av ekoläget för laddaren i Zaptec-appen.",
     "title": "Bil",
     "subtitle": "Zaptec-laddning",
     "state": "Status",

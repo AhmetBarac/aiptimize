@@ -290,6 +290,13 @@ onBeforeUnmount(() => {
   </PageHead>
 
   <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+  <div
+    v-if="charger?.control_blocked === 'eco_mode'"
+    class="alert alert-warning py-2 small"
+    role="status"
+  >
+    {{ t('car.ecoModeBlocked') }}
+  </div>
   <div v-if="evRestartRequired" class="alert alert-warning py-2 small" role="status">
     {{ t('car.restartRequired') }}
   </div>
