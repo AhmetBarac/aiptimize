@@ -883,6 +883,15 @@ func (s *EVService) tick(ctx context.Context) {
 func (s *EVService) ControlBlocked() (string, time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.blockedReason == "" {
+		return "", time.Time{}
+	}
+	// A block is evidence from the last refusal, not a permanent state: if no
+	// new refusal arrives within this window, stop reporting it.
+	const blockedTTL = 15 * time.Minute
+	if s.now().Sub(s.blockedAt) > blockedTTL {
+		return "", s.blockedAt
+	}
 	return s.blockedReason, s.blockedAt
 }
 
@@ -911,6 +920,11 @@ func (s *EVService) setCurrentLimited(ctx context.Context, amps float64) {
 	if err := s.charger.SetCurrent(ctx, amps); err != nil {
 		if errors.Is(err, ev.ErrEcoMode) {
 			s.noteBlocked("eco_mode")
+			// Do not wait the full cadence: eco mode may be switched off at any
+			// time, so retry in about five minutes instead of fifteen.
+			s.mu.Lock()
+			s.lastSet = s.now().Add(-10 * time.Minute)
+			s.mu.Unlock()
 			s.log.Warn("EV current change blocked by eco mode", "err", err)
 			return
 		}

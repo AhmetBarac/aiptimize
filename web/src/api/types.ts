@@ -375,6 +375,8 @@ export interface EVPlan {
 }
 
 export interface ChargerStatus {
+  /** Why remote control is refused, e.g. "eco_mode"; carried by the status poll. */
+  control_blocked?: string
   id: string
   type: string
   online: boolean

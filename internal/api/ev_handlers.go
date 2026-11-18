@@ -164,7 +164,13 @@ func (s *Server) handleChargerStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "ev_status_failed", err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, status)
+	// Carry the control-blocked reason on the polled status too, otherwise the
+	// banner never clears without a full page reload.
+	blocked, _ := s.ev.ControlBlocked()
+	writeJSON(w, http.StatusOK, struct {
+		domain.ChargerStatus
+		ControlBlocked string `json:"control_blocked,omitempty"`
+	}{ChargerStatus: status, ControlBlocked: blocked})
 }
 
 func (s *Server) handleChargerConfig(w http.ResponseWriter, r *http.Request) {

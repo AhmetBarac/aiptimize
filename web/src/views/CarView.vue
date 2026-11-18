@@ -97,7 +97,11 @@ async function load(): Promise<void> {
 async function refreshStatus(): Promise<void> {
   if (!charger.value) return
   try {
-    charger.value.status = await api.get<ChargerStatus>(`/chargers/${charger.value.id}/status`)
+    const next = await api.get<ChargerStatus>(`/chargers/${charger.value.id}/status`)
+    charger.value.status = next
+    // The status poll carries the control block, so the banner clears as soon
+    // as the charger accepts current again.
+    charger.value.control_blocked = next.control_blocked
   } catch {
     // keep the last status
   }
