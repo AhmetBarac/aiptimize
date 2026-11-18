@@ -8,20 +8,16 @@ import (
 	"time"
 )
 
-// The installation payload reports the surplus (eco) mode as SurplusMode.Active;
-// reading it lets the UI warn before a command is refused.
-func TestZaptecEcoModeReadsSurplusMode(t *testing.T) {
-	active := true
+// The answer is cached briefly so a double click on Retry does not call the
+// vendor twice, while a page opened a few seconds later sees the new state.
+func TestZaptecEcoModeCache(t *testing.T) {
+	features := 8
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/oauth/token":
 			w.Write([]byte(`{"access_token":"token","expires_in":3600}`))
 		case "/api/installation/inst-1":
-			if active {
-				w.Write([]byte(`{"SurplusMode":{"Active":true}}`))
-				return
-			}
-			w.Write([]byte(`{"SurplusMode":{"Active":false}}`))
+			w.Write([]byte(`{"EnabledFeatures":` + itoa(features) + `}`))
 		default:
 			w.Write([]byte(`{}`))
 		}
@@ -39,29 +35,26 @@ func TestZaptecEcoModeReadsSurplusMode(t *testing.T) {
 	})
 
 	on, err := adapter.EcoMode(context.Background())
-	if err != nil {
-		t.Fatalf("eco mode: %v", err)
-	}
-	if !on {
-		t.Fatal("eco mode reported off while SurplusMode.Active is true")
+	if err != nil || !on {
+		t.Fatalf("first read = %v, %v; want true", on, err)
 	}
 
-	// Cached for a minute, so flipping the remote state is not visible at once.
-	active = false
-	stillOn, _ := adapter.EcoMode(context.Background())
-	if !stillOn {
-		t.Fatal("cache should hold the previous answer within a minute")
+	// Eco mode switched off, but the cache still holds the old answer.
+	features = 4
+	cached, _ := adapter.EcoMode(context.Background())
+	if !cached {
+		t.Fatal("cache should hold the previous answer within its window")
 	}
 
-	// After the cache expires the new state is read.
+	// Once the window passes, the new state is read.
 	adapter.mu.Lock()
-	adapter.ecoAt = time.Now().Add(-2 * time.Minute)
+	adapter.ecoAt = time.Now().Add(-time.Minute)
 	adapter.mu.Unlock()
 	off, err := adapter.EcoMode(context.Background())
 	if err != nil {
 		t.Fatalf("second read: %v", err)
 	}
 	if off {
-		t.Fatal("eco mode still reported on after SurplusMode.Active became false")
+		t.Fatal("eco mode still reported on after the feature bit cleared")
 	}
 }

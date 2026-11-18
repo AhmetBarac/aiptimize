@@ -291,8 +291,13 @@ func (z *Zaptec) request(ctx context.Context, method, path string, payload any, 
 	return nil
 }
 
-// EcoMode reports whether the installation runs in Zaptec's surplus (eco) mode,
-// which refuses every remote current change.
+// Zaptec exposes installation features as a bitfield. Eco mode is the bit that
+// refuses every remote current change; SurplusMode is a different (solar
+// surplus) feature and must not be confused with it.
+const featurePowerManagementEcoMode = 8
+
+// EcoMode reports whether the installation runs in Zaptec's eco mode, which
+// refuses every remote current change.
 func (z *Zaptec) EcoMode(ctx context.Context) (bool, error) {
 	if z.cfg.InstallationID == "" {
 		return false, nil
@@ -308,19 +313,18 @@ func (z *Zaptec) EcoMode(ctx context.Context) (bool, error) {
 	z.mu.Unlock()
 
 	var out struct {
-		SurplusMode struct {
-			Active bool `json:"Active"`
-		} `json:"SurplusMode"`
+		EnabledFeatures int `json:"EnabledFeatures"`
 	}
 	path := "/api/installation/" + url.PathEscape(z.cfg.InstallationID)
 	if err := z.request(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return false, err
 	}
+	active := out.EnabledFeatures&featurePowerManagementEcoMode != 0
 	z.mu.Lock()
-	z.ecoActive = out.SurplusMode.Active
+	z.ecoActive = active
 	z.ecoAt = z.cfg.Now()
 	z.mu.Unlock()
-	return out.SurplusMode.Active, nil
+	return active, nil
 }
 
 // Status implements Charger.
