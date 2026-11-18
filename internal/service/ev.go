@@ -350,15 +350,6 @@ func (s *EVService) Status(ctx context.Context) (domain.ChargerStatus, error) {
 	s.rememberPower(status.PowerW)
 	// A charger that can report its eco state tells us straight away, rather
 	// than waiting for the next refused current change.
-	if reader, ok := s.charger.(ev.EcoModeReader); ok {
-		if active, ecoErr := reader.EcoMode(ctx); ecoErr == nil {
-			if active {
-				s.noteBlocked("eco_mode")
-			} else {
-				s.clearBlocked()
-			}
-		}
-	}
 	return status, nil
 }
 
@@ -887,6 +878,25 @@ func (s *EVService) tick(ctx context.Context) {
 			s.setCurrentLimited(ctx, cfg.EV.MaxCurrentA)
 		}
 	}
+}
+
+// RefreshControlState asks the charger whether control is currently blocked
+// (for example by eco mode). It costs a vendor API call, so it runs when the EV
+// page is opened or refreshed rather than on every status poll.
+func (s *EVService) RefreshControlState(ctx context.Context) {
+	reader, ok := s.charger.(ev.EcoModeReader)
+	if !ok {
+		return
+	}
+	active, err := reader.EcoMode(ctx)
+	if err != nil {
+		return
+	}
+	if active {
+		s.noteBlocked("eco_mode")
+		return
+	}
+	s.clearBlocked()
 }
 
 // ControlBlocked reports why charger control is refused, and since when. An

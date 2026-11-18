@@ -292,14 +292,15 @@ func (z *Zaptec) request(ctx context.Context, method, path string, payload any, 
 }
 
 // EcoMode reports whether the installation runs in Zaptec's surplus (eco) mode,
-// which refuses every remote current change. The answer is cached briefly: the
-// status poll runs often and the installation rarely changes.
+// which refuses every remote current change.
 func (z *Zaptec) EcoMode(ctx context.Context) (bool, error) {
 	if z.cfg.InstallationID == "" {
 		return false, nil
 	}
 	z.mu.Lock()
-	if !z.ecoAt.IsZero() && z.cfg.Now().Sub(z.ecoAt) < time.Minute {
+	// Short cache: the call happens on page enter or retry, so this only guards
+	// against a double click, not against periodic polling.
+	if !z.ecoAt.IsZero() && z.cfg.Now().Sub(z.ecoAt) < 10*time.Second {
 		active := z.ecoActive
 		z.mu.Unlock()
 		return active, nil

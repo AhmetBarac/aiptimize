@@ -111,11 +111,14 @@ func (s *Server) evControlArmed(w http.ResponseWriter) bool {
 }
 
 func (s *Server) evPayload(ctx context.Context) (map[string]any, error) {
-	blockedReason, _ := s.ev.ControlBlocked()
 	status, err := s.ev.Status(ctx)
 	if err != nil {
 		return nil, err
 	}
+	// The EV page and its Retry button both come through here, which is the right
+	// moment to ask the vendor whether control is blocked. Status polls do not.
+	s.ev.RefreshControlState(ctx)
+	blockedReason, _ := s.ev.ControlBlocked()
 	preview, _ := s.ev.LatestPreview()
 	config := s.ev.Config()
 	config.ZaptecPassword = ""

@@ -75,6 +75,8 @@ async function load(): Promise<void> {
     evConfig.value = await api.get<EVConfig>('/ev/config').catch(() => null)
     const list = await api.get<{ chargers: ChargerPayload[] }>('/chargers')
     charger.value = list.chargers[0] ?? null
+    // The payload's control_blocked can be a moment old; the caller re-polls the
+    // status right after this returns.
     if (charger.value) {
       currentA.value = Math.round(charger.value.status.current_a || charger.value.config.min_current_a)
       const plan = await api.get<ChargerPlanPayload>(`/chargers/${charger.value.id}/plan`)
@@ -92,6 +94,13 @@ async function load(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+// Retry reloads the page data and re-polls the status, so the control banner
+// reflects the charger now rather than when the page was opened.
+async function retry(): Promise<void> {
+  await load()
+  await refreshStatus()
 }
 
 async function refreshStatus(): Promise<void> {
@@ -277,6 +286,9 @@ async function deletePlan(plan: EVPlan): Promise<void> {
 
 onMounted(() => {
   void load()
+  // Refresh straight after the first load too: entering the page should show the
+  // current control state, not whatever the payload was cached with.
+  void refreshStatus()
   timer = setInterval(() => void refreshStatus(), 15_000)
 })
 
@@ -287,7 +299,7 @@ onBeforeUnmount(() => {
 
 <template>
   <PageHead :title="t('car.title')" :subtitle="t('car.subtitle')">
-    <button class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="load">
+    <button class="btn btn-sm btn-outline-secondary" type="button" :disabled="busy" @click="retry">
       <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       <span class="ms-1">{{ t('common.retry') }}</span>
     </button>
