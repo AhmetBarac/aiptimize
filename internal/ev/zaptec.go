@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,9 @@ type Zaptec struct {
 	resolvedID  string
 	ecoActive   bool
 	ecoAt       time.Time
+
+	chargerLimit   float64
+	chargerLimitAt time.Time
 }
 
 // NewZaptec builds the adapter.
@@ -418,6 +422,22 @@ func (z *Zaptec) SetCurrent(ctx context.Context, amps float64) error {
 	if z.cfg.InstallationID == "" {
 		return fmt.Errorf("zaptec installation id is missing")
 	}
+	id, err := z.chargerID(ctx)
+	if err != nil {
+		return err
+	}
+	// The charger's own maxChargeCurrent caps whatever the installation offers.
+	// When it sits below the target, the car never sees more than that limit.
+	if limit, known, err := z.chargerCurrentLimit(ctx, id); err == nil && known && amps > limit {
+		if err := z.request(ctx, http.MethodPost, "/api/chargers/"+id+"/update",
+			map[string]any{"maxChargeCurrent": amps}, nil); err != nil {
+			return fmt.Errorf("zaptec charger current cap: %w", err)
+		}
+		z.mu.Lock()
+		z.chargerLimit = amps
+		z.chargerLimitAt = z.cfg.Now()
+		z.mu.Unlock()
+	}
 	if err := z.request(ctx, http.MethodPost, "/api/installation/"+z.cfg.InstallationID+"/update",
 		map[string]any{"AvailableCurrent": amps}, nil); err != nil {
 		return err
@@ -426,6 +446,39 @@ func (z *Zaptec) SetCurrent(ctx context.Context, amps float64) error {
 	z.lastCurrent = z.cfg.Now()
 	z.mu.Unlock()
 	return nil
+}
+
+// chargerCurrentLimit reads the charger setting CurrentInMaximum (510), which is
+// what the charger actually offers the car. Zaptec's docs recommend driving the
+// installation current, but an explicit charger override wins over it.
+func (z *Zaptec) chargerCurrentLimit(ctx context.Context, id string) (float64, bool, error) {
+	z.mu.Lock()
+	if !z.chargerLimitAt.IsZero() && z.cfg.Now().Sub(z.chargerLimitAt) < 5*time.Minute {
+		limit := z.chargerLimit
+		z.mu.Unlock()
+		return limit, limit > 0, nil
+	}
+	z.mu.Unlock()
+
+	var settings map[string]struct {
+		Value string `json:"Value"`
+	}
+	if err := z.request(ctx, http.MethodGet, "/api/chargers/"+id+"/settings", nil, &settings); err != nil {
+		return 0, false, err
+	}
+	entry, ok := settings["510"]
+	if !ok || entry.Value == "" {
+		return 0, false, nil
+	}
+	limit, err := strconv.ParseFloat(entry.Value, 64)
+	if err != nil {
+		return 0, false, nil
+	}
+	z.mu.Lock()
+	z.chargerLimit = limit
+	z.chargerLimitAt = z.cfg.Now()
+	z.mu.Unlock()
+	return limit, true, nil
 }
 
 // Pause implements Charger.
